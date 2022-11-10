@@ -18,3 +18,13 @@ provider "aws" {
     }
   }
 }
+
+module "networking-layer" {
+  source = "../../../modules/networking"
+  cidr_block = "10.0.0.0/24"
+}
+
+module "automation-calculator-infra" {
+  source = "../../../modules/main-rails-app"
+  environment_name = "dev"
+}
