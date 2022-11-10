@@ -26,7 +26,7 @@ module "networking_layer" {
 }
 
 module "automation_calculator_infra" {
-  source           = "../../../modules/main-rails-app"
+  source           = "../../../modules/main_rails_app"
   environment_name = "dev"
   eks_subnet_ids   = module.networking_layer.eks_subnet_ids
 }
