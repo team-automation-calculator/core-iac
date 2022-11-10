@@ -14,8 +14,8 @@ resource "aws_subnet" "main_1a" {
   availability_zone = "us-west-1a"
 }
 
-resource "aws_subnet" "main_1c" {
+resource "aws_subnet" "main_1b" {
   vpc_id = aws_vpc.primary.id
   cidr_block = var.environment_name
-  availability_zone = "us-west-1c"
+  availability_zone = "us-west-1b"
 }

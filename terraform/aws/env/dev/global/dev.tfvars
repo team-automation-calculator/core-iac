@@ -1,2 +1,2 @@
 environment_name = "development"
-project_tag = "automation-calculator"
+project_tag      = "automation-calculator"
