@@ -19,13 +19,14 @@ provider "aws" {
   }
 }
 
-module "networking-layer" {
+module "networking_layer" {
   source     = "../../../modules/networking"
   cidr_block = "10.0.0.0/24"
   environment_name = "dev"
 }
 
-module "automation-calculator-infra" {
+module "automation_calculator_infra" {
   source           = "../../../modules/main-rails-app"
   environment_name = "dev"
+  eks_subnet_ids = []
 }
