@@ -22,6 +22,7 @@ provider "aws" {
 module "networking-layer" {
   source     = "../../../modules/networking"
   cidr_block = "10.0.0.0/24"
+  environment_name = "dev"
 }
 
 module "automation-calculator-infra" {
