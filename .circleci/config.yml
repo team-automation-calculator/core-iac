@@ -13,8 +13,10 @@ workflows:
       - terraform/fmt:
           checkout: true
           context: terraform
+          workspace-path: terraform
       - terraform/validate:
           checkout: true
           context: terraform
           requires:
             - terraform/fmt
+          workspace-path: terraform
