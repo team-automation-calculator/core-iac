@@ -13,18 +13,18 @@ provider "aws" {
   region = "us-west-1"
   default_tags {
     tags = {
-      Project = "automation-calculator",
+      Project     = "automation-calculator",
       Environment = "dev"
     }
   }
 }
 
 module "networking-layer" {
-  source = "../../../modules/networking"
+  source     = "../../../modules/networking"
   cidr_block = "10.0.0.0/24"
 }
 
 module "automation-calculator-infra" {
-  source = "../../../modules/main-rails-app"
+  source           = "../../../modules/main-rails-app"
   environment_name = "dev"
 }
