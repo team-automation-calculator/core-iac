@@ -1,8 +1,9 @@
 # Declare vars
-variable "cidr_block" {
+variable "environment_name" {
   type = string
 }
 
-variable "environment_name" {
+variable "availability_zone" {
   type = string
+  default = "us-west-1"
 }
