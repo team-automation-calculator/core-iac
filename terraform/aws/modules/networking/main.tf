@@ -8,24 +8,23 @@ locals {
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.primary.id
+}
 
-  tags = {
-    Project     = "automation-calculator",
-    Environment = var.environment_name
-    SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
-  }
+resource "aws_eip" "eip_for_nat" {
+  vpc        = true
+  depends_on = [aws_internet_gateway.igw]
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.eip_for_nat.id
+  subnet_id     = aws_subnet.public_1a.id
+  depends_on    = [aws_internet_gateway.igw]
 }
 
 resource "aws_vpc" "primary" {
   cidr_block = local.env_vpc_cidr_blocks[var.environment_name]
 
   enable_dns_hostnames = true
-
-  tags = {
-    Project     = "automation-calculator",
-    Environment = "dev",
-    SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
-  }
 }
 
 resource "aws_subnet" "public_1a" {
