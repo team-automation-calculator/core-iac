@@ -13,10 +13,31 @@ jobs:
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/env/dev/global
+          path: ./terraform/aws/env/dev/us-west-1
       - terraform/validate:
-          path: ./terraform/aws/env/dev/global
+          path: ./terraform/aws/env/dev/us-west-1
+
+  validate_main_rails_app_module:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/aws/modules/main_rails_app
+      - terraform/validate:
+          path: ./terraform/aws/modules/main_rails_app
+
+  validate_networking_module:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/aws/modules/networking
+      - terraform/validate:
+          path: ./terraform/aws/modules/networking
+
 workflows:
   validate:
     jobs:
       - validate_dev_env
+      - validate_main_rails_app_module
+      - validate_networking_module

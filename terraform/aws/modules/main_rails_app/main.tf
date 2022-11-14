@@ -20,11 +20,11 @@ POLICY
 
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role = aws_iam_role.eks_iam_role.name
+  role       = aws_iam_role.eks_iam_role.name
 }
 
 resource "aws_eks_cluster" "eks_cluster" {
-  name = "automation_calculator_eks_cluster_${var.environment_name}"
+  name     = "automation_calculator_eks_cluster_${var.environment_name}"
   role_arn = aws_iam_role.eks_iam_role.arn
 
   vpc_config {

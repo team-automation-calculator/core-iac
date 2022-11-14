@@ -13,8 +13,9 @@ provider "aws" {
   region = "us-west-1"
   default_tags {
     tags = {
+      Environment = "dev",
       Project     = "automation-calculator",
-      Environment = "dev"
+      SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
     }
   }
 }

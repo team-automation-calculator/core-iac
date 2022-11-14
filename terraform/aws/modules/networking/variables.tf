@@ -4,6 +4,6 @@ variable "environment_name" {
 }
 
 variable "availability_zone" {
-  type = string
+  type    = string
   default = "us-west-1"
 }
