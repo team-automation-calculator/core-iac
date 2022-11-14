@@ -1,8 +1,8 @@
 locals {
   env_vpc_cidr_blocks = {
     "production" = cidrsubnet("10.0.0.0/14", 2, 0)
-    "staging"    = cidrsubnet("10.0.0.0/14", 2, 1)
-    "dev"        = cidrsubnet("10.0.0.0/14", 2, 2)
+    "staging"    = cidrsubnet("10.0.1.0/14", 2, 1)
+    "dev"        = cidrsubnet("10.0.2.0/14", 2, 2)
   }
 }
 
