@@ -17,7 +17,7 @@ resource "aws_eip" "eip_for_nat" {
 
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.eip_for_nat.id
-  subnet_id     = aws_subnet.public_1a.id
+  subnet_id     = aws_subnet.public_1.id
   depends_on    = [aws_internet_gateway.igw]
 }
 
@@ -27,26 +27,26 @@ resource "aws_vpc" "primary" {
   enable_dns_hostnames = true
 }
 
-resource "aws_subnet" "public_1a" {
+resource "aws_subnet" "public_1" {
   vpc_id            = aws_vpc.primary.id
   cidr_block        = cidrsubnet(aws_vpc.primary.cidr_block, 2, 0)
-  availability_zone = "${var.availability_zone}a"
+  availability_zone = var.availability_zones[0]
 }
 
-resource "aws_subnet" "public_1b" {
+resource "aws_subnet" "public_2" {
   vpc_id            = aws_vpc.primary.id
   cidr_block        = cidrsubnet(aws_vpc.primary.cidr_block, 2, 1)
-  availability_zone = "${var.availability_zone}b"
+  availability_zone = var.availability_zones[1]
 }
 
-resource "aws_subnet" "private_1a" {
+resource "aws_subnet" "private_1" {
   vpc_id            = aws_vpc.primary.id
   cidr_block        = cidrsubnet(aws_vpc.primary.cidr_block, 2, 2)
-  availability_zone = "${var.availability_zone}a"
+  availability_zone = var.availability_zones[0]
 }
 
-resource "aws_subnet" "private_1b" {
+resource "aws_subnet" "private_2" {
   vpc_id            = aws_vpc.primary.id
   cidr_block        = cidrsubnet(aws_vpc.primary.cidr_block, 2, 3)
-  availability_zone = "${var.availability_zone}b"
+  availability_zone = var.availability_zones[1]
 }

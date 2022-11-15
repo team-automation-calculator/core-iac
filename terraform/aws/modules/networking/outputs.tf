@@ -1,6 +1,6 @@
 output "eks_subnet_ids" {
   description = "The subnet ids in the VPC given to EKS"
-  value       = [aws_subnet.public_1a.id, aws_subnet.public_1b.id]
+  value       = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 }
 
 output "vpc" {
