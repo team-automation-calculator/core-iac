@@ -4,6 +4,6 @@ variable "environment_name" {
 }
 
 variable "availability_zones" {
-  type    = list
+  type    = list(string)
   default = ["us-west-1a", "us-west-1c"]
 }
