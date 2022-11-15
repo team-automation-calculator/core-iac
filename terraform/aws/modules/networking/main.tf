@@ -30,7 +30,7 @@ resource "aws_vpc" "primary" {
 resource "aws_subnet" "public_1" {
   vpc_id            = aws_vpc.primary.id
   cidr_block        = cidrsubnet(aws_vpc.primary.cidr_block, 2, 0)
-  availability_zone = var.availability_zones[0]}
+  availability_zone = var.availability_zones[0]
 }
 
 resource "aws_subnet" "public_2" {
