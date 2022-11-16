@@ -37,3 +37,22 @@ resource "aws_eks_cluster" "eks_cluster" {
     aws_iam_role_policy_attachment.eks_cluster_policy
   ]
 }
+
+resource "aws_db_instance" "automation_calculator_app" {
+  allocated_storage           = 10
+  apply_immediately           = true
+  allow_major_version_upgrade = true
+  auto_minor_version_upgrade  = true
+  db_name                     = "automation_calculator_app"
+  engine                      = "postgresql"
+  instance_class              = var.database_instance_class
+  max_allocated_storage       = 64
+  password                    = random_password.database_master_user_password.result
+  skip_final_snapshot         = true
+  username                    = "automation_calculator_devops"
+}
+
+resource "random_password" "database_master_user_password" {
+  length  = 24
+  special = true
+}
