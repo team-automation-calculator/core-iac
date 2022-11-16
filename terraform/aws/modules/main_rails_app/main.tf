@@ -44,7 +44,7 @@ resource "aws_db_instance" "automation_calculator_app" {
   allow_major_version_upgrade = true
   auto_minor_version_upgrade  = true
   db_name                     = "automation_calculator_app"
-  engine                      = "postgresql"
+  engine                      = "postgres"
   instance_class              = var.database_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result
