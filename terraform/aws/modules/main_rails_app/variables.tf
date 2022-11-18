@@ -11,6 +11,18 @@ variable "environment_name" {
   type        = string
 }
 
+variable "eks_node_group_instance_types" {
+  default     = "t3.micro"
+  description = "The AWS EC2 instance types to use to create worker nodes with"
+  type        = list(string)
+}
+
+variable "eks_node_group_max_unavailable" {
+  default     = 1
+  description = "The maximum number of eks worker group nodes unavailable at a given time due to scaling events."
+  type        = number
+}
+
 variable "eks_node_group_scaling_config" {
   default = {
     desired_size = 1
@@ -23,12 +35,6 @@ variable "eks_node_group_scaling_config" {
     max_size     = number
     min_size     = number
   })
-}
-
-variable "eks_node_group_max_unavailable" {
-  default     = 1
-  description = "The maximum number of eks worker group nodes unavailable at a given time due to scaling events."
-  type        = number
 }
 
 variable "eks_subnet_ids" {

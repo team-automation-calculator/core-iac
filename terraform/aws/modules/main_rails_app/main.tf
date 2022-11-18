@@ -70,6 +70,7 @@ resource "aws_iam_role_policy_attachment" "app_eks_node_group_container_registry
 
 resource "aws_eks_node_group" "app_eks_node_group" {
   cluster_name    = aws_eks_cluster.app_eks_cluster.name
+  instance_types  = var.eks_node_group_instance_types
   node_group_name = "automation_calculator_node_group"
   node_role_arn   = aws_iam_role.eks_worker_node_iam_role.arn
   subnet_ids      = var.eks_subnet_ids
