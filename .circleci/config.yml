@@ -47,7 +47,7 @@ jobs:
 workflows:
   validate:
     jobs:
+      - lint_helm_chart
       - validate_dev_env
       - validate_main_rails_app_module
       - validate_networking_module
-      - lint_helm_chart
