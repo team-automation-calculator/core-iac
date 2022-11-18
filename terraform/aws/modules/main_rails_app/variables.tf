@@ -37,6 +37,11 @@ variable "eks_node_group_scaling_config" {
   })
 }
 
+variable "eks_service_ipv4_cidr" {
+  description = "The ipv4 cidr block to assign k8s resources ips from."
+  type        = string
+}
+
 variable "eks_subnet_ids" {
   description = "Must be a list of length 2 of aws vpc subnet ids to give the eks cluster."
   type        = list(any)

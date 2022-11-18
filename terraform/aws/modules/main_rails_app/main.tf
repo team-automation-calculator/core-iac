@@ -27,6 +27,11 @@ resource "aws_eks_cluster" "app_eks_cluster" {
   name     = "automation_calculator_eks_cluster_${var.environment_name}"
   role_arn = aws_iam_role.eks_iam_role.arn
 
+  kubernetes_network_config {
+    service_ipv4_cidr = var.eks_service_ipv4_cidr
+  }
+
+
   vpc_config {
     subnet_ids = var.eks_subnet_ids
   }

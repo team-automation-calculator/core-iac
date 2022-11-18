@@ -1,6 +1,11 @@
-output "eks_subnet_ids" {
-  description = "The subnet ids in the VPC given to EKS"
+output "public_eks_subnet_ids" {
+  description = "The public subnet ids in the VPC"
   value       = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+}
+
+output "private_eks_subnet_ids" {
+  description = "The private subnet ids in the VPC"
+  value       = [aws_subnet.private_1.id, aws_subnet.private_2.id]
 }
 
 output "vpc" {
