@@ -42,7 +42,7 @@ jobs:
     steps:
       - checkout
       - helm/install-helm-client:
-          version: 'v3.8.2'
+          version: 'v3.10.2'
 
 workflows:
   validate:
