@@ -37,7 +37,7 @@ jobs:
           path: ./terraform/aws/modules/networking
 
   lint_helm_chart:
-    executor: terraform/default
+    executor: aws-eks/python
     steps:
       - checkout
       - helm/install-helm-client:
