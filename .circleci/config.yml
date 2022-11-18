@@ -9,6 +9,15 @@ orbs:
   helm: circleci/helm@2.0.1
 
 jobs:
+  lint_helm_chart:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - helm/install-helm-client:
+          version: 'v3.10.2'
+      - run: helm lint "helm/automation-calculator"
+
   validate_dev_env:
     executor: terraform/default
     steps:
@@ -35,15 +44,6 @@ jobs:
           path: ./terraform/aws/modules/networking
       - terraform/validate:
           path: ./terraform/aws/modules/networking
-
-  lint_helm_chart:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - helm/install-helm-client:
-          version: 'v3.10.2'
-      - run: helm lint "helm/automation-calculator"
 
 workflows:
   validate:
