@@ -37,7 +37,8 @@ jobs:
           path: ./terraform/aws/modules/networking
 
   lint_helm_chart:
-    executor: aws-eks/python
+    docker:
+      - image: cimg/base:stable
     steps:
       - checkout
       - helm/install-helm-client:
