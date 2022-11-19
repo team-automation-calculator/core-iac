@@ -27,7 +27,7 @@ module "networking_layer" {
 
 module "automation_calculator_app_infra" {
   eks_service_ipv4_cidr = "10.100.0.0/16"
-  eks_subnet_ids        = [module.networking_layer.public_eks_subnet_ids[0], module.networking_layer.private_eks_subnet_ids[0]]
+  eks_subnet_ids        = [module.networking_layer.public_eks_subnet_ids[0], module.networking_layer.private_eks_subnet_ids[1]]
   environment_name      = "dev"
   source                = "../../../modules/main_rails_app"
 }
