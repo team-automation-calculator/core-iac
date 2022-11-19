@@ -1,43 +1,20 @@
-# Create IAM role for EKS
-resource "aws_iam_role" "eks_iam_role" {
-  name = "automation_calculator_eks_iam_role_${var.environment_name}"
+module "app_eks_cluster" {
+  cluster_version           = var.cluster_version
+  cluster_name              = "ac_app_${var.environment_name}"
+  cluster_service_ipv4_cidr = var.service_ipv4_cidr
 
-  assume_role_policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "eks.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-POLICY
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks_iam_role.name
-}
-
-resource "aws_eks_cluster" "app_eks_cluster" {
-  name     = "automation_calculator_eks_cluster_${var.environment_name}"
-  role_arn = aws_iam_role.eks_iam_role.arn
-
-  kubernetes_network_config {
-    service_ipv4_cidr = var.eks_service_ipv4_cidr
+  eks_managed_node_group_defaults = {
+    disk_size      = 20
+    instance_types = var.node_group_instance_types
   }
 
-  vpc_config {
-    subnet_ids = var.eks_subnet_ids
+  eks_managed_node_groups = {
+    primary = var.node_group_scaling_config
   }
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
-  # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy
-  ]
+  manage_aws_auth_configmap = true
+  source                    = "terraform-aws-modules/eks/aws"
+  subnet_ids                = var.subnet_ids
+  version                   = "~> 18.0"
+  vpc_id                    = var.vpc_id
 }
