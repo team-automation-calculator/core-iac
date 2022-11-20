@@ -1,6 +1,6 @@
 module "app_eks_cluster" {
-  cluster_version           = var.cluster_version
-  cluster_name              = "ac_app_${var.environment_name}"
+  cluster_version = var.cluster_version
+  cluster_name    = "ac_app_${var.environment_name}"
 
   eks_managed_node_group_defaults = {
     disk_size      = 20
