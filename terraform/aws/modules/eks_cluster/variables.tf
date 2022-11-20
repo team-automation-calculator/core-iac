@@ -30,11 +30,6 @@ variable "node_group_scaling_config" {
   })
 }
 
-variable "service_ipv4_cidr" {
-  description = "The ipv4 cidr block to assign k8s resources ips from."
-  type        = string
-}
-
 variable "subnet_ids" {
   description = "A list of subnet IDs in the provided VPC for the cluster to use"
   type        = list(string)

@@ -1,7 +1,6 @@
 module "app_eks_cluster" {
   cluster_version           = var.cluster_version
   cluster_name              = "ac_app_${var.environment_name}"
-  cluster_service_ipv4_cidr = var.service_ipv4_cidr
 
   eks_managed_node_group_defaults = {
     disk_size      = 20
