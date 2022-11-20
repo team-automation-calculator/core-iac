@@ -21,6 +21,12 @@ resource "aws_nat_gateway" "nat" {
   depends_on    = [aws_internet_gateway.igw]
 }
 
+# Adding outbound communication via igw
+resource "aws_route_table_association" "b" {
+  gateway_id     = aws_internet_gateway.igw.id
+  route_table_id = aws_vpc.primary.main_route_table_id
+}
+
 resource "aws_vpc" "primary" {
   cidr_block = local.env_vpc_cidr_blocks[var.environment_name]
 
