@@ -22,7 +22,7 @@ resource "aws_nat_gateway" "nat" {
 }
 
 # Adding outbound communication via igw
-resource "aws_route_table_association" "b" {
+resource "aws_route_table_association" "vpc_to_igw" {
   gateway_id     = aws_internet_gateway.igw.id
   route_table_id = aws_vpc.primary.main_route_table_id
 }
