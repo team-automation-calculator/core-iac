@@ -31,7 +31,7 @@ resource "aws_route" "outbound_to_internet_route" {
 resource "aws_route" "outbound_to_internet_via_nat_route" {
   route_table_id         = aws_vpc.primary.main_route_table_id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_nat_gateway.gateway_id
+  nat_gateway_id         = aws_nat_gateway.gateway_id
 }
 
 resource "aws_vpc" "primary" {
