@@ -28,7 +28,7 @@ module "automation_calculator_app_infra" {
 module "eks_cluster" {
   environment_name = var.environment_name
   source           = "../../../modules/eks_cluster"
-  subnet_ids       = module.networking_layer.public_eks_subnet_ids
+  subnet_ids       = module.networking_layer.private_eks_subnet_ids
   vpc_id           = module.networking_layer.vpc.id
 }
 
