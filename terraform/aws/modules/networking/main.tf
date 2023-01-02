@@ -45,6 +45,7 @@ resource "aws_subnet" "public_1" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 0)
   map_public_ip_on_launch = true
   vpc_id                  = aws_vpc.primary.id
+  name                    = "public_1"
 }
 
 resource "aws_subnet" "public_2" {
@@ -52,6 +53,7 @@ resource "aws_subnet" "public_2" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 1)
   map_public_ip_on_launch = true
   vpc_id                  = aws_vpc.primary.id
+  name                    = "public_2"
 }
 
 resource "aws_subnet" "private_1" {
@@ -59,6 +61,7 @@ resource "aws_subnet" "private_1" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 2)
   map_public_ip_on_launch = false
   availability_zone       = var.availability_zones[0]
+  name                    = "private_1"
 }
 
 resource "aws_subnet" "private_2" {
@@ -66,4 +69,5 @@ resource "aws_subnet" "private_2" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 3)
   map_public_ip_on_launch = false
   availability_zone       = var.availability_zones[1]
+  name                    = "private_2"
 }
