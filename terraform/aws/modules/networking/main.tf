@@ -28,12 +28,6 @@ resource "aws_route" "outbound_to_internet_route" {
   gateway_id             = aws_internet_gateway.igw.id
 }
 
-resource "aws_route" "outbound_to_internet_via_nat_route" {
-  route_table_id         = aws_vpc.primary.main_route_table_id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat.id
-}
-
 resource "aws_vpc" "primary" {
   cidr_block = local.env_vpc_cidr_blocks[var.environment_name]
 
@@ -60,6 +54,20 @@ resource "aws_subnet" "public_2" {
   vpc_id = aws_vpc.primary.id
 }
 
+resource "aws_route_table" "private_subnets_route_table" {
+  vpc_id = aws_vpc.primary.id
+  tags = {
+    Name = "private_subnets_route_table"
+  }
+}
+
+resource "aws_route" "outbound_to_internet_via_nat_route" {
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat.id
+  route_table_id         = aws_route_table.private_subnets_route_table.id
+}
+
+
 resource "aws_subnet" "private_1" {
   availability_zone       = var.availability_zones[0]
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 2)
@@ -70,6 +78,11 @@ resource "aws_subnet" "private_1" {
   vpc_id = aws_vpc.primary.id
 }
 
+resource "aws_route_table_association" "private_1" {
+  subnet_id      = aws_subnet.private_1.id
+  route_table_id = aws_route_table.private_subnets_route_table.id
+}
+
 resource "aws_subnet" "private_2" {
   availability_zone       = var.availability_zones[1]
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 3)
@@ -78,4 +91,9 @@ resource "aws_subnet" "private_2" {
     Name = "private_2"
   }
   vpc_id = aws_vpc.primary.id
+}
+
+resource "aws_route_table_association" "private_2" {
+  subnet_id      = aws_subnet.private_2.id
+  route_table_id = aws_route_table.private_subnets_route_table.id
 }
