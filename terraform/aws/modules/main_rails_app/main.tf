@@ -20,14 +20,3 @@ resource "random_password" "database_master_user_password" {
 resource "aws_route53_zone" "ac_app_domain" {
   name = var.app_domain_name
 }
-
-resource "aws_route53_record" "app" {
-  name    = aws_route53_zone.ac_app_domain.name
-  type    = "A"
-  zone_id = aws_route53_zone.ac_app_domain.zone_id
-  alias {
-    evaluate_target_health = false
-    name                   = "automation-calculations.io"
-    zone_id                = aws_route53_zone.ac_app_domain.zone_id
-  }
-}
