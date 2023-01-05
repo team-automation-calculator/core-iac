@@ -2,10 +2,10 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 2
+replicaCount: 1
 
 image:
-  repository: automationcalculator
+  repository: automationcalculationsci/automation-calculator
   pullPolicy: Always
   tag: "latest"
 
@@ -29,11 +29,18 @@ ingress:
 resources:
   limits:
     cpu: 4
-    memory: 768Mi
+    memory: 300Mi
   requests:
     cpu: 1
-    memory: 512Mi
+    memory: 128Mi
 
 tolerations: []
 
 affinity: {}
+
+secrets:
+  secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
+  databaseUsername: YOUR_DATABASE_USERNAME_HERE
+  databasePassword: YOUR_DATABASE_PASSWORD_HERE
+
+namespace: "automation-calculator"
