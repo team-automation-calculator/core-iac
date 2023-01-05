@@ -37,3 +37,10 @@ resources:
 tolerations: []
 
 affinity: {}
+
+secrets:
+  secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
+  databaseUsername: YOUR_DATABASE_USERNAME_HERE
+  databasePassword: YOUR_DATABASE_PASSWORD_HERE
+
+namespace: "automation-calculator"
