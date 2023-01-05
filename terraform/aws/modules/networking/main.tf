@@ -66,7 +66,6 @@ resource "aws_route" "outbound_to_internet_via_nat_route" {
   route_table_id         = aws_route_table.private_subnets_route_table.id
 }
 
-
 resource "aws_subnet" "private_1" {
   availability_zone       = var.availability_zones[0]
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 2)

@@ -5,6 +5,31 @@ resource "helm_release" "automation-calculator" {
   chart            = var.automation_calculator_helm_release_local_path
   create_namespace = true
   version          = "0.1.0"
+
+  set {
+    name  = "railsEnv"
+    value = "production"
+  }
+
+  set {
+    name  = "logToStdout"
+    value = "true"
+  }
+
+  set_sensitive {
+    name  = "secrets.secretKeyBase"
+    value = random_password.rails_app_secret_key_base.result
+  }
+
+  set_sensitive {
+    name  = "secrets.databaseUrl"
+    value = <<EOF
+    "postgres://${aws_db_instance.automation_calculator_app.username}:
+    ${random_password.database_master_user_password.result}@
+    ${aws_db_instance.automation_calculator_app.endpoint}/
+    ${aws_db_instance.automation_calculator_app.db_name}"
+    EOF
+  }
 }
 
 resource "aws_db_instance" "automation_calculator_app" {
@@ -24,6 +49,12 @@ resource "aws_db_instance" "automation_calculator_app" {
 resource "random_password" "database_master_user_password" {
   length  = 24
   special = true
+}
+
+resource "random_password" "rails_app_secret_key_base" {
+  length  = 128
+  special = false
+  upper   = false
 }
 
 resource "aws_route53_zone" "ac_app_domain" {
