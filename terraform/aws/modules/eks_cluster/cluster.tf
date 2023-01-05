@@ -26,15 +26,8 @@ resource "helm_release" "alb-ingress-controller" {
   repository = "https://aws.github.io/eks-charts"
 
   set {
-    name  = "serviceaccount.create"
-    value = "true"
+    name  = "clusterName"
+    value = module.app_eks_cluster.cluster_name
   }
-
-  set {
-    name  = "serviceaccount.name"
-    value = "alb-ingress-controller"
-  }
-
-  version = "1.4.6"
 }
 
