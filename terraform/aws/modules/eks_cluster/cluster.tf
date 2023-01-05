@@ -29,5 +29,7 @@ resource "helm_release" "alb-ingress-controller" {
     name  = "clusterName"
     value = module.app_eks_cluster.cluster_name
   }
+
+  version = "1.4.6"
 }
 
