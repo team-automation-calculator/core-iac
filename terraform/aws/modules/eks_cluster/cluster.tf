@@ -20,8 +20,8 @@ module "app_eks_cluster" {
 
 resource "helm_release" "alb-ingress-controller" {
   atomic     = true
-  chart      = "alb-ingress-controller"
-  name       = "alb-ingress-controller"
+  chart      = "aws-load-balancer-controller"
+  name       = "aws-load-balancer-controller"
   namespace  = "kube-system"
   repository = "https://aws.github.io/eks-charts"
 
