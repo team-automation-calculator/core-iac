@@ -1,16 +1,10 @@
 resource "helm_release" "automation-calculator" {
-  name    = "automation-calcualtor"
-  chart   = var.automation_calculator_helm_release_local_path
-  version = "0.1.0"
-
-  values = [<<EOF
-    image:
-      pullPolicy: "Always"
-      repository: "automationcalculationsci/automation-calculator"
-      tag: "latest"
-    }
-    EOF
-  ]
+  atomic           = true
+  name             = "automation-calcualtor"
+  namespace        = "automation-calculator"
+  chart            = var.automation_calculator_helm_release_local_path
+  create_namespace = true
+  version          = "0.1.0"
 }
 
 resource "aws_db_instance" "automation_calculator_app" {
