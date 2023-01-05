@@ -1,8 +1,10 @@
 resource "helm_release" "automation-calculator" {
-  atomic  = true
-  name    = "automation-calcualtor"
-  chart   = var.automation_calculator_helm_release_local_path
-  version = "0.1.0"
+  atomic           = true
+  name             = "automation-calcualtor"
+  namespace        = "automation-calculator"
+  chart            = var.automation_calculator_helm_release_local_path
+  create_namespace = true
+  version          = "0.1.0"
 }
 
 resource "aws_db_instance" "automation_calculator_app" {
