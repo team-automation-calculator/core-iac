@@ -55,6 +55,6 @@ module "eks_cluster" {
 }
 
 module "networking_layer" {
-  environment_name = "dev"
+  environment_name = var.environment_name
   source           = "../../../modules/networking"
 }

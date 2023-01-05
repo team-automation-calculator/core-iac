@@ -17,3 +17,24 @@ module "app_eks_cluster" {
   version                   = "~> 18.0"
   vpc_id                    = var.vpc_id
 }
+
+resource "helm_release" "alb-ingress-controller" {
+  atomic     = true
+  chart      = "alb-ingress-controller"
+  name       = "alb-ingress-controller"
+  namespace  = "kube-system"
+  repository = "https://helm.sh/stable"
+
+  set {
+    name  = "serviceaccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceaccount.name"
+    value = "alb-ingress-controller"
+  }
+
+  version = "1.4.6"
+}
+
