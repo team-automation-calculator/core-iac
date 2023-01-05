@@ -1,7 +1,6 @@
 resource "helm_release" "automation-calculator" {
   name       = "automation-calcualtor"
-  repository = "file://../../../../helm/automation-calculator/"
-  chart      = "automation-calculator"
+  chart      = "../../../../helm/automation-calculator/"
   version    = "0.1.0"
 
   values = [<<EOF
