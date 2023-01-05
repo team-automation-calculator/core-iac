@@ -5,6 +5,12 @@ variable "app_domain_name" {
   type        = string
 }
 
+variable "automation_calculator_helm_release_local_path" {
+  default     = "helm-charts/automation-calculator"
+  description = "The local path to the helm chart for the automation-calculator app."
+  type        = string
+}
+
 variable "database_instance_class" {
   default     = "db.t4g.micro"
   description = "Amazon RDS instance type/class for the app database in this env."
