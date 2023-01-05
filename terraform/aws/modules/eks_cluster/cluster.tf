@@ -23,7 +23,7 @@ resource "helm_release" "alb-ingress-controller" {
   chart      = "alb-ingress-controller"
   name       = "alb-ingress-controller"
   namespace  = "kube-system"
-  repository = "https://helm.sh/stable"
+  repository = "https://aws.github.io/eks-charts"
 
   set {
     name  = "serviceaccount.create"
