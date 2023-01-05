@@ -2,7 +2,7 @@ locals {
   env_vpc_cidr_blocks = {
     "production" = cidrsubnet("10.0.0.0/14", 2, 0)
     "staging"    = cidrsubnet("10.0.1.0/14", 2, 1)
-    "dev"        = cidrsubnet("10.0.2.0/14", 2, 2)
+    "development"        = cidrsubnet("10.0.2.0/14", 2, 2)
   }
 }
 
@@ -30,7 +30,6 @@ resource "aws_route" "outbound_to_internet_route" {
 
 resource "aws_vpc" "primary" {
   cidr_block = local.env_vpc_cidr_blocks[var.environment_name]
-
   enable_dns_hostnames = true
 }
 
