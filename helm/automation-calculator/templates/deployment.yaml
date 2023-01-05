@@ -4,6 +4,7 @@ metadata:
   name: {{ include "automation-calculator.fullname" . }}
   labels:
     {{- include "automation-calculator.labels" . | nindent 4 }}
+  namespace: 
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -20,6 +21,28 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+          - name: RAILS_ENV
+            value: {{ .Values.railsEnv }}
+          - name: RAILS_LOG_TO_STDOUT
+            value: "{{ .Values.logToStdout }}"
+          - name: DATABASE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: databaseUsername
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: databasePassword
+          - name: SECRET_KEY_BASE
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: secretKeyBase
+          - name: DATABASE_URL
+            value: "postgres://user:password@localhost/my_database"
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -48,3 +71,4 @@ spec:
     tolerations:
       {{- toYaml . | nindent 8 }}
     {{- end }}
+    

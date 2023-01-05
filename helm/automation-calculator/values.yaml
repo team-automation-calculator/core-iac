@@ -38,9 +38,14 @@ tolerations: []
 
 affinity: {}
 
-secrets:
-  secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
+secrets:  
   databaseUsername: YOUR_DATABASE_USERNAME_HERE
   databasePassword: YOUR_DATABASE_PASSWORD_HERE
+  kubernetesSecretObjectName: automation-calculator-app-secrets
+  secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
 
 namespace: "automation-calculator"
+
+railsEnv: "production"
+
+logToStdout: true
