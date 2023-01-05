@@ -6,14 +6,29 @@ resource "helm_release" "automation-calculator" {
   create_namespace = true
   version          = "0.1.0"
 
-  set_sensitive {
-    name  = "secrets.secretKeyBase"
-    value = random_password.database_master_user_password.result    
+  set {
+    name  = "railsEnv"
+    value = "production"
+  }
+
+  set {
+    name  = "logToStdout"
+    value = "true"
   }
 
   set_sensitive {
-    name  = "secrets.databasePassword"
+    name  = "secrets.secretKeyBase"
     value = random_password.database_master_user_password.result
+  }
+
+  set_sensitive {
+    name  = "secrets.databaseUrl"
+    value = <<EOF
+    "postgres://${aws_db_instance.automation_calculator_app.username}:
+    ${random_password.database_master_user_password}@
+    ${aws_db_instance.automation_calculator_app.endpoint}/
+    ${aws_db_instance.automation_calculator_app.db_name}"
+    EOF
   }
 }
 
