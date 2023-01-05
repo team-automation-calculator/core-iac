@@ -1,6 +1,6 @@
 resource "helm_release" "automation-calculator" {
   name    = "automation-calcualtor"
-  chart   = "../../../../helm/automation-calculator/"
+  chart   = "../../../../helm/automation-calculator"
   version = "0.1.0"
 
   values = [<<EOF
