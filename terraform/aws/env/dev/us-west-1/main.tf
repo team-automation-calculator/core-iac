@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 4.38.0"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.4.0"
+    }
   }
 }
 
@@ -17,6 +21,23 @@ provider "aws" {
       Project     = var.project_tag,
       SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
     }
+  }
+}
+
+data "aws_eks_cluster" "target_cluster" {
+  name = module.eks_cluster.eks_cluster_name
+}
+
+data "aws_eks_cluster_auth" "target_cluster_auth" {
+  name = module.eks_cluster.eks_cluster_name
+}
+
+# Configure the helm provider with the EKS cluster auth variables
+provider "helm" {
+  kubernetes {
+    host                   = data.aws_eks_cluster.target_cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
+    token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
   }
 }
 
