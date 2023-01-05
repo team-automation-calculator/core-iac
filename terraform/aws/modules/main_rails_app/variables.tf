@@ -10,3 +10,9 @@ variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
   type        = string
 }
+
+variable "app_domain_name" {
+  default     = "automation-calculations.io"
+  description = "The domain name for the app."
+  type        = string
+}

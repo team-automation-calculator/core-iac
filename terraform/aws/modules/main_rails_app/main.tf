@@ -16,3 +16,7 @@ resource "random_password" "database_master_user_password" {
   length  = 24
   special = true
 }
+
+resource "aws_route53_zone" "ac_app_domain" {
+  name = var.environment_name == "production" ? var.app_domain_name : "${var.environment_name}.${var.app_domain_name}"
+}
