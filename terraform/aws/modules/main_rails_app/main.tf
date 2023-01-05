@@ -1,3 +1,19 @@
+resource "helm_release" "automation-calculator" {
+  name       = "automation-calcualtor"
+  repository = "file://../../../../helm/automation-calculator/"
+  chart      = "automation-calculator"
+  version    = "0.1.0"
+
+  values = [<<EOF
+    image:
+      pullPolicy: "Always"
+      repository: "automationcalculationsci/automation-calculator"
+      tag: "latest"
+    }
+    EOF
+  ]
+}
+
 resource "aws_db_instance" "automation_calculator_app" {
   allocated_storage           = 10
   apply_immediately           = true
