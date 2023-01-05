@@ -5,6 +5,16 @@ resource "helm_release" "automation-calculator" {
   chart            = var.automation_calculator_helm_release_local_path
   create_namespace = true
   version          = "0.1.0"
+
+  set_sensitive {
+    name  = "secrets.secretKeyBase"
+    value = random_password.database_master_user_password.result    
+  }
+
+  set_sensitive {
+    name  = "secrets.databasePassword"
+    value = random_password.database_master_user_password.result
+  }
 }
 
 resource "aws_db_instance" "automation_calculator_app" {
