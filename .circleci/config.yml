@@ -16,7 +16,7 @@ jobs:
       - checkout
       - helm/install-helm-client:
           version: 'v3.10.2'
-      - run: helm lint "helm/automation-calculator"
+      - run: helm lint "helm/automation-calculator" --strict
 
   validate_dev_env:
     executor: terraform/default
