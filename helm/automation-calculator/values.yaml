@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: automationcalculators/automation-calculator-production
+  repository: automationcalculationsci/automation-calculator
   pullPolicy: Always
   tag: "latest"
 
