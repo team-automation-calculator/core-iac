@@ -18,7 +18,7 @@ resource "helm_release" "automation-calculator" {
 
   set_sensitive {
     name  = "secrets.secretKeyBase"
-    value = random_password.database_master_user_password.result
+    value = random_password.rails_app_secret_key_base.result
   }
 
   set_sensitive {
@@ -49,6 +49,12 @@ resource "aws_db_instance" "automation_calculator_app" {
 resource "random_password" "database_master_user_password" {
   length  = 24
   special = true
+}
+
+resource "random_password" "rails_app_secret_key_base" {
+  length  = 128
+  special = false
+  upper   = false
 }
 
 resource "aws_route53_zone" "ac_app_domain" {
