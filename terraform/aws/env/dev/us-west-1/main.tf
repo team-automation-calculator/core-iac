@@ -42,8 +42,9 @@ provider "helm" {
 }
 
 module "automation_calculator_app_infra" {
-  environment_name = var.environment_name
-  source           = "../../../modules/main_rails_app"
+  automation_calculator_helm_release_local_path = "../../../../helm/automation-calculator"
+  environment_name                              = var.environment_name
+  source                                        = "../../../modules/main_rails_app"
 }
 
 module "eks_cluster" {
