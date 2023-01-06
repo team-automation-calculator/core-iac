@@ -25,11 +25,11 @@ provider "aws" {
 }
 
 data "aws_eks_cluster" "target_cluster" {
-  name = module.eks_cluster.eks_cluster_name
+  name = var.eks_cluster_name
 }
 
 data "aws_eks_cluster_auth" "target_cluster_auth" {
-  name = module.eks_cluster.eks_cluster_name
+  name = var.eks_cluster_name
 }
 
 # Configure the helm provider with the EKS cluster auth variables

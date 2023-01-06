@@ -4,6 +4,11 @@ variable "aws_region" {
   type        = string
 }
 
+variable "eks_cluster_name" {
+  description = "The name of the EKS cluster to deploy the cluster addons to."
+  type        = string
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
