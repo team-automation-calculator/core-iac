@@ -25,12 +25,12 @@ module "eks_cluster" {
     module.networking_layer
   ]
   environment_name = var.environment_name
-  source           = "../../../modules/eks_cluster"
+  source           = "../../../../modules/base-cluster-layer"
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
   vpc_id           = module.networking_layer.vpc.id
 }
 
 module "networking_layer" {
   environment_name = var.environment_name
-  source           = "../../../modules/networking"
+  source           = "../../../../modules/networking"
 }
