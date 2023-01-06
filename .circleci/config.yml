@@ -27,14 +27,14 @@ jobs:
       - terraform/validate:
           path: ./terraform/aws/env/dev/us-west-1
 
-  validate_eks_cluster_module:
+  validate_base_cluster_layer_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/modules/eks_cluster
+          path: ./terraform/aws/modules/base-cluster-layer
       - terraform/validate:
-          path: ./terraform/aws/modules/eks_cluster
+          path: ./terraform/aws/modules/base-cluster-layer
 
   validate_main_rails_app_module:
     executor: terraform/default
@@ -59,6 +59,6 @@ workflows:
     jobs:
       - lint_helm_chart
       - validate_dev_env
-      - validate_eks_cluster_module
+      - validate_base_cluster_layer_module
       - validate_main_rails_app_module
       - validate_networking_module
