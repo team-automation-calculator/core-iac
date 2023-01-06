@@ -85,9 +85,8 @@ resource "kubernetes_secret_v1" "alb_ingress_controller_irsa_token" {
     annotations = {
       "kubernetes.io/service-account.name" = "aws-load-balancer-controller"
     }
+    name = "aws-load-balancer-controller-token"
   }
-
-  name = "aws-load-balancer-controller-token"
 
   type = "kubernetes.io/service-account-token"
 }
