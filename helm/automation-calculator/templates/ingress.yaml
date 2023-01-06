@@ -5,10 +5,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $fullName }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
   labels:
     {{- include "automation-calculator.labels" . | nindent 4 }}
 
 spec:
+  ingressClassName: alb
   rules:
     - http:
         paths:
@@ -16,6 +19,6 @@ spec:
             path: "/"
             backend:
               service:
-                name: http
+                name: {{ $fullName }}
                 port:
-                  number: 80
+                  number: {{$svcPort }}

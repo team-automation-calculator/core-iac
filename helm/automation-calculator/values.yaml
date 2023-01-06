@@ -9,7 +9,12 @@ image:
   repository: automationcalculationsci/automation-calculator
   tag: latest
 ingress:
-  annotations: {}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: instance
+    alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
   tls: []
 logToStdout: true
 nameOverride: ""
@@ -31,6 +36,8 @@ secrets:
   secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
 securityContext: {}
 service:
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   port: 80
   type: LoadBalancer
 tolerations: []
