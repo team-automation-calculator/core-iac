@@ -2,7 +2,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.38.0"
+      version = "~> 4.47"
     }
   }
 }
@@ -21,9 +21,6 @@ provider "aws" {
 }
 
 module "eks_cluster" {
-  depends_on = [
-    module.networking_layer
-  ]
   environment_name = var.environment_name
   source           = "../../../../modules/base-cluster-layer"
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
