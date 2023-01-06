@@ -31,6 +31,8 @@ secrets:
   secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
 securityContext: {}
 service:
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   port: 80
   type: LoadBalancer
 tolerations: []
