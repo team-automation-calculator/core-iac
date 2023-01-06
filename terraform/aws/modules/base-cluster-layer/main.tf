@@ -29,6 +29,8 @@ module "app_eks_cluster" {
     primary = var.node_group_scaling_config
   }
 
+  iam_role_policy_prefix = "ac_app_${var.environment_name}"
+
   manage_aws_auth_configmap = false
   source                    = "terraform-aws-modules/eks/aws"
   subnet_ids                = var.subnet_ids
