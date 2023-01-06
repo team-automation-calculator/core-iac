@@ -48,7 +48,7 @@ provider "kubernetes" {
 }
 
 module "automation_calculator_app_infra" {
-  automation_calculator_helm_release_local_path = "../../../../../helm/automation-calculator"
+  automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   environment_name                              = var.environment_name
-  source                                        = "../../../modules/main_rails_app"
+  source                                        = "../../../../modules/main_rails_app"
 }
