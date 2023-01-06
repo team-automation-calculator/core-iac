@@ -52,8 +52,8 @@ module "automation_calculator_app_infra" {
   depends_on = [
     module.eks_cluster
   ]
-  environment_name                              = var.environment_name
-  source                                        = "../../../modules/main_rails_app"
+  environment_name = var.environment_name
+  source           = "../../../modules/main_rails_app"
 }
 
 module "eks_cluster" {
