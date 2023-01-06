@@ -24,44 +24,6 @@ provider "aws" {
   }
 }
 
-data "aws_eks_cluster" "target_cluster" {
-  depends_on = [
-    module.eks_cluster
-  ]
-  name = module.eks_cluster.eks_cluster_name
-}
-
-data "aws_eks_cluster_auth" "target_cluster_auth" {
-  depends_on = [
-    module.eks_cluster
-  ]
-  name = module.eks_cluster.eks_cluster_name
-}
-
-# Configure the helm provider with the EKS cluster auth variables
-provider "helm" {
-  kubernetes {
-    host                   = data.aws_eks_cluster.target_cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
-    token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
-  }
-}
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.target_cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
-  token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
-}
-
-module "automation_calculator_app_infra" {
-  automation_calculator_helm_release_local_path = "../../../../../helm/automation-calculator"
-  depends_on = [
-    module.eks_cluster
-  ]
-  environment_name = var.environment_name
-  source           = "../../../modules/main_rails_app"
-}
-
 module "eks_cluster" {
   depends_on = [
     module.networking_layer
