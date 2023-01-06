@@ -49,11 +49,17 @@ provider "kubernetes" {
 
 module "automation_calculator_app_infra" {
   automation_calculator_helm_release_local_path = "../../../../../helm/automation-calculator"
+  depends_on = [
+    module.eks_cluster
+  ]
   environment_name                              = var.environment_name
   source                                        = "../../../modules/main_rails_app"
 }
 
 module "eks_cluster" {
+  depends_on = [
+    module.networking_layer
+  ]
   environment_name = var.environment_name
   source           = "../../../modules/eks_cluster"
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
