@@ -85,9 +85,11 @@ resource "kubernetes_secret_v1" "alb_ingress_controller_irsa_token" {
     annotations = {
       "kubernetes.io/service-account.name" = "aws-load-balancer-controller"
     }
-    name = "aws-load-balancer-controller-token"
+    name      = "aws-load-balancer-controller-token"
+    namespace = "kube-system"
   }
 
-  type = "kubernetes.io/service-account-token"
+  type                           = "kubernetes.io/service-account-token"
+  wait_for_service_account_token = true
 }
 
