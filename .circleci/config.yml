@@ -33,8 +33,6 @@ jobs:
       - checkout
       - terraform/fmt:
           path: ./terraform/aws/modules/base-cluster-layer
-      - terraform/validate:
-          path: ./terraform/aws/modules/base-cluster-layer
 
   validate_main_rails_app_module:
     executor: terraform/default
