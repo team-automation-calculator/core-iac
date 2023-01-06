@@ -28,7 +28,7 @@ module "app_eks_cluster" {
   eks_managed_node_groups = {
     primary = var.node_group_scaling_config
   }
-  
+
   manage_aws_auth_configmap = false
   source                    = "terraform-aws-modules/eks/aws"
   subnet_ids                = var.subnet_ids
