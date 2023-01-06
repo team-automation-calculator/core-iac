@@ -100,6 +100,9 @@ resource "helm_release" "alb-ingress-controller" {
 }
 
 resource "kubernetes_secret_v1" "alb_ingress_controller_irsa_token" {
+  depends_on = [
+    module.app_eks_cluster
+  ]
   metadata {
     annotations = {
       "kubernetes.io/service-account.name" = "aws-load-balancer-controller"
