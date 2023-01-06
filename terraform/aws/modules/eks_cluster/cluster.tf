@@ -80,3 +80,13 @@ resource "helm_release" "alb-ingress-controller" {
   version = "1.4.6"
 }
 
+resource "kubernetes_secret_v1" "alb_ingress_controller_irsa_token" {
+  metadata {
+    annotations = {
+      "kubernetes.io/service-account.name" = "aws-load-balancer-controller"
+    }
+  }
+
+  type = "kubernetes.io/service-account-token"
+}
+
