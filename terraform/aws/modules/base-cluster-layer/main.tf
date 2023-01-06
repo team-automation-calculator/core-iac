@@ -29,7 +29,7 @@ module "app_eks_cluster" {
     primary = var.node_group_scaling_config
   }
 
-  iam_role_policy_prefix = "ac_app_${var.environment_name}"
+  iam_role_use_name_prefix = false
 
   manage_aws_auth_configmap = false
   source                    = "terraform-aws-modules/eks/aws"
