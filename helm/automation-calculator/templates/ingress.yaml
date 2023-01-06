@@ -5,10 +5,17 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $fullName }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: instance
+    alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
   labels:
     {{- include "automation-calculator.labels" . | nindent 4 }}
 
 spec:
+  ingressClassName: alb
   rules:
     - http:
         paths:
