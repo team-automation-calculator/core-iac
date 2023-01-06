@@ -36,17 +36,3 @@ module "app_eks_cluster" {
   version                   = "~> 18.0"
   vpc_id                    = var.vpc_id
 }
-
-module "alb_controller_irsa_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-
-  role_name                              = "${var.environment_name}_alb_controller_irsa_role"
-  attach_load_balancer_controller_policy = true
-
-  oidc_providers = {
-    main = {
-      provider_arn               = module.app_eks_cluster.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
-    }
-  }
-}
