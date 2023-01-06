@@ -28,7 +28,7 @@ module "app_eks_cluster" {
   eks_managed_node_groups = {
     primary = var.node_group_scaling_config
   }
-  
+
   create_iam_role = false
 
   manage_aws_auth_configmap = false
