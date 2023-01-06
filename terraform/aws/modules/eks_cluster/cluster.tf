@@ -48,8 +48,8 @@ resource "kubernetes_service_account" "alb-controller-service-account" {
 }
 
 resource "helm_release" "alb-ingress-controller" {
-  atomic     = true
-  chart      = "aws-load-balancer-controller"
+  atomic = true
+  chart  = "aws-load-balancer-controller"
   depends_on = [
     kubernetes_service_account.alb-controller-service-account
   ]
