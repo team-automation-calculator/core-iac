@@ -39,8 +39,8 @@ module "app_eks_cluster" {
 
 module "alb_controller_irsa_role" {
   attach_load_balancer_controller_policy = true
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  role_name                              = "${var.environment_name}_alb_controller_irsa_role"  
+  source                                 = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  role_name                              = "${var.environment_name}_alb_controller_irsa_role"
 
   oidc_providers = {
     main = {
