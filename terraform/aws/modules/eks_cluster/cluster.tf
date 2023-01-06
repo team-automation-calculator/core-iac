@@ -32,7 +32,7 @@ module "alb_controller_irsa_role" {
   }
 }
 
-resource "kubernetes_service_account" "service-account" {
+resource "kubernetes_service_account" "alb-controller-service-account" {
   metadata {
     name      = "aws-load-balancer-controller"
     namespace = "kube-system"
@@ -50,6 +50,9 @@ resource "kubernetes_service_account" "service-account" {
 resource "helm_release" "alb-ingress-controller" {
   atomic     = true
   chart      = "aws-load-balancer-controller"
+  depends_on = [
+    kubernetes_service_account.alb-controller-service-account
+  ]
   name       = "aws-load-balancer-controller"
   namespace  = "kube-system"
   repository = "https://aws.github.io/eks-charts"
@@ -57,6 +60,21 @@ resource "helm_release" "alb-ingress-controller" {
   set {
     name  = "clusterName"
     value = module.app_eks_cluster.cluster_name
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "false"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "aws-load-balancer-controller"
+  }
+
+  set {
+    name  = "vpcId"
+    value = var.vpc_id
   }
 
   version = "1.4.6"
