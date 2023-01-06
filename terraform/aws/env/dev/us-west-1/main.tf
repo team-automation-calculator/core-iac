@@ -25,10 +25,16 @@ provider "aws" {
 }
 
 data "aws_eks_cluster" "target_cluster" {
+  depends_on = [
+    module.eks_cluster
+  ]
   name = module.eks_cluster.eks_cluster_name
 }
 
 data "aws_eks_cluster_auth" "target_cluster_auth" {
+  depends_on = [
+    module.eks_cluster
+  ]
   name = module.eks_cluster.eks_cluster_name
 }
 
