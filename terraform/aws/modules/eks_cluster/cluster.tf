@@ -1,6 +1,14 @@
 module "app_eks_cluster" {
   cluster_version = var.cluster_version
   cluster_name    = "ac_app_${var.environment_name}"
+  cluster_security_group_additional_rules = [
+    {
+      security_groups = [module.app_eks_cluster.cluster_security_group_id]
+      from_port       = 9443
+      to_port         = 9443
+      protocol        = "tcp"
+    }
+  ]
 
   eks_managed_node_group_defaults = {
     disk_size      = 20
@@ -11,6 +19,7 @@ module "app_eks_cluster" {
     primary = var.node_group_scaling_config
   }
 
+  enable_irsa               = true
   manage_aws_auth_configmap = false
   source                    = "terraform-aws-modules/eks/aws"
   subnet_ids                = var.subnet_ids
