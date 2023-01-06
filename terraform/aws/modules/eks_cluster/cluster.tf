@@ -38,10 +38,9 @@ module "app_eks_cluster" {
 }
 
 module "alb_controller_irsa_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-
-  role_name                              = "${var.environment_name}_alb_controller_irsa_role"
   attach_load_balancer_controller_policy = true
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  role_name                              = "${var.environment_name}_alb_controller_irsa_role"  
 
   oidc_providers = {
     main = {
@@ -52,6 +51,9 @@ module "alb_controller_irsa_role" {
 }
 
 resource "kubernetes_service_account" "alb-controller-service-account" {
+  depends_on = [
+    module.app_eks_cluster
+  ]
   metadata {
     name      = "aws-load-balancer-controller"
     namespace = "kube-system"
