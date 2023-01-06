@@ -34,14 +34,13 @@ jobs:
       - checkout
       - terraform/fmt:
           path: ./terraform/aws/modules/base-cluster-layer
-        
+  
+  #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_cluster_addons_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/modules/base-cluster-layer
-      - terraform/validate:
           path: ./terraform/aws/modules/base-cluster-layer
 
   validate_main_rails_app_module:
