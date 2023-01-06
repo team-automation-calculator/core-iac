@@ -35,6 +35,15 @@ jobs:
           path: ./terraform/aws/modules/base-cluster-layer
       - terraform/validate:
           path: ./terraform/aws/modules/base-cluster-layer
+  
+  validate_cluster_addons_module:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/aws/modules/base-cluster-layer
+      - terraform/validate:
+          path: ./terraform/aws/modules/base-cluster-layer
 
   validate_main_rails_app_module:
     executor: terraform/default
@@ -57,8 +66,9 @@ jobs:
 workflows:
   validate:
     jobs:
-      - lint_helm_chart
-      - validate_dev_env
+      - lint_helm_chart      
       - validate_base_cluster_layer_module
+      - validate_cluster_addons_module
+      - validate_dev_env
       - validate_main_rails_app_module
       - validate_networking_module
