@@ -9,11 +9,6 @@ variable "eks_cluster_name" {
   type = string
 }
 
-variable "eks_cluster_id" {
-  description = "The id of the EKS cluster to install addons into."
-  type = string
-}
-
 variable "eks_cluster_api_endpoint" {
   description = "The api endpoint of the EKS cluster to install addons into."
   type = string
