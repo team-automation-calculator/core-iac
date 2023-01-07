@@ -1,4 +1,4 @@
-resource "kubernetes_service_account" "alb-controller-service-account" {
+resource "kubernetes_service_account" "aws_load_balancer_controller_service_account" {
   metadata {
     name      = "aws-load-balancer-controller"
     namespace = "kube-system"
@@ -13,11 +13,11 @@ resource "kubernetes_service_account" "alb-controller-service-account" {
   }
 }
 
-resource "helm_release" "alb-ingress-controller" {
+resource "helm_release" "aws_load_balancer_controller" {
   atomic = true
   chart  = "aws-load-balancer-controller"
   depends_on = [
-    kubernetes_service_account.alb-controller-service-account
+    kubernetes_service_account.aws_load_balancer_controller_service_account
   ]
   name       = "aws-load-balancer-controller"
   namespace  = "kube-system"
@@ -46,7 +46,10 @@ resource "helm_release" "alb-ingress-controller" {
   version = "1.4.6"
 }
 
-resource "kubernetes_secret_v1" "alb_ingress_controller_irsa_token" {
+resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
+  depends_on = [
+    kubernetes_service_account.aws_load_balancer_controller_service_account
+  ]
   metadata {
     annotations = {
       "kubernetes.io/service-account.name" = "aws-load-balancer-controller"
