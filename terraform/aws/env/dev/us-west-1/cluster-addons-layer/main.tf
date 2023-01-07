@@ -47,6 +47,16 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
 }
 
+module "cluster_addons" {
+  environment_name             = var.environment_name
+  eks_cluster_name             = var.eks_cluster_name
+  eks_cluster_api_endpoint     = var.eks_cluster_api_endpoint
+  eks_cluster_cert_data        = base64decode(var.eks_cluster_cert_data)
+  alb_controller_irsa_role_arn = var.alb_controller_irsa_role_arn
+  source                       = "../../../../modules/cluster-addons-layer"
+  vpc_id                       = var.vpc_id
+}
+
 module "automation_calculator_app_infra" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   environment_name                              = var.environment_name
