@@ -1,3 +1,8 @@
+variable "alb_controller_irsa_role_arn" {
+  description = "The ARN of the IAM role to use for the AWS Load Balancer Controller service account."
+  type        = string
+}
+
 variable "aws_region" {
   default     = "us-west-1"
   description = "AWS Region to deploy the stack to, i.e us-west-1, us-east-1, etc"
@@ -9,7 +14,7 @@ variable "eks_cluster_name" {
   type        = string
 }
 
-variable "eks_cluster_endpoint" {
+variable "eks_cluster_api_endpoint" {
   description = "The endpoint of the EKS cluster to deploy the cluster addons to."
   type        = string
 }

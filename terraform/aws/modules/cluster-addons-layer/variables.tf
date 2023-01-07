@@ -1,3 +1,8 @@
+variable alb_controller_irsa_role_arn {
+  description = "The ARN of the IAM role to use for the AWS Load Balancer Controller service account."
+  type        = string
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
