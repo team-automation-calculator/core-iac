@@ -6,17 +6,17 @@ variable "environment_name" {
 
 variable "eks_cluster_name" {
   description = "The name of the EKS cluster to install addons into."
-  type = string
+  type        = string
 }
 
 variable "eks_cluster_api_endpoint" {
   description = "The api endpoint of the EKS cluster to install addons into."
-  type = string
+  type        = string
 }
 
 variable "eks_cluster_cert_data" {
   description = "The cert data of the EKS cluster to install addons into."
-  type = string
+  type        = string
 }
 
 variable "vpc_id" {

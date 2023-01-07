@@ -9,6 +9,16 @@ variable "eks_cluster_name" {
   type        = string
 }
 
+variable "eks_cluster_endpoint" {
+  description = "The endpoint of the EKS cluster to deploy the cluster addons to."
+  type        = string
+}
+
+variable "eks_cluster_cert_data" {
+  description = "The certificate data of the EKS cluster to deploy the cluster addons to, will be base64 decoded"
+  type        = string
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
@@ -18,5 +28,10 @@ variable "environment_name" {
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "The VPC ID to deploy the cluster addons to."
   type        = string
 }
