@@ -30,6 +30,11 @@ resource "helm_release" "automation-calculator" {
     ${aws_db_instance.automation_calculator_app.db_name}"
     EOF
   }
+
+  set {
+    name  = "ingress.host"
+    value = var.automation_calculator_app_host
+  }
 }
 
 resource "aws_db_instance" "automation_calculator_app" {
