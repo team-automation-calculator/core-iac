@@ -39,7 +39,7 @@ resource "aws_subnet" "public_1" {
   map_public_ip_on_launch = true
   tags = {
     "kubernetes.io/role/elb" = "1",
-    Name = "public_1"
+    Name                     = "public_1"
   }
   vpc_id = aws_vpc.primary.id
 }
@@ -50,7 +50,7 @@ resource "aws_subnet" "public_2" {
   map_public_ip_on_launch = true
   tags = {
     "kubernetes.io/role/elb" = "1",
-    Name = "public_2"
+    Name                     = "public_2"
   }
   vpc_id = aws_vpc.primary.id
 }
@@ -79,7 +79,7 @@ resource "aws_subnet" "private_1" {
   map_public_ip_on_launch = false
   tags = {
     "kubernetes.io/role/internal-elb" = "1",
-    Name  = "private_1"
+    Name                              = "private_1"
   }
   vpc_id = aws_vpc.primary.id
 }
@@ -90,7 +90,7 @@ resource "aws_subnet" "private_2" {
   map_public_ip_on_launch = false
   tags = {
     "kubernetes.io/role/internal-elb" = "1",
-    Name  = "private_2"
+    Name                              = "private_2"
   }
   vpc_id = aws_vpc.primary.id
 }
