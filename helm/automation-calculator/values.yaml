@@ -15,7 +15,6 @@ ingress:
     alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
     alb.ingress.kubernetes.io/scheme: internal
     alb.ingress.kubernetes.io/target-type: instance
-    kubernetes.io/ingress.class: alb
   tls: []
 logToStdout: true
 nameOverride: ""
