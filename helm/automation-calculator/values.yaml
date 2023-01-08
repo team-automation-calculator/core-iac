@@ -38,6 +38,7 @@ secrets:
 securityContext: {}
 service:
   annotations:
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http  
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+  port: 80
   type: NodePort
 tolerations: []
