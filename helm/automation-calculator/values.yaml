@@ -15,7 +15,7 @@ ingress:
     alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
     alb.ingress.kubernetes.io/scheme: internal
     alb.ingress.kubernetes.io/target-type: instance
-  host: ""
+  host: "development.automation-calculations.io"
   tls: []
 logToStdout: true
 nameOverride: ""
