@@ -38,7 +38,8 @@ resource "aws_subnet" "public_1" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 0)
   map_public_ip_on_launch = true
   tags = {
-    Name = "public_1"
+    "kubernetes.io/role/elb" = "1",
+    Name                     = "public_1"
   }
   vpc_id = aws_vpc.primary.id
 }
@@ -48,7 +49,8 @@ resource "aws_subnet" "public_2" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 1)
   map_public_ip_on_launch = true
   tags = {
-    Name = "public_2"
+    "kubernetes.io/role/elb" = "1",
+    Name                     = "public_2"
   }
   vpc_id = aws_vpc.primary.id
 }
@@ -66,19 +68,20 @@ resource "aws_route" "outbound_to_internet_via_nat_route" {
   route_table_id         = aws_route_table.private_subnets_route_table.id
 }
 
+resource "aws_route_table_association" "private_1" {
+  subnet_id      = aws_subnet.private_1.id
+  route_table_id = aws_route_table.private_subnets_route_table.id
+}
+
 resource "aws_subnet" "private_1" {
   availability_zone       = var.availability_zones[0]
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 2)
   map_public_ip_on_launch = false
   tags = {
-    Name = "private_1"
+    "kubernetes.io/role/internal-elb" = "1",
+    Name                              = "private_1"
   }
   vpc_id = aws_vpc.primary.id
-}
-
-resource "aws_route_table_association" "private_1" {
-  subnet_id      = aws_subnet.private_1.id
-  route_table_id = aws_route_table.private_subnets_route_table.id
 }
 
 resource "aws_subnet" "private_2" {
@@ -86,7 +89,8 @@ resource "aws_subnet" "private_2" {
   cidr_block              = cidrsubnet(aws_vpc.primary.cidr_block, 2, 3)
   map_public_ip_on_launch = false
   tags = {
-    Name = "private_2"
+    "kubernetes.io/role/internal-elb" = "1",
+    Name                              = "private_2"
   }
   vpc_id = aws_vpc.primary.id
 }
