@@ -20,3 +20,13 @@ module "app_eks_cluster" {
   version                   = "~> 19.5.1"
   vpc_id                    = var.vpc_id
 }
+
+resource "tfe_workspace" "app_eks_cluster" {
+  name         = "ac_app_base_cluster_layer_${var.environment_name}"
+  organization = "team-automation-calculator"
+  vcs_repo {
+    identifier     = var.tf_cloud_workspace_vcs_repo_identifier
+    oauth_token_id = var.TF_VAR_GITHUB_TOKEN
+  }
+  working_directory = var.tf_cloud_workspace_path
+}
