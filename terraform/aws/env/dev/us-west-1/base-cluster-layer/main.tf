@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 4.47"
     }
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "0.41.0"
+    }
   }
 }
 
@@ -18,6 +22,15 @@ provider "aws" {
       SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
     }
   }
+}
+
+provider "tfe" {
+  hostname     = "app.terraform.io"
+}
+
+resource "tfe_organization" "team_automation_calculator" {
+  name  = "team-automation-calculator"
+  email = "steve.uray@gmail.com"
 }
 
 module "eks_cluster" {
