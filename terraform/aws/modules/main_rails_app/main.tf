@@ -23,12 +23,7 @@ resource "helm_release" "automation-calculator" {
 
   set_sensitive {
     name  = "secrets.databaseUrl"
-    value = <<EOF
-    "postgres://${aws_db_instance.automation_calculator_app.username}:
-    ${random_password.database_master_user_password.result}@
-    ${aws_db_instance.automation_calculator_app.endpoint}/
-    ${aws_db_instance.automation_calculator_app.db_name}"
-    EOF
+    value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
   }
 
   set {
