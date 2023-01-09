@@ -23,14 +23,7 @@ variable "database_instance_class" {
   type        = string
 }
 
-variable "environment_name" {
-  default     = "development"
-  description = "The application development environment, i.e development/staging/production."
-  type        = string
-}
-
 variable "database_security_group_ids" {
-  default     = []
   description = "The security group ids allowed access to the database."
   type        = list(string)
 }
@@ -44,4 +37,10 @@ variable "db_port" {
   default     = 5432
   description = "The port for the database."
   type        = number
+}
+
+variable "environment_name" {
+  default     = "development"
+  description = "The application development environment, i.e development/staging/production."
+  type        = string
 }

@@ -10,6 +10,11 @@ variable "automation_calculator_app_host" {
   type        = string
 }
 
+variable "db_subnet_group_ids" {
+  description = "The subnet group ids to grant access to the DB."
+  type        = list(string)
+}
+
 variable "eks_cluster_name" {
   description = "The name of the EKS cluster to deploy the cluster addons to."
   type        = string

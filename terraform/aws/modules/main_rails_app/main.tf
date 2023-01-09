@@ -53,13 +53,18 @@ resource "aws_security_group" "allow_db_access_from_eks" {
   }
 }
 
+resource "aws_db_subnet_group" "db_access_subnet_group" {
+  name       = "automation-calculator-db-access-subnet-group"
+  subnet_ids = var.database_security_group_ids
+}
+
 resource "aws_db_instance" "automation_calculator_app" {
   allocated_storage           = 10
   apply_immediately           = true
   allow_major_version_upgrade = true
   auto_minor_version_upgrade  = true
   db_name                     = "automation_calculator_app"
-  db_subnet_group_name        = var.db_subnet_group_name
+  db_subnet_group_name        = aws_db_subnet_group.db_access_subnet_group.name
   engine                      = "postgres"
   instance_class              = var.database_instance_class
   max_allocated_storage       = 64
