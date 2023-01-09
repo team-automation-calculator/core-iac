@@ -26,7 +26,7 @@ resource "tfe_workspace" "app_eks_cluster" {
   organization = "team-automation-calculator"
   vcs_repo {
     identifier     = var.tf_cloud_workspace_vcs_repo_identifier
-    oauth_token_id = var.GITHUB_TOKEN
+    oauth_token_id = var.TF_VAR_GITHUB_TOKEN
   }
   working_directory = var.tf_cloud_workspace_path
 }

@@ -24,7 +24,7 @@ module "eks_cluster" {
   environment_name                       = var.environment_name
   source                                 = "../../../../modules/base-cluster-layer"
   subnet_ids                             = module.networking_layer.private_eks_subnet_ids
-  GITHUB_TOKEN                           = var.GITHUB_TOKEN
+  TF_VAR_GITHUB_TOKEN                           = var.TF_VAR_GITHUB_TOKEN
   tf_cloud_workspace_path                = "terraform/aws/env/${var.environment_name}/${var.aws_region}/base-cluster-layer"
   tf_cloud_workspace_vcs_repo_identifier = var.tf_cloud_workspace_vcs_repo_identifier
   vpc_id                                 = module.networking_layer.vpc.id

@@ -10,7 +10,7 @@ variable "environment_name" {
   type        = string
 }
 
-variable "GITHUB_TOKEN" {
+variable "TF_VAR_GITHUB_TOKEN" {
   description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
   type        = string
 }
