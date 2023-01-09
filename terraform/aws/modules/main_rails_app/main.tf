@@ -32,6 +32,28 @@ resource "helm_release" "automation-calculator" {
   }
 }
 
+resource "aws_security_group" "allow_db_access_from_eks" {
+  name                 = "allow_db_access_from_eks"
+  description          = "Allow DB Access from EKS"
+  db_subnet_group_name = var.db_subnet_group_name
+
+  ingress {
+    description     = "Allow DB Access from EKS"
+    from_port       = var.db_port
+    to_port         = var.db_port
+    protocol        = "tcp"
+    security_groups = var.database_security_group_ids
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+}
+
 resource "aws_db_instance" "automation_calculator_app" {
   allocated_storage           = 10
   apply_immediately           = true
@@ -42,8 +64,12 @@ resource "aws_db_instance" "automation_calculator_app" {
   instance_class              = var.database_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result
+  port                        = var.db_port
   skip_final_snapshot         = true
   username                    = "automation_calculator_devops"
+  vpc_security_group_ids = [
+    aws_security_group.allow_db_access_from_eks.id,
+  ]
 }
 
 resource "random_password" "database_master_user_password" {
