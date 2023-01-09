@@ -33,9 +33,8 @@ resource "helm_release" "automation-calculator" {
 }
 
 resource "aws_security_group" "allow_db_access_from_eks" {
-  name                 = "allow_db_access_from_eks"
-  description          = "Allow DB Access from EKS"
-  db_subnet_group_name = var.db_subnet_group_name
+  name        = "allow_db_access_from_eks"
+  description = "Allow DB Access from EKS"
 
   ingress {
     description     = "Allow DB Access from EKS"
@@ -60,6 +59,7 @@ resource "aws_db_instance" "automation_calculator_app" {
   allow_major_version_upgrade = true
   auto_minor_version_upgrade  = true
   db_name                     = "automation_calculator_app"
+  db_subnet_group_name        = var.db_subnet_group_name
   engine                      = "postgres"
   instance_class              = var.database_instance_class
   max_allocated_storage       = 64
