@@ -74,6 +74,9 @@ resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
 }
 
 resource "helm_release" "external-dns" {
+  depends_on = [
+    kubernetes_service_account.external_dns_service_account
+  ]
   name       = "external-dns"
   repository = "https://charts.bitnami.com/bitnami"
   chart      = "external-dns"
