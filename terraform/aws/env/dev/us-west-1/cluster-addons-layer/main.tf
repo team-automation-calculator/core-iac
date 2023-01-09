@@ -8,6 +8,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.4.0"
     }
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "0.41.0"
+    }
   }
 }
 
@@ -46,6 +50,13 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
   token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
 }
+
+provider "tfe" {
+  hostname     = "app.terraform.io"
+  organization = "team-automation-calculator"
+}
+
+
 
 module "cluster_addons" {
   environment_name              = var.environment_name
