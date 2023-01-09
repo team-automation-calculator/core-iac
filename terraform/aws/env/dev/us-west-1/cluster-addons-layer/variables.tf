@@ -20,21 +20,6 @@ variable "eks_cluster_name" {
   type        = string
 }
 
-variable "eks_cluster_api_endpoint" {
-  description = "The endpoint of the EKS cluster to deploy the cluster addons to."
-  type        = string
-}
-
-variable "eks_cluster_cert_data" {
-  description = "The certificate data of the EKS cluster to deploy the cluster addons to, will be base64 decoded"
-  type        = string
-}
-
-variable "eks_cluster_oidc_provider_arn" {
-  description = "The OIDC provider ARN of the EKS cluster to deploy the cluster addons to."
-  type        = string
-}
-
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
