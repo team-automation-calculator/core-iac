@@ -89,6 +89,7 @@ resource "helm_release" "external-dns" {
     value = "public"
   }
 
+<<<<<<< HEAD
   set {
     name  = "serviceAccount.create"
     value = "false"
@@ -140,3 +141,11 @@ resource "kubernetes_secret_v1" "external_dns_service_account" {
   type                           = "kubernetes.io/service-account-token"
   wait_for_service_account_token = true
 }
+=======
+  # Using the service account created by this chart
+  set {
+    name = "serviceAccount.create"
+    value = "true"
+  }
+}
+>>>>>>> main
