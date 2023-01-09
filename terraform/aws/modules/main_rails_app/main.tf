@@ -1,6 +1,6 @@
 resource "helm_release" "automation-calculator" {
   atomic           = false
-  name             = "automation-calcualtor"
+  name             = "automation-calculator"
   namespace        = "automation-calculator"
   chart            = var.automation_calculator_helm_release_local_path
   create_namespace = true

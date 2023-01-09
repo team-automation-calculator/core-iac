@@ -10,8 +10,6 @@ variable "environment_name" {
   type        = string
 }
 
-
-
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
