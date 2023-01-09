@@ -10,11 +10,6 @@ variable "environment_name" {
   type        = string
 }
 
-variable "TF_VAR_GITHUB_TOKEN" {
-  description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
-  type        = string
-}
-
 variable "node_group_instance_types" {
   default     = ["t3.small"]
   description = "The AWS EC2 instance types to use to create worker nodes with"
