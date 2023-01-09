@@ -49,7 +49,7 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   set {
     name  = "serviceAccount.name"
-    value = "aws-load-balancer-controller"
+    value = kubernetes_service_account.aws_load_balancer_controller_service_account.metadata[0].name
   }
 
   set {
@@ -61,9 +61,6 @@ resource "helm_release" "aws_load_balancer_controller" {
 }
 
 resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
-  depends_on = [
-    kubernetes_service_account.aws_load_balancer_controller_service_account
-  ]
   metadata {
     annotations = {
       "kubernetes.io/service-account.name" = kubernetes_service_account.aws_load_balancer_controller_service_account.metadata[0].name
@@ -92,9 +89,54 @@ resource "helm_release" "external-dns" {
     value = "public"
   }
 
-  # Using the service account created by this chart
   set {
-    name = "serviceAccount.create"
-    value = "true"
+    name  = "serviceAccount.create"
+    value = "false"
   }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "external-dns"
+  }
+}
+
+module "external_dns_irsa_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+
+  role_name                  = "${var.environment_name}_eks_external_dns"
+  attach_external_dns_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = "${var.eks_cluster_oidc_provider_arn}"
+      namespace_service_accounts = ["kube-system:external-dns"]
+    }
+  }
+}
+
+resource "kubernetes_service_account" "external_dns_service_account" {
+  metadata {
+    name      = "external-dns"
+    namespace = "kube-system"
+    labels = {
+      "app.kubernetes.io/name" = "external-dns"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn"               = module.external_dns_irsa_role.iam_role_arn
+      "eks.amazonaws.com/sts-regional-endpoints" = "true"
+    }
+  }
+}
+
+resource "kubernetes_secret_v1" "external_dns_service_account" {
+  metadata {
+    annotations = {
+      "kubernetes.io/service-account.name" = kubernetes_service_account.external_dns.metadata[0].name
+    }
+    name      = "external_dns-token"
+    namespace = "kube-system"
+  }
+
+  type                           = "kubernetes.io/service-account-token"
+  wait_for_service_account_token = true
 }
