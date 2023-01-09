@@ -47,8 +47,8 @@ resource "aws_db_instance" "automation_calculator_app" {
 }
 
 resource "random_password" "database_master_user_password" {
-  length  = 24
-  special = true
+  length  = 32
+  special = false
 }
 
 resource "random_password" "rails_app_secret_key_base" {
