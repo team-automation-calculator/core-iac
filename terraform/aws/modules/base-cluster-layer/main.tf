@@ -21,7 +21,7 @@ module "app_eks_cluster" {
   vpc_id                    = var.vpc_id
 }
 
-resource "tfe_workspace" "app_eks_cluster" {
+resource "tfe_workspace" "base_cluster_tfe_workspace" {
   name         = "ac_app_base_cluster_layer_${var.environment_name}"
   organization = "team-automation-calculator"
   vcs_repo {
