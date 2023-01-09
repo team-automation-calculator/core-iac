@@ -25,7 +25,7 @@ provider "aws" {
 }
 
 provider "tfe" {
-  hostname     = "app.terraform.io"
+  hostname = "app.terraform.io"
 }
 
 resource "tfe_organization" "team_automation_calculator" {
