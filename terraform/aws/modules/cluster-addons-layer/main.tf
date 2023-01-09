@@ -131,7 +131,7 @@ resource "kubernetes_service_account" "external_dns_service_account" {
 resource "kubernetes_secret_v1" "external_dns_service_account" {
   metadata {
     annotations = {
-      "kubernetes.io/service-account.name" = kubernetes_service_account.external_dns.metadata[0].name
+      "kubernetes.io/service-account.name" = kubernetes_service_account.external_dns_service_account.metadata[0].name
     }
     name      = "external_dns-token"
     namespace = "kube-system"
