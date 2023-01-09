@@ -5,6 +5,12 @@ variable "app_domain_name" {
   type        = string
 }
 
+variable "automation_calculator_app_host" {
+  default     = "automation-calculations.io"
+  description = "The host name of the automation-calculator-app"
+  type        = string
+}
+
 variable "automation_calculator_helm_release_local_path" {
   default     = "helm-charts/automation-calculator"
   description = "The local path to the helm chart for the automation-calculator app."

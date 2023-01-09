@@ -4,6 +4,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "automation_calculator_app_host" {
+  default     = "automation-calculations.io"
+  description = "The host name of the automation-calculator-app"
+  type        = string
+}
+
 variable "eks_cluster_name" {
   description = "The name of the EKS cluster to deploy the cluster addons to."
   type        = string
