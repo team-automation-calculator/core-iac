@@ -10,8 +10,18 @@ variable "environment_name" {
   type        = string
 }
 
+variable "GITHUB_TOKEN" {
+  description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
+  type        = string
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
+  type        = string
+}
+
+variable "tf_cloud_workspace_vcs_repo_identifier" {
+  description = "The VCS repo identifier for the Terraform Cloud workspace for this layer's version control/github source"
   type        = string
 }
