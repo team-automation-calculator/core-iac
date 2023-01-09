@@ -11,7 +11,7 @@ variable "environment_name" {
 }
 
 variable "node_group_instance_types" {
-  default     = ["t3.small"]
+  default     = ["t3.medium"]
   description = "The AWS EC2 instance types to use to create worker nodes with"
   type        = list(string)
 }
