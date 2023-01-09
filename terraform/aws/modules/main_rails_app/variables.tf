@@ -23,6 +23,22 @@ variable "database_instance_class" {
   type        = string
 }
 
+variable "database_security_group_ids" {
+  description = "The security group ids allowed access to the database."
+  type        = list(string)
+}
+
+variable "db_subnet_group_name" {
+  description = "The name of the subnet group to put the DB in, note this also chooses the VPC of the DB based on the subnet."
+  type        = string
+}
+
+variable "db_port" {
+  default     = 5432
+  description = "The port for the database."
+  type        = number
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
