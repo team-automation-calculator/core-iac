@@ -13,6 +13,7 @@ variable "environment_name" {
 variable "TF_VAR_GITHUB_TOKEN" {
   description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
   type        = string
+  default     = ""
 }
 
 variable "project_tag" {
