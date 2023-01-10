@@ -28,7 +28,7 @@ railsEnv: production
 replicaCount: 1
 resources:
   limits:
-    cpu: 4
+    cpu: 2
     memory: 512Mi
   requests:
     cpu: 1
@@ -41,6 +41,7 @@ securityContext: {}
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+  externalTrafficPolicy: Local
   port: 80
   type: NodePort
 tolerations: []
