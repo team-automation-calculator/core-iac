@@ -25,6 +25,11 @@ variable "eks_cluster_oidc_provider_arn" {
   type        = string
 }
 
+variable "eks_cluster_launch_template_name" {
+  description = "The name of the EKS cluster launch template."
+  type        = string
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."

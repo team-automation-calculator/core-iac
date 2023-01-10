@@ -52,7 +52,7 @@ resource "aws_security_group" "allow_db_access_from_eks" {
     ipv6_cidr_blocks = ["::/0"]
   }
 
-  tags {
+  tags = {
     Name = "Automation Calculator DB Access"
   }
 
