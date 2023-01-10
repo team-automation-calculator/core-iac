@@ -20,6 +20,11 @@ variable "eks_cluster_name" {
   type        = string
 }
 
+variable "eks_cluster_oidc_provider_arn" {
+  description = "The ARN of the EKS cluster OIDC provider."
+  type        = string
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
