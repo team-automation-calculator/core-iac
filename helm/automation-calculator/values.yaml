@@ -28,10 +28,10 @@ railsEnv: production
 replicaCount: 1
 resources:
   limits:
-    cpu: 2
+    cpu: 1
     memory: 512Mi
   requests:
-    cpu: 1
+    cpu: 250m
     memory: 128Mi
 secrets:
   databaseUrl: YOUR_DB_URL_HERE
@@ -41,6 +41,7 @@ securityContext: {}
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    external-dns.alpha.kubernetes.io/hostname: development.automation-calculations.io
   externalTrafficPolicy: Local
   port: 80
   type: NodePort
