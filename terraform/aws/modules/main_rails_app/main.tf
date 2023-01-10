@@ -41,7 +41,7 @@ resource "aws_security_group" "allow_db_access_from_eks" {
     from_port       = var.db_port
     to_port         = var.db_port
     protocol        = "tcp"
-    security_groups = var.database_security_group_ids
+    security_groups = var.db_security_group_ids
   }
 
   egress {
@@ -51,6 +51,8 @@ resource "aws_security_group" "allow_db_access_from_eks" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
+
+  vpc_id = var.vpc_id
 }
 
 resource "aws_db_subnet_group" "db_access_subnet_group" {
@@ -66,7 +68,7 @@ resource "aws_db_instance" "automation_calculator_app" {
   db_name                     = "automation_calculator_app"
   db_subnet_group_name        = aws_db_subnet_group.db_access_subnet_group.name
   engine                      = "postgres"
-  instance_class              = var.database_instance_class
+  instance_class              = var.db_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result
   port                        = var.db_port

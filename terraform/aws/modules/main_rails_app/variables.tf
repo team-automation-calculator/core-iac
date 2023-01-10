@@ -17,13 +17,13 @@ variable "automation_calculator_helm_release_local_path" {
   type        = string
 }
 
-variable "database_instance_class" {
+variable "db_instance_class" {
   default     = "db.t4g.micro"
   description = "Amazon RDS instance type/class for the app database in this env."
   type        = string
 }
 
-variable "database_security_group_ids" {
+variable "db_security_group_ids" {
   description = "The security group ids allowed access to the database."
   type        = list(string)
 }
@@ -42,5 +42,10 @@ variable "db_port" {
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "The VPC ID to deploy the cluster addons to."
   type        = string
 }
