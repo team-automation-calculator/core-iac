@@ -17,7 +17,7 @@ variable "automation_calculator_helm_release_local_path" {
   type        = string
 }
 
-variable "database_instance_class" {
+variable "db_instance_class" {
   default     = "db.t4g.micro"
   description = "Amazon RDS instance type/class for the app database in this env."
   type        = string
