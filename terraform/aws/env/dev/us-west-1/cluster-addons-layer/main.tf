@@ -32,6 +32,10 @@ data "aws_eks_cluster_auth" "target_cluster_auth" {
   name = var.eks_cluster_name
 }
 
+data "aws_launch_template" "target_cluster_launch_template" {
+  name = var.eks_cluster_launch_template_name
+}
+
 # Configure the helm provider with the EKS cluster auth variables
 provider "helm" {
   kubernetes {
@@ -60,7 +64,7 @@ module "cluster_addons" {
 module "automation_calculator_app_infra" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   automation_calculator_app_host                = var.automation_calculator_app_host
-  db_security_group_ids                         = data.aws_eks_cluster.target_cluster.vpc_config[0].security_group_ids
+  db_security_group_ids                         = data.aws_launch_template.target_cluster_launch_template.vpc_security_group_ids
   db_subnet_group_ids                           = var.db_subnet_group_ids
   db_port                                       = 5432
   depends_on = [
