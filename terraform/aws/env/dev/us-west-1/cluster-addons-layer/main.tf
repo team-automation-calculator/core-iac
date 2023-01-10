@@ -52,7 +52,7 @@ module "cluster_addons" {
   eks_cluster_name              = var.eks_cluster_name
   eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint
   eks_cluster_cert_data         = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
-  eks_cluster_oidc_provider_arn = data.aws_eks_cluster.target_cluster.identity.0.oidc.0.issuer
+  eks_cluster_oidc_provider_arn = var.eks_cluster_oidc_provider_arn
   source                        = "../../../../modules/cluster-addons-layer"
   vpc_id                        = var.vpc_id
 }
