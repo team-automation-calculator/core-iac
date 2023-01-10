@@ -44,3 +44,8 @@ variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
   type        = string
 }
+
+variable "vpc_id" {
+  description = "The VPC ID to deploy the cluster addons to."
+  type        = string
+}

@@ -51,6 +51,8 @@ resource "aws_security_group" "allow_db_access_from_eks" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
+
+  vpc_id = var.vpc_id
 }
 
 resource "aws_db_subnet_group" "db_access_subnet_group" {
