@@ -41,7 +41,7 @@ resource "aws_security_group" "allow_db_access_from_eks" {
     from_port       = var.db_port
     to_port         = var.db_port
     protocol        = "tcp"
-    security_groups = var.database_security_group_ids
+    security_groups = var.db_security_group_ids
   }
 
   egress {

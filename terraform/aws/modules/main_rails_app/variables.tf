@@ -23,7 +23,7 @@ variable "database_instance_class" {
   type        = string
 }
 
-variable "database_security_group_ids" {
+variable "db_security_group_ids" {
   description = "The security group ids allowed access to the database."
   type        = list(string)
 }

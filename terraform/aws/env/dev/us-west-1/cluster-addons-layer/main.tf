@@ -60,7 +60,7 @@ module "cluster_addons" {
 module "automation_calculator_app_infra" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   automation_calculator_app_host                = var.automation_calculator_app_host
-  database_security_group_ids                   = data.aws_eks_cluster.target_cluster.vpc_config[0].security_group_ids
+  db_security_group_ids                   = data.aws_eks_cluster.target_cluster.vpc_config[0].security_group_ids
   db_subnet_group_ids                           = var.db_subnet_group_ids
   db_port                                       = 5432
   depends_on = [
