@@ -28,9 +28,9 @@ variable "database_security_group_ids" {
   type        = list(string)
 }
 
-variable "db_subnet_group_name" {
-  description = "The name of the subnet group to put the DB in, note this also chooses the VPC of the DB based on the subnet."
-  type        = string
+variable "db_subnet_group_ids" {
+  description = "The ids for the subnet group to put the DB in, note this also chooses the VPC of the DB based on the subnet."
+  type        = list(string)
 }
 
 variable "db_port" {
