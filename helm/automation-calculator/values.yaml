@@ -41,7 +41,6 @@ securityContext: {}
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-    external-dns.alpha.kubernetes.io/hostname: development.automation-calculations.io
   externalTrafficPolicy: Local
   port: 80
   type: NodePort
