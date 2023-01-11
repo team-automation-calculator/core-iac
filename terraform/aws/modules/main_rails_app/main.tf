@@ -93,7 +93,3 @@ resource "random_password" "rails_app_secret_key_base" {
   special = false
   upper   = false
 }
-
-resource "aws_route53_zone" "ac_app_domain" {
-  name = var.environment_name == "development" ? var.app_domain_name : "${var.environment_name}.${var.app_domain_name}"
-}
