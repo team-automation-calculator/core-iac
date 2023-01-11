@@ -7,7 +7,7 @@ fullnameOverride: automation-calculator
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.4.0-535
+  tag: 0.4.1-542
 ingress:
   annotations:
     alb.ingress.kubernetes.io/backend-protocol: HTTP
@@ -43,5 +43,6 @@ service:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   externalTrafficPolicy: Local
   port: 80
+  targetPort: 3000
   type: NodePort
 tolerations: []
