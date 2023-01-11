@@ -22,6 +22,8 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           env:
+          - name: APP_HOSTNAME
+            value: {{ .Values.ingress.host }}
           - name: RAILS_ENV
             value: {{ .Values.railsEnv }}
           - name: RAILS_LOG_TO_STDOUT
