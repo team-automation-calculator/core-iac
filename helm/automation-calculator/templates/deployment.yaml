@@ -28,6 +28,8 @@ spec:
             value: {{ .Values.railsEnv }}
           - name: RAILS_LOG_TO_STDOUT
             value: "{{ .Values.logToStdout }}"
+          - name: RAILS_SERVE_STATIC_FILES
+            value: "true"
           - name: DATABASE_URL
             valueFrom:
               secretKeyRef:
