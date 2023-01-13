@@ -1,3 +1,10 @@
+data "template_file" "automation_calculator_helm_chart_values" {
+  template = "${file("${path.module}/values.yml")}"
+  vars = {
+    alb.ingress.kubernetes.io/certificate-arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
+  }
+}
+
 resource "helm_release" "automation-calculator" {
   atomic           = false
   name             = "automation-calculator"
@@ -6,7 +13,7 @@ resource "helm_release" "automation-calculator" {
   create_namespace = true
   version          = "0.1.0"
 
-  values = file("${path.module}/values.yml")
+  values = data.template_file.automation_calculator_helm_chart_values.rendered
 
   set_sensitive {
     name  = "secrets.secretKeyBase"
