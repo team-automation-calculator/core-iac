@@ -13,7 +13,9 @@ resource "helm_release" "automation-calculator" {
   create_namespace = true
   version          = "0.1.0"
 
-  values = data.template_file.automation_calculator_helm_chart_values.rendered
+  values = [
+    data.template_file.automation_calculator_helm_chart_values.rendered
+  ]
 
   set_sensitive {
     name  = "secrets.secretKeyBase"
