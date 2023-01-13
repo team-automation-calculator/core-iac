@@ -11,11 +11,12 @@ image:
 ingress:
   annotations:
     alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/certificate-arn: "insert-cert-arn-here"
     alb.ingress.kubernetes.io/healthcheck-path: "/health"
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
     alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
     alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: instance
+    alb.ingress.kubernetes.io/target-type: instance    
     
   host: "development.automation-calculations.io"
   tls: []

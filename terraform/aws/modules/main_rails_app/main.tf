@@ -30,6 +30,11 @@ resource "helm_release" "automation-calculator" {
     name  = "ingress.host"
     value = var.automation_calculator_app_host
   }
+
+  set {
+    name = "ingress.annotations.alb.ingress.kubernetes.io/certificate-arn"
+    value = aws_acm_certificate.automation_calculator_app.arn
+  }
 }
 
 resource "aws_security_group" "allow_db_access_from_eks" {
