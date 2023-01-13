@@ -32,7 +32,7 @@ resource "helm_release" "automation-calculator" {
   }
 
   set {
-    name = "ingress.annotations.alb.ingress.kubernetes.io/certificate-arn"
+    name  = "ingress.annotations.alb.ingress.kubernetes.io/certificate-arn"
     value = aws_acm_certificate.automation_calculator_app.arn
   }
 }
