@@ -12,7 +12,7 @@ resource "helm_release" "automation-calculator" {
   }
 
   set {
-    name  = "ingress.annotations\\.alb\\.ingress\\.kubernetes\\.io/certificate-arn"
+    name  = "ingress.annotations.alb.ingress\\.kubernetes\\.io/certificate-arn"
     type  = "string"
     value = tostring(aws_acm_certificate.automation_calculator_app.arn)
   }
