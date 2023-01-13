@@ -1,3 +1,10 @@
+data "template_file" "automation_calculator_helm_chart_values" {
+  template = file("${path.module}/values.yml")
+  vars = {
+    cert_arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
+  }
+}
+
 resource "helm_release" "automation-calculator" {
   atomic           = false
   name             = "automation-calculator"
@@ -6,26 +13,9 @@ resource "helm_release" "automation-calculator" {
   create_namespace = true
   version          = "0.1.0"
 
-  set {
-    name  = "ingress.host"
-    value = var.automation_calculator_app_host
-  }
-
-  set {
-    name  = "ingress.annotations.alb.ingress\\.kubernetes\\.io/certificate-arn"
-    type  = "string"
-    value = tostring(aws_acm_certificate.automation_calculator_app.arn)
-  }
-
-  set {
-    name  = "logToStdout"
-    value = "true"
-  }
-
-  set {
-    name  = "railsEnv"
-    value = "production"
-  }
+  values = [
+    data.template_file.automation_calculator_helm_chart_values.rendered
+  ]
 
   set_sensitive {
     name  = "secrets.secretKeyBase"
