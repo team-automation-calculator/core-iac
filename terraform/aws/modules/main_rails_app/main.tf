@@ -97,5 +97,5 @@ resource "aws_acm_certificate" "automation_calculator_app" {
 
 resource "aws_acm_certificate_validation" "automation_calculator_app" {
   certificate_arn         = aws_acm_certificate.automation_calculator_app.arn
-  validation_record_fqdns = var.automation_calculator_app_host
+  validation_record_fqdns = [var.automation_calculator_app_host]
 }
