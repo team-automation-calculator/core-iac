@@ -101,7 +101,7 @@ resource "aws_acm_certificate_validation" "automation_calculator_app" {
 }
 
 data "aws_route53_zone" "automation_calculator_app" {
-  name         = var.automation_calculator_app_host
+  name         = var.route53_zone_name
   private_zone = false
 }
 
