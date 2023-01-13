@@ -99,3 +99,25 @@ resource "aws_acm_certificate_validation" "automation_calculator_app" {
   certificate_arn         = aws_acm_certificate.automation_calculator_app.arn
   validation_record_fqdns = [var.automation_calculator_app_host]
 }
+
+data "aws_route53_zone" "automation_calculator_app" {
+  name         = var.route53_zone_name
+  private_zone = false
+}
+
+resource "aws_route53_record" "automation_calculator_app" {
+  for_each = {
+    for dvo in aws_acm_certificate.automation_calculator_app.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = data.aws_route53_zone.automation_calculator_app.zone_id
+}
