@@ -94,3 +94,8 @@ resource "aws_acm_certificate" "automation_calculator_app" {
   domain_name       = var.automation_calculator_app_host
   validation_method = "DNS"
 }
+
+resource "aws_acm_certificate_validation" "automation_calculator_app" {
+  certificate_arn         = aws_acm_certificate.automation_calculator_app.arn
+  validation_record_fqdns = var.automation_calculator_app_host
+}
