@@ -1,7 +1,7 @@
 data "template_file" "automation_calculator_helm_chart_values" {
-  template = "${file("${path.module}/values.yml")}"
+  template = file("${path.module}/values.yml")
   vars = {
-    alb.ingress.kubernetes.io/certificate-arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
+    alb.ingress.kubernetes.io / certificate-arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
   }
 }
 
