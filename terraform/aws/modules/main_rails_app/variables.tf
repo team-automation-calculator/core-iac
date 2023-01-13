@@ -49,3 +49,9 @@ variable "vpc_id" {
   description = "The VPC ID to deploy the cluster addons to."
   type        = string
 }
+
+variable "route53_zone_name" {
+  default     = "automation-calculations.io"
+  description = "The name of the Route53 zone to create the DNS records in."
+  type        = string
+}
