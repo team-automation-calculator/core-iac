@@ -91,7 +91,7 @@ resource "random_password" "rails_app_secret_key_base" {
 }
 
 resource "aws_acm_certificate" "automation_calculator_app" {
-  domain_name       = var.route53_zone_name
+  domain_name       = var.automation_calculator_app_host
   validation_method = "DNS"
 }
 
