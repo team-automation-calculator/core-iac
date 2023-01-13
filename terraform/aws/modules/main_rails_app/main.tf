@@ -7,13 +7,23 @@ resource "helm_release" "automation-calculator" {
   version          = "0.1.0"
 
   set {
-    name  = "railsEnv"
-    value = "production"
+    name  = "ingress.host"
+    value = var.automation_calculator_app_host
+  }
+
+  set {
+    name  = "ingress.annotations.alb.ingress.kubernetes.io/certificate-arn"
+    value = aws_acm_certificate.automation_calculator_app.arn
   }
 
   set {
     name  = "logToStdout"
     value = "true"
+  }
+
+  set {
+    name  = "railsEnv"
+    value = "production"
   }
 
   set_sensitive {
@@ -24,17 +34,7 @@ resource "helm_release" "automation-calculator" {
   set_sensitive {
     name  = "secrets.databaseUrl"
     value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
-  }
-
-  set {
-    name  = "ingress.host"
-    value = var.automation_calculator_app_host
-  }
-
-  set {
-    name  = "ingress.annotations.alb.ingress.kubernetes.io/certificate-arn"
-    value = aws_acm_certificate.automation_calculator_app.arn
-  }
+  }  
 }
 
 resource "aws_security_group" "allow_db_access_from_eks" {
