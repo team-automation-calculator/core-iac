@@ -14,7 +14,7 @@ spec:
   ingressClassName: alb
   rules:
     - host: {{ .Values.ingress.host }}
-      http:
+      https:
         paths:
           - pathType: Prefix
             path: "/"
@@ -23,3 +23,11 @@ spec:
                 name: {{ $fullName }}
                 port:
                   number: {{$svcPort }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            redirect:
+              path: "/"
+              port: https
+              scheme: HTTPS
