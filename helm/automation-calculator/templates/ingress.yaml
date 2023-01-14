@@ -14,20 +14,18 @@ spec:
   ingressClassName: alb
   rules:
     - host: {{ .Values.ingress.host }}
-      https:
+      http:
         paths:
           - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: ssl-redirect
+                port: use-annotation
+          - pathType: Prefix            
             path: "/"
             backend:
               service:
                 name: {{ $fullName }}
                 port:
                   number: {{$svcPort }}
-      http:
-        paths:
-          - pathType: Prefix
-            path: "/"
-            redirect:
-              path: "/"
-              port: https
-              scheme: HTTPS
