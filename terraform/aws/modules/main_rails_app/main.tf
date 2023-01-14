@@ -95,14 +95,6 @@ resource "aws_acm_certificate" "automation_calculator_app" {
   validation_method = "DNS"
 }
 
-resource "aws_acm_certificate_validation" "automation_calculator_app" {
-  depends_on = [
-    aws_route53_record.automation_calculator_app_cert_validation
-  ]
-  certificate_arn         = aws_acm_certificate.automation_calculator_app.arn
-  validation_record_fqdns = [var.automation_calculator_app_host]
-}
-
 data "aws_route53_zone" "automation_calculator_app" {
   name         = var.route53_zone_name
   private_zone = false
