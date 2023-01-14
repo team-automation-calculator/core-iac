@@ -20,6 +20,12 @@ spec:
             path: "/"
             backend:
               service:
+                name: ssl-redirect
+                port: use-annotation
+          - pathType: Prefix            
+            path: "/"
+            backend:
+              service:
                 name: {{ $fullName }}
                 port:
                   number: {{$svcPort }}
