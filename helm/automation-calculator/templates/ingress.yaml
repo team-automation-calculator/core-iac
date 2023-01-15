@@ -16,12 +16,7 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - pathType: Prefix
-            path: "/"
-            backend:
-              serviceName: ssl-redirect
-              servicePort: use-annotation
-          - pathType: Prefix            
+          - pathType: ImplementationSpecific
             path: "/"
             backend:
               service:
