@@ -57,7 +57,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.vpc_id
   }
 
-  version = "1.4.6"
+  version = "2.4.0"
 }
 
 resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
