@@ -19,10 +19,8 @@ spec:
           - pathType: Prefix
             path: "/"
             backend:
-              service:
-                name: ssl-redirect
-                port:
-                  number: use-annotation
+              serviceName: ssl-redirect
+              servicePort: use-annotation
           - pathType: Prefix            
             path: "/"
             backend:
