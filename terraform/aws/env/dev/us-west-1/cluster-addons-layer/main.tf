@@ -63,7 +63,7 @@ module "cluster_addons" {
   eks_cluster_cert_data         = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
   eks_cluster_oidc_provider_arn = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_oidc_provider_arn
   source                        = "../../../../modules/cluster-addons-layer"
-  vpc_id                        = var.vpc_id
+  vpc_id                        = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
 
 module "main_rails_app" {

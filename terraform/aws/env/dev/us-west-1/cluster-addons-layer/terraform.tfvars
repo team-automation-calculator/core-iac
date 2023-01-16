@@ -1,5 +1,3 @@
 automation_calculator_app_host   = "development.automation-calculations.io"
-eks_cluster_launch_template_name = "eks-0cc2cc45-8601-6258-72b3-9628e194dc76"
 environment_name                 = "development"
 project_tag                      = "automation-calculator"
-vpc_id                           = "vpc-0e6aa3213e110e0d6"

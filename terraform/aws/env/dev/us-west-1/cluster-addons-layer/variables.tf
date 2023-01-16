@@ -33,8 +33,3 @@ variable "tfe_organization_name" {
   description = "The name of the Terraform Cloud organization."
   type        = string
 }
-
-variable "vpc_id" {
-  description = "The VPC ID to deploy the cluster addons to."
-  type        = string
-}
