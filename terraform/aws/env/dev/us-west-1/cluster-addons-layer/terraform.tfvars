@@ -1,6 +1,4 @@
 automation_calculator_app_host   = "development.automation-calculations.io"
-eks_cluster_name                 = "ac_app_development"
-eks_cluster_oidc_provider_arn    = "arn:aws:iam::030153300357:oidc-provider/oidc.eks.us-west-1.amazonaws.com/id/B93630340BCB0D9DA6AAA8319828DC8A"
 eks_cluster_launch_template_name = "eks-0cc2cc45-8601-6258-72b3-9628e194dc76"
 environment_name                 = "development"
 project_tag                      = "automation-calculator"
