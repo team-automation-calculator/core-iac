@@ -25,15 +25,15 @@ provider "aws" {
 }
 
 data "aws_eks_cluster" "target_cluster" {
-  name = var.eks_cluster_name
+  name = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
 }
 
 data "aws_eks_cluster_auth" "target_cluster_auth" {
-  name = var.eks_cluster_name
+  name = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
 }
 
 data "aws_launch_template" "target_cluster_launch_template" {
-  name = var.eks_cluster_launch_template_name
+  name = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_launch_template_name
 }
 
 data "tfe_outputs" "base_layer_state" {
@@ -58,7 +58,7 @@ provider "kubernetes" {
 
 module "cluster_addons" {
   environment_name              = var.environment_name
-  eks_cluster_name              = var.eks_cluster_name
+  eks_cluster_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
   eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint
   eks_cluster_cert_data         = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
   eks_cluster_oidc_provider_arn = var.eks_cluster_oidc_provider_arn

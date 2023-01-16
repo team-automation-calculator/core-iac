@@ -10,11 +10,6 @@ variable "automation_calculator_app_host" {
   type        = string
 }
 
-variable "eks_cluster_name" {
-  description = "The name of the EKS cluster to deploy the cluster addons to."
-  type        = string
-}
-
 variable "eks_cluster_oidc_provider_arn" {
   description = "The ARN of the EKS cluster OIDC provider."
   type        = string
