@@ -36,6 +36,11 @@ data "aws_launch_template" "target_cluster_launch_template" {
   name = var.eks_cluster_launch_template_name
 }
 
+data "tfe_outputs" "base_layer_state_outputs" {
+  organization = var.tfe_organization_name
+  workspace    = var.tfe_base_layer_workspace_name
+}
+
 # Configure the helm provider with the EKS cluster auth variables
 provider "helm" {
   kubernetes {
