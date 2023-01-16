@@ -77,5 +77,5 @@ module "main_rails_app" {
   ]
   environment_name = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
   source           = "../../../../modules/main_rails_app"
-  vpc_id           = var.vpc_id
+  vpc_id           = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
