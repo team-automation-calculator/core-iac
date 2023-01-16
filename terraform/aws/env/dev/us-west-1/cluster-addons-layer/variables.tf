@@ -10,12 +10,6 @@ variable "automation_calculator_app_host" {
   type        = string
 }
 
-variable "environment_name" {
-  default     = "development"
-  description = "The application development environment, i.e development/staging/production."
-  type        = string
-}
-
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
