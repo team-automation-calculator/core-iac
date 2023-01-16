@@ -15,5 +15,5 @@ output "eks_cluster_oidc_provider_arn" {
 }
 
 output "eks_cluster_launch_template_name" {
-  value = module.app_eks_cluster.eks_managed_node_groups[0].launch_template_name
+  value = module.app_eks_cluster.eks_managed_node_groups.primary.launch_template_name
 }
