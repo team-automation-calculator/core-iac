@@ -50,10 +50,9 @@ variable "tf_cloud_workspace_vcs_repo_identifier" {
   type        = string
 }
 
-variable "TF_VAR_GITHUB_TOKEN" {
-  description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
+variable "tfe_oauth_client_token" {
+  description = "tfe_oauth_client token used to connect terraform cloud workspaces to github repos"
   type        = string
-  default     = ""
   sensitive   = true
 }
 
