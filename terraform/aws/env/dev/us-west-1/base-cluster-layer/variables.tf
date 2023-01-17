@@ -11,7 +11,7 @@ variable "environment_name" {
 }
 
 variable "github_organization_name" {
-  default     = "automation-calculator"
+  default     = "team-automation-calculator"
   description = "The name of the GitHub organization to use for the Terraform Cloud workspace for this layer"
   type        = string
 }
