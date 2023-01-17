@@ -10,6 +10,12 @@ variable "environment_name" {
   type        = string
 }
 
+variable "github_organization_name" {
+  default     = "automation-calculator"
+  description = "The name of the GitHub organization to use for the Terraform Cloud workspace for this layer"
+  type        = string
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
