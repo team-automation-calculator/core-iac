@@ -29,7 +29,7 @@ provider "tfe" {
 }
 
 resource "tfe_oauth_client" "github" {
-  organization     = var.github_organization_name
+  organization     = var.tf_cloud_organization_name
   api_url          = "https://api.github.com"
   http_url         = "https://github.com"
   service_provider = "github"
