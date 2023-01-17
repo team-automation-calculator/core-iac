@@ -50,8 +50,8 @@ variable "tf_cloud_workspace_vcs_repo_identifier" {
   type        = string
 }
 
-variable "tfe_oauth_client_token" {
-  description = "tfe_oauth_client token used to connect terraform cloud workspaces to github repos"
+variable "tfe_oauth_client_token_id" {
+  description = "tfe_oauth_client token id used to connect terraform cloud workspaces to github repos"
   type        = string
   sensitive   = true
 }
