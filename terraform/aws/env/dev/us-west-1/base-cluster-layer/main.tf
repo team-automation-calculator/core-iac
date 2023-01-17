@@ -30,7 +30,7 @@ provider "tfe" {
 
 resource "tfe_organization" "team_automation_calculator" {
   name  = "team-automation-calculator"
-  email = "steve.uray@gmail.com"
+  email = var.tf_cloud_admin_user
 }
 
 module "eks_cluster" {
