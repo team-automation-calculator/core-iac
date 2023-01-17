@@ -16,8 +16,8 @@ variable "project_tag" {
   type        = string
 }
 
-variable "tf_cloud_admin_user" {
-  description = "The Terraform Cloud admin user email to use for the Terraform Cloud workspace for this layer"
+variable "tf_cloud_organization_name" {
+  description = "The Terraform Cloud organization name to use for the Terraform Cloud workspace for this layer"
   type        = string
 }
 

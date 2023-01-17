@@ -23,7 +23,7 @@ module "app_eks_cluster" {
 
 resource "tfe_workspace" "base_cluster_tfe_workspace" {
   name         = "ac_app_base_cluster_layer_${var.environment_name}"
-  organization = "team-automation-calculator"
+  organization = var.tf_cloud_organization_name
   vcs_repo {
     identifier     = var.tf_cloud_workspace_vcs_repo_identifier
     oauth_token_id = var.TF_VAR_GITHUB_TOKEN
