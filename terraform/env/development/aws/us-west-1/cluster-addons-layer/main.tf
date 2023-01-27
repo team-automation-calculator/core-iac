@@ -37,7 +37,7 @@ data "aws_launch_template" "target_cluster_launch_template" {
 }
 
 data "tfe_outputs" "base_layer_state" {
-  organization = var.tfe_organization_name
+  organization = var.tf_cloud_organization_name
   workspace    = var.tfe_base_layer_workspace_name
 }
 
@@ -62,7 +62,7 @@ module "cluster_addons" {
   eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint
   eks_cluster_cert_data         = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
   eks_cluster_oidc_provider_arn = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_oidc_provider_arn
-  source                        = "../../../../modules/cluster-addons-layer"
+  source                        = "../../../../../modules/aws/cluster-addons-layer"
   vpc_id                        = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
 
@@ -76,6 +76,6 @@ module "main_rails_app" {
     module.cluster_addons
   ]
   environment_name = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
-  source           = "../../../../modules/main_rails_app"
+  source           = "../../../../../modules/aws/main_rails_app"
   vpc_id           = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

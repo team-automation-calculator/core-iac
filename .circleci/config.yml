@@ -18,14 +18,32 @@ jobs:
           version: 'v3.10.2'
       - run: helm lint "helm/automation-calculator" --strict
 
-  validate_dev_env:
+  validate_development_tf_cloud_env:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/env/development/us-west-1
+          path: ./terraform/env/development/tf_cloud
       - terraform/validate:
-          path: ./terraform/aws/env/development/us-west-1
+          path: ./terraform/env/development/tf_cloud
+
+  validate_development_aws_base_cluster_layer:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/development/aws/us-west-1/base-cluster-layer
+      - terraform/validate:
+          path: ./terraform/env/development/aws/us-west-1/base-cluster-layer
+
+  validate_development_aws_cluster_addons_layer:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
+      - terraform/validate:
+          path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
 
   #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_base_cluster_layer_module:
@@ -33,7 +51,7 @@ jobs:
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/modules/base-cluster-layer
+          path: ./terraform/modules/aws/base-cluster-layer
   
   #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_cluster_addons_module:
@@ -41,25 +59,25 @@ jobs:
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/modules/base-cluster-layer
+          path: ./terraform/modules/aws/cluster-addons-layer
 
   validate_main_rails_app_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/modules/main_rails_app
+          path: ./terraform/modules/aws/main_rails_app
       - terraform/validate:
-          path: ./terraform/aws/modules/main_rails_app
+          path: ./terraform/modules/aws/main_rails_app
 
   validate_networking_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/aws/modules/networking
+          path: ./terraform/modules/aws/networking
       - terraform/validate:
-          path: ./terraform/aws/modules/networking
+          path: ./terraform/modules/aws/networking
 
 workflows:
   validate:
@@ -67,6 +85,8 @@ workflows:
       - lint_helm_chart      
       - validate_base_cluster_layer_module
       - validate_cluster_addons_module
-      - validate_dev_env
+      - validate_development_aws_base_cluster_layer
+      - validate_development_aws_cluster_addons_layer
+      - validate_development_tf_cloud_env
       - validate_main_rails_app_module
       - validate_networking_module
