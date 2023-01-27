@@ -9,9 +9,15 @@ variable "tf_cloud_organization_name" {
   type        = string
 }
 
-variable "tf_cloud_workspace_path" {
-  default     = "terraform/env/development/tf_cloud"
-  description = "The path to the Terraform Cloud workspace for this layer's version control/github source"
+variable "base_cluster_layer_working_directory" {
+  default     = ""
+  description = "The path to the Terraform Cloud workspace for this layer's file path"
+  type        = string
+}
+
+variable "cluster_addons_layer_working_directory" {
+  default     = ""
+  description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
 }
 
