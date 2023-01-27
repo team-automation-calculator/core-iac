@@ -143,3 +143,14 @@ resource "kubernetes_secret_v1" "external_dns_service_account" {
   type                           = "kubernetes.io/service-account-token"
   wait_for_service_account_token = true
 }
+
+resource "tfe_workspace" "cluster_addons_tfe_workspace" {
+  name         = "ac_app_cluster_addons_layer_${var.environment_name}"
+  organization = var.tfe_organization_name
+  vcs_repo {
+    identifier     = var.tf_cloud_workspace_vcs_repo_identifier
+    oauth_token_id = var.tfe_oauth_client_token_id
+  }
+  tag_names         = ["automation-calculator"]
+  working_directory = var.tf_cloud_workspace_path
+}

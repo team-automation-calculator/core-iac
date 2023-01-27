@@ -56,14 +56,28 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
 }
 
+provider "tfe" {
+  hostname = "app.terraform.io"
+}
+
+resource "tfe_oauth_client" "github" {
+  organization     = var.tfe_organization_name
+  api_url          = "https://api.github.com"
+  http_url         = "https://github.com"
+  service_provider = "github"
+  oauth_token      = var.TF_VAR_GITHUB_TOKEN
+}
+
 module "cluster_addons" {
-  environment_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
-  eks_cluster_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
-  eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint
-  eks_cluster_cert_data         = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
-  eks_cluster_oidc_provider_arn = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_oidc_provider_arn
-  source                        = "../../../../modules/cluster-addons-layer"
-  vpc_id                        = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
+  environment_name                       = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
+  eks_cluster_name                       = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
+  eks_cluster_api_endpoint               = data.aws_eks_cluster.target_cluster.endpoint
+  eks_cluster_cert_data                  = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
+  eks_cluster_oidc_provider_arn          = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_oidc_provider_arn
+  source                                 = "../../../../modules/cluster-addons-layer"
+  tfe_oauth_client_token_id              = tfe_oauth_client.github.id
+  tf_cloud_workspace_vcs_repo_identifier = data.tfe_outputs.base_layer_state.nonsensitive_values.tf_cloud_workspace_vcs_repo_identifier
+  vpc_id                                 = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
 
 module "main_rails_app" {

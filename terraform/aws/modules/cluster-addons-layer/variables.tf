@@ -28,3 +28,26 @@ variable "vpc_id" {
   description = "VPC ID of the VPC to put the app into"
   type        = string
 }
+
+variable "tfe_oauth_client_token_id" {
+  description = "tfe_oauth_client token id used to connect terraform cloud workspaces to github repos"
+  type        = string
+  sensitive   = true
+}
+
+variable "tfe_organization_name" {
+  default     = "team-automation-calculator"
+  description = "The name of the Terraform Cloud organization."
+  type        = string
+}
+
+variable "tf_cloud_workspace_path" {
+  default     = "terraform/aws/env/development/us-west-1/cluster-addons-layer"
+  description = "The path to the Terraform Cloud workspace."
+  type        = string
+}
+
+variable "tf_cloud_workspace_vcs_repo_identifier" {
+  description = "The VCS repo identifier for the Terraform Cloud workspace."
+  type        = string
+}
