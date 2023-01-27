@@ -6,6 +6,7 @@ resource "tfe_workspace" "base_cluster_tfe_workspace" {
     oauth_token_id = var.tfe_oauth_client_token_id
   }
   tag_names         = ["automation-calculator"]
+  remote_state_consumer_ids = [tfe_workspace.cluster_addons_tfe_workspace.id]
   working_directory = var.base_cluster_layer_working_directory
 }
 

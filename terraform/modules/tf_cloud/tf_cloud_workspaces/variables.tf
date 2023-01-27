@@ -30,9 +30,3 @@ variable "tfe_oauth_client_token_id" {
   type        = string
   sensitive   = true
 }
-
-variable "TF_VAR_GITHUB_TOKEN" {
-  description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
-  type        = string
-  sensitive   = true
-}
