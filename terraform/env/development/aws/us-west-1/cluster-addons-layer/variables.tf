@@ -27,27 +27,3 @@ variable "tf_cloud_workspace_path" {
   description = "The path to the Terraform Cloud workspace."
   type        = string
 }
-
-variable "tf_cloud_workspace_vcs_repo_identifier" {
-  default     = "team-automation-calculator/core-iac"
-  description = "The identifier of the VCS repository for the Terraform Cloud workspace."
-  type        = string
-}
-
-variable "tfe_base_layer_workspace_name" {
-  default     = "ac_app_base_cluster_layer_development"
-  description = "The name of the Terraform Cloud workspace for the base layer."
-  type        = string
-}
-
-variable "tfe_organization_name" {
-  default     = "team-automation-calculator"
-  description = "The name of the Terraform Cloud organization."
-  type        = string
-}
-
-variable "TF_VAR_GITHUB_TOKEN" {
-  description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
-  type        = string
-  sensitive   = true
-}
