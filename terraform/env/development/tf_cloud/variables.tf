@@ -1,6 +1,17 @@
+variable "environment_name" {
+  description = "The application development environment, i.e development/staging/production."
+  type        = string
+}
+
 variable "tf_cloud_organization_name" {
   default     = "team-automation-calculator"
   description = "The Terraform Cloud organization name to use for the Terraform Cloud workspace for this layer"
+  type        = string
+}
+
+variable "tf_cloud_workspace_path" {
+  default     = "terraform/env/development/tf_cloud"
+  description = "The path to the Terraform Cloud workspace for this layer's version control/github source"
   type        = string
 }
 

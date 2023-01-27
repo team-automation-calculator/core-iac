@@ -5,7 +5,6 @@ variable "aws_region" {
 }
 
 variable "environment_name" {
-  default     = "development"
   description = "The application development environment, i.e development/staging/production."
   type        = string
 }

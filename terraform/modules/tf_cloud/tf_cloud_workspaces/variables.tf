@@ -1,3 +1,8 @@
+variable "environment_name" {
+  description = "The application development environment, i.e development/staging/production."
+  type        = string
+}
+
 variable "tf_cloud_organization_name" {
   description = "The Terraform Cloud organization name to use for the Terraform Cloud workspace for this layer"
   type        = string
