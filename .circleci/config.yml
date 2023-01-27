@@ -27,14 +27,14 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/development/tf_cloud
 
-  validate_development_aws_env:
+  validate_development_aws_base_cluster_layer:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/env/development/aws/us-west-1
+          path: ./terraform/env/development/aws/us-west-1/base-cluster-layer
       - terraform/validate:
-          path: ./terraform/env/development/aws/us-west-1
+          path: ./terraform/env/development/aws/us-west-1/base-cluster-layer
 
   #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_base_cluster_layer_module:
@@ -76,7 +76,7 @@ workflows:
       - lint_helm_chart      
       - validate_base_cluster_layer_module
       - validate_cluster_addons_module
-      - validate_development_aws_env
+      - validate_development_aws_base_cluster_layer
       - validate_development_tf_cloud_env
       - validate_main_rails_app_module
       - validate_networking_module
