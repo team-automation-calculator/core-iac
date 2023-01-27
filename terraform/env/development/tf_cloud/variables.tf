@@ -10,13 +10,13 @@ variable "tf_cloud_organization_name" {
 }
 
 variable "base_cluster_layer_working_directory" {
-  default     = ""
+  default     = "../../development/aws/us-west-1/base-cluster-layer/"
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
 }
 
 variable "cluster_addons_layer_working_directory" {
-  default     = ""
+  default     = "../../development/aws/us-west-1/cluster-addons-layer/"
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
 }
