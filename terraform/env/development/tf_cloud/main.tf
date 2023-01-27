@@ -13,13 +13,9 @@ resource "tfe_oauth_client" "github" {
 module "tf_cloud_workspaces" {
   base_cluster_layer_working_directory   = var.base_cluster_layer_working_directory
   cluster_addons_layer_working_directory = var.cluster_addons_layer_working_directory
-  depends_on = [
-    tfe_oauth_client.github
-  ]
   environment_name                       = var.environment_name
   source                                 = "../../../modules/tf_cloud/tf_cloud_workspaces"
   tf_cloud_organization_name             = var.tf_cloud_organization_name
   tf_cloud_workspace_vcs_repo_identifier = var.tf_cloud_workspace_vcs_repo_identifier
   tfe_oauth_client_token_id              = tfe_oauth_client.github.id
-  TF_VAR_GITHUB_TOKEN                    = var.TF_VAR_GITHUB_TOKEN
 }
