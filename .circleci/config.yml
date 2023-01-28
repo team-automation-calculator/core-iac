@@ -99,28 +99,31 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/aws/us-west-1/cluster-addons-layer
 
-  #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_tf_cloud_workspaces_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
           path: ./terraform/modules/tf_cloud/tf_cloud_workspaces
+      - terraform/validate:
+          path: ./terraform/modules/tf_cloud/tf_cloud_workspaces
 
-  #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_base_cluster_layer_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
           path: ./terraform/modules/aws/base-cluster-layer
+      - terraform/validate:
+          path: ./terraform/modules/aws/base-cluster-layer
   
-  #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_cluster_addons_module:
     executor: terraform/default
     steps:
       - checkout
       - terraform/fmt:
+          path: ./terraform/modules/aws/cluster-addons-layer
+      - terraform/validate:
           path: ./terraform/modules/aws/cluster-addons-layer
 
   validate_main_rails_app_module:
