@@ -97,7 +97,7 @@ resource "random_password" "rails_app_secret_key_base" {
 }
 
 resource "aws_acm_certificate" "automation_calculator_app" {
-  domain_name       = var.automation_calculator_app_host
+  domain_name = var.automation_calculator_app_host
   subject_alternative_names = [
     local.www_redirect_name
   ]
