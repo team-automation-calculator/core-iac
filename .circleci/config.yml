@@ -72,6 +72,33 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/staging/aws/us-west-1/cluster-addons-layer
 
+  validate_production_tf_cloud_env:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/tf_cloud
+      - terraform/validate:
+          path: ./terraform/env/production/tf_cloud
+
+  validate_production_aws_base_cluster_layer:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/aws/us-west-1/base-cluster-layer
+      - terraform/validate:
+          path: ./terraform/env/production/aws/us-west-1/base-cluster-layer
+
+  validate_production_aws_cluster_addons_layer:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/aws/us-west-1/cluster-addons-layer
+      - terraform/validate:
+          path: ./terraform/env/production/aws/us-west-1/cluster-addons-layer
+
   #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_tf_cloud_workspaces_module:
     executor: terraform/default
@@ -126,5 +153,9 @@ workflows:
       - validate_development_tf_cloud_env
       - validate_staging_tf_cloud_env
       - validate_staging_aws_base_cluster_layer
+      - validate_staging_aws_cluster_addons_layer
+      - validate_production_tf_cloud_env
+      - validate_production_aws_base_cluster_layer
+      - validate_production_aws_cluster_addons_layer
       - validate_main_rails_app_module
       - validate_networking_module
