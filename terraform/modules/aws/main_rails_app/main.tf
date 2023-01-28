@@ -57,7 +57,7 @@ resource "aws_security_group" "allow_db_access_from_eks" {
 }
 
 resource "aws_db_subnet_group" "db_access_subnet_group" {
-  name       = "automation-calculator-db-access-subnet-group"
+  name       = "automation-calculator-db-access-subnet-group-${var.environment_name}"
   subnet_ids = var.db_subnet_group_ids
 }
 
