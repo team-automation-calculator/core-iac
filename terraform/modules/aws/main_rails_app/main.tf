@@ -1,8 +1,9 @@
 data "template_file" "automation_calculator_helm_chart_values" {
   template = file("${path.module}/values.yml")
   vars = {
-    cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
     automation_calculator_app_host = var.automation_calculator_app_host
+    alb_name                       = "automation-calculator-alb-${var.environment_name}"
+    cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
   }
 }
 
