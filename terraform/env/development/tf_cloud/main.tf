@@ -17,5 +17,5 @@ module "tf_cloud_workspaces" {
   source                                 = "../../../modules/tf_cloud/tf_cloud_workspaces"
   tf_cloud_organization_name             = var.tf_cloud_organization_name
   tf_cloud_workspace_vcs_repo_identifier = var.tf_cloud_workspace_vcs_repo_identifier
-  tfe_oauth_client_token_id              = tfe_oauth_client.github.id
+  tfe_oauth_client_token_id              = tfe_oauth_client.github.oauth_token_id
 }
