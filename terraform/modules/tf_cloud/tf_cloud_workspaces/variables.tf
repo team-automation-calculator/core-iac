@@ -4,10 +4,22 @@ variable "base_cluster_layer_working_directory" {
   type        = string
 }
 
+variable "base_cluster_layer_module_directories" {
+  default     = ["teraform/modules/networking", "terraform/modules/base_cluster_layer"]
+  description = "The list of module directories for the base cluster layer"
+  type        = list(string)
+}
+
 variable "cluster_addons_layer_working_directory" {
   default     = ""
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
+}
+
+variable "cluster_addons_layer_module_directories" {
+  default     = ["terraform/modules/cluster_addons_layer", "terraform/modules/main_rails_app"]
+  description = "The list of module directories for the cluster addons layer"
+  type        = list(string)
 }
 
 variable "environment_name" {
