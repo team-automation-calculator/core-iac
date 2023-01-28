@@ -127,9 +127,13 @@ resource "aws_route53_record" "automation_calculator_app_cert_validation" {
 }
 
 resource "aws_route53_record" "automation_calculator_app_www_redirector" {
+  alias {
+    name                   = data.aws_route53_zone.automation_calculator_app.name
+    zone_id                = data.aws_route53_zone.automation_calculator_app.zone_id
+    evaluate_target_health = false
+  }
   name    = local.www_redirect_name
   records = [var.automation_calculator_app_host]
-  ttl     = 60
-  type    = "CNAME"
+  type    = "A"
   zone_id = data.aws_route53_zone.automation_calculator_app.zone_id
 }
