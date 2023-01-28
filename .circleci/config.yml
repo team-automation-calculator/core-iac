@@ -44,6 +44,15 @@ jobs:
           path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
       - terraform/validate:
           path: ./terraform/env/development/aws/us-west-1/
+  
+  validate_staging_tf_cloud_env:
+    executor: terraform/default
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/staging/tf_cloud
+      - terraform/validate:
+          path: ./terraform/env/staging/tf_cloud
 
   #Validate was removed from here temporarily on 2023-01-06 because circleci orbs couldn't keep up with latest tf version
   validate_tf_cloud_workspaces_module:
