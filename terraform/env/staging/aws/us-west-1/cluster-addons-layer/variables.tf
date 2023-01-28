@@ -5,7 +5,6 @@ variable "aws_region" {
 }
 
 variable "automation_calculator_app_host" {
-  default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
   type        = string
 }

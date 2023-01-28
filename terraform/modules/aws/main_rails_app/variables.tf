@@ -1,10 +1,4 @@
 # Declare vars
-variable "app_domain_name" {
-  default     = "automation-calculations.io"
-  description = "The domain name for the app."
-  type        = string
-}
-
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
