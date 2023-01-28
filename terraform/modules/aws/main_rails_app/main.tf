@@ -1,3 +1,7 @@
+locals {
+  www_redirect_name = "www.${var.automation_calculator_app_host}"
+}
+
 data "template_file" "automation_calculator_helm_chart_values" {
   template = file("${path.module}/values.yml")
   vars = {
@@ -94,6 +98,9 @@ resource "random_password" "rails_app_secret_key_base" {
 
 resource "aws_acm_certificate" "automation_calculator_app" {
   domain_name       = var.automation_calculator_app_host
+  subject_alternative_names = [
+    local.www_redirect_name
+  ]
   validation_method = "DNS"
 }
 
@@ -120,7 +127,7 @@ resource "aws_route53_record" "automation_calculator_app_cert_validation" {
 }
 
 resource "aws_route53_record" "automation_calculator_app_www_redirector" {
-  name    = "www.${var.automation_calculator_app_host}"
+  name    = local.www_redirect_name
   records = [var.automation_calculator_app_host]
   ttl     = 60
   type    = "CNAME"
