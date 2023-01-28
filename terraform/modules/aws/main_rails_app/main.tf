@@ -118,3 +118,10 @@ resource "aws_route53_record" "automation_calculator_app_cert_validation" {
   type            = each.value.type
   zone_id         = data.aws_route53_zone.automation_calculator_app.zone_id
 }
+
+resource "aws_route53_record" "automation_calculator_app_www_redirector" {
+  name    = "www.${var.automation_calculator_app_host}"
+  type    = "CNAME"
+  zone_id = data.aws_route53_zone.automation_calculator_app.zone_id
+  records = [var.automation_calculator_app_host]
+}
