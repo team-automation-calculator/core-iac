@@ -17,7 +17,7 @@ variable "cluster_addons_layer_working_directory" {
 }
 
 variable "cluster_addons_layer_module_directories" {
-  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app"]
+  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app", "helm/automation-calculator"]
   description = "The list of module directories for the cluster addons layer"
   type        = list(string)
 }
