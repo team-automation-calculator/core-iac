@@ -26,10 +26,8 @@ spec:
     - host: "www.{{ .Values.ingress.host }}"
       http:
         paths:
-          paths:
-            - path: /
-              pathType: Prefix
-              redirect:
-                type: Permanent
-                uri: {{ .Values.ingress.host }}
-
+          - pathType: Prefix
+            path: "/"
+            redirect:
+              type: Permanent
+              uri: {{ .Values.ingress.host }}
