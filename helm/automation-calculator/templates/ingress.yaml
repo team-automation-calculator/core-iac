@@ -28,6 +28,7 @@ spec:
         paths:
           - pathType: Prefix
             path: "/"
-            redirect:
-              type: Permanent
-              uri: {{ .Values.ingress.host }}
+            backend:
+              service:
+                name: "redirect-www"
+                port: use-annotation
