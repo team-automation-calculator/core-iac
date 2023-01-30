@@ -83,7 +83,9 @@ module "main_rails_app" {
   depends_on = [
     module.cluster_addons
   ]
-  environment_name = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
-  source           = "../../../../../modules/aws/main_rails_app"
-  vpc_id           = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
+  environment_name        = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
+  github_oauth_app_id     = var.github_oauth_app_id
+  github_oauth_app_secret = var.github_oauth_app_secret
+  source                  = "../../../../../modules/aws/main_rails_app"
+  vpc_id                  = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

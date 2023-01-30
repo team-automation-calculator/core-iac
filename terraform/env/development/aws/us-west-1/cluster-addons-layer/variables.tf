@@ -10,6 +10,16 @@ variable "automation_calculator_app_host" {
   type        = string
 }
 
+variable "github_oauth_app_id" {
+  description = "The GitHub OAuth App ID for the automation-calculator app."
+  type        = string
+}
+
+variable "github_oauth_app_secret" {
+  description = "The GitHub OAuth App Secret for the automation-calculator app."
+  type        = string
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
