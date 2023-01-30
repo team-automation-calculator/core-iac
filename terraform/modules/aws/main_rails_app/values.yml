@@ -8,7 +8,7 @@ ingress:
     alb.ingress.kubernetes.io/load-balancer-name: ${alb_name}
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: instance
-    alb.ingress.kubernetes.io/actions.redirect-www: {"type":"redirect","redirectConfig":{"host":"www.${automation_calculator_app_host}","path":"/","port":"443","protocol":"HTTPS","query":"k=v","statusCode":"HTTP_301"}}
+    alb.ingress.kubernetes.io/actions.redirect-www: {"type":"redirect","redirectConfig":{"host":"${automation_calculator_app_host}","path":"/","port":"443","protocol":"HTTPS","query":"k=v","statusCode":"HTTP_301"}}
     
   host: ${automation_calculator_app_host}
   tls: []
