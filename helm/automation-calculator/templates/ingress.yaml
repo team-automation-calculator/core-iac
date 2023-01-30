@@ -30,5 +30,6 @@ spec:
             path: "/"
             backend:
               service:
-                name: "redirect-www"
-                port: use-annotation
+                name: redirect-www
+                port:
+                  name: use-annotation
