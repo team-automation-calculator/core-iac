@@ -5,7 +5,7 @@ variable "base_cluster_layer_working_directory" {
 }
 
 variable "base_cluster_layer_module_directories" {
-  default     = ["teraform/modules/networking", "terraform/modules/base_cluster_layer"]
+  default     = ["terraform/modules/aws/networking", "terraform/modules/aws/base-cluster-layer"]
   description = "The list of module directories for the base cluster layer"
   type        = list(string)
 }
@@ -17,7 +17,7 @@ variable "cluster_addons_layer_working_directory" {
 }
 
 variable "cluster_addons_layer_module_directories" {
-  default     = ["terraform/modules/cluster_addons_layer", "terraform/modules/main_rails_app"]
+  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app"]
   description = "The list of module directories for the cluster addons layer"
   type        = list(string)
 }
