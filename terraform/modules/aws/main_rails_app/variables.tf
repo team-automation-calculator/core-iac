@@ -39,13 +39,23 @@ variable "environment_name" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "The VPC ID to deploy the cluster addons to."
+variable "github_oauth_app_id" {
+  description = "The GitHub OAuth App ID for the automation-calculator app."
+  type        = string
+}
+
+variable "github_oauth_app_secret" {
+  description = "The GitHub OAuth App Secret for the automation-calculator app."
   type        = string
 }
 
 variable "route53_zone_name" {
   default     = "automation-calculations.io"
   description = "The name of the Route53 zone to create the DNS records in."
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "The VPC ID to deploy the cluster addons to."
   type        = string
 }

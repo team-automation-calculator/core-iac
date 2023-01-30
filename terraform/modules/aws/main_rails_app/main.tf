@@ -24,13 +24,23 @@ resource "helm_release" "automation-calculator" {
   ]
 
   set_sensitive {
-    name  = "secrets.secretKeyBase"
-    value = random_password.rails_app_secret_key_base.result
+    name  = "secrets.databaseUrl"
+    value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
   }
 
   set_sensitive {
-    name  = "secrets.databaseUrl"
-    value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
+    name  = "secrets.githubOAuthAppId"
+    value = var.github_oauth_app_id
+  }
+
+  set_sensitive {
+    name  = "secrets.githubOAuthAppSecret"
+    value = var.github_oauth_app_secret
+  }
+
+  set_sensitive {
+    name  = "secrets.secretKeyBase"
+    value = random_password.rails_app_secret_key_base.result
   }
 }
 
