@@ -9,6 +9,15 @@ terraform {
       version = "~> 2.4.0"
     }
   }
+
+  backend "remote" {
+    hostname = "app.terraform.io"
+    organization = "team-automation-calculator"
+
+    workspaces {
+      name = "ac_app_cluster_addons_layer_staging"
+    }
+  }
 }
 
 # Configure the AWS Provider
