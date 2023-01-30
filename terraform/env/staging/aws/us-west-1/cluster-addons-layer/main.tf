@@ -9,7 +9,6 @@ terraform {
       version = "~> 2.4.0"
     }
   }
-
   backend "remote" {
     hostname     = "app.terraform.io"
     organization = "team-automation-calculator"
