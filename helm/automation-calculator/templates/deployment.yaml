@@ -35,6 +35,16 @@ spec:
               secretKeyRef:
                 name: {{ .Values.secrets.kubernetesSecretObjectName }}
                 key: databaseUrl
+          - name: GITHUB_OAUTH_APP_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: githubOAuthAppId
+          - name: GITHUB_OAUTH_APP_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: githubOAuthAppSecret
           - name: SECRET_KEY_BASE
             valueFrom:
               secretKeyRef:
