@@ -10,7 +10,6 @@ ingress:
     alb.ingress.kubernetes.io/target-type: instance
     alb.ingress.kubernetes.io/actions.redirect-www: >
       {"type":"redirect","redirectConfig":{"host":"${automation_calculator_app_host}","path":"/","port":"443","protocol":"HTTPS","query":"k=v","statusCode":"HTTP_301"}}
-    
   host: ${automation_calculator_app_host}
   tls: []
   logToStdout: true
