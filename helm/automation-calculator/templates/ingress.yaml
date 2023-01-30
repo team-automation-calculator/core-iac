@@ -23,3 +23,11 @@ spec:
                 name: {{ $fullName }}
                 port:
                   number: {{$svcPort }}
+    - host: "www.{{ .Values.ingress.host }}"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            redirect:
+              type: Permanent
+              uri: {{ .Values.ingress.host }}
