@@ -1,14 +1,3 @@
-variable "environment_name" {
-  description = "The application development environment, i.e development/staging/production."
-  type        = string
-}
-
-variable "tf_cloud_organization_name" {
-  default     = "team-automation-calculator"
-  description = "The Terraform Cloud organization name to use for the Terraform Cloud workspace for this layer"
-  type        = string
-}
-
 variable "base_cluster_layer_working_directory" {
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
@@ -25,9 +14,20 @@ variable "cluster_addons_layer_working_directory" {
   type        = string
 }
 
+variable "environment_name" {
+  description = "The application development environment, i.e development/staging/production."
+  type        = string
+}
+
 variable "google_cloud_working_directory" {
-  default     = "terraform/modules/google_cloud"
+  default     = "terraform/env/development/google_cloud"
   description = "The path to the google cloud folder for this environment"
+  type        = string
+}
+
+variable "tf_cloud_organization_name" {
+  default     = "team-automation-calculator"
+  description = "The Terraform Cloud organization name to use for the Terraform Cloud workspace for this layer"
   type        = string
 }
 
