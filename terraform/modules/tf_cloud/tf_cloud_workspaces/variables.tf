@@ -22,6 +22,17 @@ variable "cluster_addons_layer_module_directories" {
   type        = list(string)
 }
 
+variable "google_cloud_working_directory" {
+  description = "The path to the google cloud folder for this environment"
+  type        = string
+}
+
+variable "google_cloud_module_directories" {
+  default     = ["terraform/modules/google_cloud"]
+  description = "The list of module directories for the google cloud component of an environment"
+  type        = list(string)
+}
+
 variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
   type        = string

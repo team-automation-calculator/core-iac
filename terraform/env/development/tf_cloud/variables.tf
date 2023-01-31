@@ -25,6 +25,12 @@ variable "cluster_addons_layer_working_directory" {
   type        = string
 }
 
+variable "google_cloud_working_directory" {
+  default     = "terraform/modules/google_cloud"
+  description = "The path to the google cloud folder for this environment"
+  type        = string
+}
+
 variable "tf_cloud_workspace_vcs_repo_identifier" {
   default     = "team-automation-calculator/core-iac"
   description = "The VCS repo identifier for the Terraform Cloud workspace for this layer's version control/github source"
