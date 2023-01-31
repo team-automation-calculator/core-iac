@@ -23,6 +23,7 @@ variable "cluster_addons_layer_module_directories" {
 }
 
 variable "google_cloud_working_directory" {
+  default     = ""
   description = "The path to the google cloud folder for this environment"
   type        = string
 }
