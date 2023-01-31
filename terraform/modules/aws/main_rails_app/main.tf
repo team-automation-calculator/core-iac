@@ -39,6 +39,16 @@ resource "helm_release" "automation-calculator" {
   }
 
   set_sensitive {
+    name  = "secrets.googleOAuthAppId"
+    value = ""
+  }
+
+  set_sensitive {
+    name  = "secrets.googleOAuthAppSecret"
+    value = ""
+  }
+
+  set_sensitive {
     name  = "secrets.secretKeyBase"
     value = random_password.rails_app_secret_key_base.result
   }

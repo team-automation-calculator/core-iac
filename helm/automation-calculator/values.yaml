@@ -38,6 +38,8 @@ secrets:
   databaseUrl: YOUR_DB_URL_HERE
   githubOAuthAppId: YOUR_GITHUB_OAUTH_APP_ID_HERE
   githubOAuthAppSecret: YOUR_GITHUB_OAUTH_APP_SECRET_HERE
+  googleOAuthAppId: YOUR_GOOGLE_OAUTH_APP_ID_HERE
+  googleOAuthAppSecret: YOUR_GOOGLE_OAUTH_APP_SECRET_HERE
   kubernetesSecretObjectName: automation-calculator-app-secrets
   secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
 securityContext: {}
