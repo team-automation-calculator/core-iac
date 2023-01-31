@@ -24,7 +24,7 @@ resource "tfe_workspace" "cluster_addons_tfe_workspace" {
 }
 
 resource "tfe_workspace" "google_cloud_tfe_workspace" {
-  name             = "ac_app_cluster_addons_layer_${var.environment_name}"
+  name             = "ac_app_google_cloud_${var.environment_name}"
   organization     = var.tf_cloud_organization_name
   tag_names        = ["automation-calculator"]
   trigger_prefixes = concat([var.google_cloud_working_directory], var.google_cloud_module_directories)
