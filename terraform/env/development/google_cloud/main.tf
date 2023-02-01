@@ -14,16 +14,11 @@ provider "google" {
   zone    = var.zone
 }
 
-data "tfe_outputs" "cluster_addons_state" {
-  organization = var.tf_cloud_organization_name
-  workspace    = var.tfe_cluster_addons_workspace_name
-}
-
 module "google_cloud" {
   environment_name = var.environment_name
   google_org_id    = var.GOOGLE_ORG_ID
   project_id       = var.GOOGLE_PROJECT_ID
-  redirect_uri     = data.tfe_outputs.cluster_addons_state.nonsensitive_values.app_hostname
+  redirect_uri     = var.automation_calculator_app_host
   source           = "../../../modules/google_cloud"
   support_email    = var.GOOGLE_SUPPORT_EMAIL
 }

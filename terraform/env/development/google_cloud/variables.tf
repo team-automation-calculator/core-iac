@@ -24,16 +24,6 @@ variable "region" {
   default     = "us-west1"
 }
 
-variable "tf_cloud_organization_name" {
-  description = "The name of the Terraform Cloud organization to use"
-  default     = "team-automation-calculator"
-}
-
-variable "tfe_cluster_addons_workspace_name" {
-  description = "The name of the cluster addons workspace in this environment to use"
-  default     = "ac_app_cluster_addons_layer_development"
-}
-
 variable "zone" {
   description = "The zone to deploy to"
   default     = "us-west1-b"
