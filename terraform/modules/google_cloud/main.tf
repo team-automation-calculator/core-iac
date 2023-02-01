@@ -1,5 +1,5 @@
 resource "google_project" "env_project" {
-  name       = "automation-calculator-${var.environment_name}"
+  name       = "ac-app-${var.environment_name}"
   org_id     = var.google_org_id
   project_id = var.project_id
 }
