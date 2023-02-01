@@ -1,3 +1,7 @@
+variable "automation_calculator_app_host" {
+  description = "The DNS host for the automation calculator app, like development.automation-calculations.io"
+}
+
 variable "environment_name" {
   default     = "development"
   description = "The name of the environment to deploy to"
