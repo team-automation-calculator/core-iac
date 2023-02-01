@@ -21,6 +21,7 @@ data "tfe_outputs" "cluster_addons_state" {
 
 module "google_cloud" {
   environment_name = var.environment_name
+  google_org_id    = var.GOOGLE_ORG_ID
   project_id       = var.GOOGLE_PROJECT_ID
   redirect_uri     = data.tfe_outputs.cluster_addons_state.nonsensitive_values.app_hostname
   source           = "../../../modules/google_cloud"
