@@ -13,3 +13,12 @@ provider "google" {
   region  = var.region
   zone    = var.zone
 }
+
+module "google_cloud" {
+  environment_name = var.environment_name
+  google_org_id    = var.GOOGLE_ORG_ID
+  project_id       = var.GOOGLE_PROJECT_ID
+  redirect_uri     = var.automation_calculator_app_host
+  source           = "../../../modules/google_cloud"
+  support_email    = var.GOOGLE_SUPPORT_EMAIL
+}
