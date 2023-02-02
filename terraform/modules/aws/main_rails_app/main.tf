@@ -5,6 +5,9 @@ locals {
 data "template_file" "automation_calculator_helm_chart_values" {
   template = file("${path.module}/values.yml")
   vars = {
+    app_image_pull_policy          = var.app_image_pull_policy
+    app_image_repo                 = var.app_image_repo
+    app_version                    = var.app_version
     automation_calculator_app_host = var.automation_calculator_app_host
     alb_name                       = "ac-app-${var.environment_name}"
     cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)

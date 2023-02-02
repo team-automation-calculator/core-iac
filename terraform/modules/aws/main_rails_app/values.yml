@@ -1,3 +1,8 @@
+image:
+  pullPolicy: ${app_image_pull_policy}
+  repository: ${app_image_repo}
+  tag: ${app_version}
+
 ingress:
   annotations:
     alb.ingress.kubernetes.io/ssl-redirect: '443'
