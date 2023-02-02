@@ -40,12 +40,12 @@ resource "helm_release" "automation-calculator" {
 
   set_sensitive {
     name  = "secrets.googleOAuthAppId"
-    value = ""
+    value = var.google_oauth_app_id
   }
 
   set_sensitive {
     name  = "secrets.googleOAuthAppSecret"
-    value = ""
+    value = var.google_oauth_app_secret
   }
 
   set_sensitive {

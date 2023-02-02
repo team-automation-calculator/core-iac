@@ -49,6 +49,16 @@ variable "github_oauth_app_secret" {
   type        = string
 }
 
+variable "google_oauth_app_id" {
+  description = "The Google OAuth App ID for the automation-calculator app."
+  type        = string
+}
+
+variable "google_oauth_app_secret" {
+  description = "The Google OAuth App Secret for the automation-calculator app."
+  type        = string
+}
+
 variable "route53_zone_name" {
   default     = "automation-calculations.io"
   description = "The name of the Route53 zone to create the DNS records in."
