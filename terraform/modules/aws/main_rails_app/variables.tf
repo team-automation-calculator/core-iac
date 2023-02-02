@@ -1,4 +1,22 @@
 # Declare vars
+variable "app_image_pull_policy" {
+  default     = "Always"
+  description = "The image pull policy for the automation-calculator app."
+  type        = string
+}
+
+variable "app_image_repo" {
+  default     = "automationcalculationsci/automation-calculator"
+  description = "The name of the docker image repo to pull the automation-calculator app image from."
+  type        = string
+}
+
+variable "app_version" {
+  default     = "0.6.1-584"
+  description = "The version of the automation-calculator app to deploy."
+  type        = string
+}
+
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
