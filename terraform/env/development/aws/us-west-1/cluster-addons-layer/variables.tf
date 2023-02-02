@@ -20,6 +20,16 @@ variable "github_oauth_app_secret" {
   type        = string
 }
 
+variable "google_oauth_app_id" {
+  description = "The Google OAuth App ID for the automation-calculator app."
+  type        = string
+}
+
+variable "google_oauth_app_secret" {
+  description = "The Google OAuth App Secret for the automation-calculator app."
+  type        = string
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
