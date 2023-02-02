@@ -45,6 +45,16 @@ spec:
               secretKeyRef:
                 name: {{ .Values.secrets.kubernetesSecretObjectName }}
                 key: githubOAuthAppSecret
+          - name: GOOGLE_OAUTH_APP_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: googleOAuthAppId
+          - name: GOOGLE_OAUTH_APP_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.kubernetesSecretObjectName }}
+                key: googleOAuthAppSecret
           - name: SECRET_KEY_BASE
             valueFrom:
               secretKeyRef:
