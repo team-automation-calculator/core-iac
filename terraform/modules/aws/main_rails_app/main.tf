@@ -12,7 +12,7 @@ data "template_file" "automation_calculator_helm_chart_values" {
 }
 
 resource "helm_release" "automation-calculator" {
-  atomic           = false
+  atomic           = true
   name             = "automation-calculator"
   namespace        = "automation-calculator"
   chart            = var.automation_calculator_helm_release_local_path
