@@ -7,7 +7,7 @@ fullnameOverride: automation-calculator
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.6.3-586
+  tag: 0.7.3-624
 ingress:
   annotations:
     alb.ingress.kubernetes.io/backend-protocol: HTTP
@@ -17,7 +17,6 @@ ingress:
     alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: instance
-    
   host: "development.automation-calculations.io"
   tls: []
 logToStdout: true
