@@ -9,6 +9,7 @@ set -euo pipefail
 # This script assumes that the docker image has already been pushed to the registry
 
 HELM_VALUES_FILE="../helm/automation-calculator/values.yaml"
+TERRAFORM_APP_MODULE_VARIABLES_FILE="../terraform/modules/aws/main_rails_app/variables.tf"
 NEW_VERSION=${1}
 
 if [ $# -ne 1 ]; then
@@ -17,7 +18,12 @@ if [ $# -ne 1 ]; then
 fi
 
 ls ${HELM_VALUES_FILE}
+ls ${TERRAFORM_APP_MODULE_VARIABLES_FILE}
 
 YQ_EXPRESSION=".image.tag=\"${NEW_VERSION}\""
 
+OLD_TAG_VALUE=$(yq -r .image.tag ${HELM_VALUES_FILE})
+
 yq -i ${HELM_VALUES_FILE} --expression ${YQ_EXPRESSION}
+
+sed -i -e "s/${OLD_TAG_VALUE}/${NEW_VERSION}/g" ${TERRAFORM_APP_MODULE_VARIABLES_FILE}
