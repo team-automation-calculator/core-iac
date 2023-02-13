@@ -146,7 +146,7 @@ resource "kubernetes_secret_v1" "external_dns_service_account" {
 
 resource "helm_release" "metrics-server" {
   name       = "metrics-server"
-  repository = "https://kubernetes-charts.storage.googleapis.com/"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
   version    = "3.8.3"
 }
