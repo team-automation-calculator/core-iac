@@ -143,3 +143,10 @@ resource "kubernetes_secret_v1" "external_dns_service_account" {
   type                           = "kubernetes.io/service-account-token"
   wait_for_service_account_token = true
 }
+
+resource "helm_release" "metrics-server" {
+  name       = "metrics-server"
+  repository = "https://kubernetes-charts.storage.googleapis.com/"
+  chart      = "metrics-server"
+  version    = "3.8.3"
+}
