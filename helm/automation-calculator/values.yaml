@@ -7,7 +7,7 @@ fullnameOverride: automation-calculator
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.8.1-654
+  tag: 0.8.3-656
 ingress:
   annotations:
     alb.ingress.kubernetes.io/backend-protocol: HTTP

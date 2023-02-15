@@ -12,7 +12,7 @@ variable "app_image_repo" {
 }
 
 variable "app_version" {
-  default     = "0.8.1-654"
+  default     = "0.8.3-656"
   description = "The version of the automation-calculator app to deploy."
   type        = string
 }
