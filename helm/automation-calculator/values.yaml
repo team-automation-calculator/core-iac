@@ -4,6 +4,7 @@
 
 affinity: {}
 fullnameOverride: automation-calculator
+googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
