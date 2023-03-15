@@ -24,6 +24,8 @@ spec:
           env:
           - name: APP_HOSTNAME
             value: {{ .Values.ingress.host }}
+          - name: GOOGLE_ANALYTICS_TRACKING_ID
+            value: {{ .Values.googleAnalyticsTrackingID }}
           - name: RAILS_ENV
             value: {{ .Values.railsEnv }}
           - name: RAILS_LOG_TO_STDOUT
