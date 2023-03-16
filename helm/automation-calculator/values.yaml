@@ -8,7 +8,7 @@ googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.9.4-677
+  tag: 0.9.5-681
 ingress:
   annotations:
     alb.ingress.kubernetes.io/backend-protocol: HTTP
