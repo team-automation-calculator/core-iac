@@ -14,6 +14,12 @@ RDS_ENDPOINT="$(terraform -chdir=${TARGET_FOLDER} state show ${DB_RESOURCE_ADDRE
 RDS_ENDPOINT="${RDS_ENDPOINT%\"}"
 RDS_ENDPOINT="${RDS_ENDPOINT#\"}"
 
+#exit if environment var is not set
+if [ -z "${ENVIRONMENT}" ]; then
+  echo "ENVIRONMENT variable is not set. Exiting."
+  exit 1
+fi
+
 echo "Target DB Host is: ${RDS_ENDPOINT}"
 
 #run pod for postgres client
