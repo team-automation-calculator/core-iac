@@ -20,6 +20,12 @@ if [ -z "${ENVIRONMENT}" ]; then
   exit 1
 fi
 
+#exit if db pass var is not set
+if [ -z "${DB_PASS}" ]; then
+  echo "DB_PASS variable is not set. Exiting."
+  exit 1
+fi
+
 echo "Target DB Host is: ${RDS_ENDPOINT}"
 
 #run pod for postgres client
