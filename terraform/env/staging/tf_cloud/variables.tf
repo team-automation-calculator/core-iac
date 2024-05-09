@@ -30,3 +30,9 @@ variable "TF_VAR_GITHUB_TOKEN" {
   type        = string
   sensitive   = true
 }
+
+variable "kubernetes_cluster_version" {
+  description = "The kubernetes cluster version"
+  type        = string
+  default     = "1.26"
+}
