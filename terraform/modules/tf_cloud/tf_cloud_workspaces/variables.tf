@@ -57,6 +57,6 @@ variable "tfe_oauth_client_token_id" {
 
 variable "tfe_workspace_tf_version" {
   description = "Allows for version pinning of tfe workspaces that have been created, because otherwise TF Cloud just chooses the latest one."
-  type = string
-  default = "1.3.7"
+  type        = string
+  default     = "1.3.7"
 }
