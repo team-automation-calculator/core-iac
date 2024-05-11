@@ -1,5 +1,5 @@
 resource "tfe_workspace" "base_cluster_tfe_workspace" {
-  name                      = "ac_app_base_cluster_layer_${var.environment_name}"
+  name                      = "ac_app_${var.environment_name}_base_cluster_layer"
   organization              = var.tf_cloud_organization_name
   remote_state_consumer_ids = [tfe_workspace.cluster_addons_tfe_workspace.id]
   tag_names                 = local.shared_workspace_tags
@@ -13,7 +13,7 @@ resource "tfe_workspace" "base_cluster_tfe_workspace" {
 }
 
 resource "tfe_workspace" "cluster_addons_tfe_workspace" {
-  name              = "ac_app_cluster_addons_layer_${var.environment_name}"
+  name              = "ac_app_${var.environment_name}_cluster_addons_layer"
   organization      = var.tf_cloud_organization_name
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
