@@ -1,5 +1,5 @@
 variable "cluster_version" {
-  default     = "1.24"
+  default     = "1.26"
   description = "The AWS EKS version to use"
   type        = string
 }
