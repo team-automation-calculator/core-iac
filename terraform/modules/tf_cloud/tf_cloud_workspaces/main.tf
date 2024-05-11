@@ -2,7 +2,7 @@ resource "tfe_workspace" "base_cluster_tfe_workspace" {
   name                      = "ac_app_base_cluster_layer_${var.environment_name}"
   organization              = var.tf_cloud_organization_name
   remote_state_consumer_ids = [tfe_workspace.cluster_addons_tfe_workspace.id]
-  tag_names                 = ["automation-calculator"]
+  tag_names                 = local.shared_workspace_tags
   terraform_version         = var.tfe_workspace_tf_version
   trigger_prefixes          = concat([var.base_cluster_layer_working_directory], var.base_cluster_layer_module_directories)
   vcs_repo {
@@ -15,7 +15,7 @@ resource "tfe_workspace" "base_cluster_tfe_workspace" {
 resource "tfe_workspace" "cluster_addons_tfe_workspace" {
   name              = "ac_app_cluster_addons_layer_${var.environment_name}"
   organization      = var.tf_cloud_organization_name
-  tag_names         = ["automation-calculator"]
+  tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.cluster_addons_layer_working_directory], var.cluster_addons_layer_module_directories)
   vcs_repo {
