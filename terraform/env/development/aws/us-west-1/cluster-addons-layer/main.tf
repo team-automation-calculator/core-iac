@@ -14,7 +14,7 @@ terraform {
     organization = "team-automation-calculator"
 
     workspaces {
-      name = "ac_app_cluster_addons_layer_development"
+      name = "ac_app_development_cluster_addons_layer"
     }
   }
 }

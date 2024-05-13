@@ -41,12 +41,6 @@ variable "tf_cloud_organization_name" {
   type        = string
 }
 
-variable "tfe_cluster_addons_layer_workspace_name" {
-  default     = "core-iac"
-  description = "The name of the Terraform Cloud workspace for the base layer."
-  type        = string
-}
-
 variable "tf_cloud_workspace_path" {
   default     = "terraform/aws/env/production/us-west-1/cluster-addons-layer"
   description = "The path to the Terraform Cloud workspace."
