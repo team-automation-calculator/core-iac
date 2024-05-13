@@ -55,7 +55,6 @@ variable "tf_cloud_workspace_path" {
 }
 
 variable "tfe_base_layer_workspace_name" {
-  default     = "core-iac"
   description = "The name of the Terraform Cloud workspace for the base layer."
   type        = string
 }
