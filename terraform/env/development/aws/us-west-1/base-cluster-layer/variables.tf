@@ -12,7 +12,6 @@ variable "environment_name" {
 variable "kubernetes_cluster_version" {
   description = "The kubernetes cluster version"
   type        = string
-  default     = "1.26"
 }
 
 variable "project_tag" {

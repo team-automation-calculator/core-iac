@@ -18,5 +18,4 @@ variable "project_tag" {
 variable "kubernetes_cluster_version" {
   description = "The kubernetes cluster version"
   type        = string
-  default     = "1.26"
 }
