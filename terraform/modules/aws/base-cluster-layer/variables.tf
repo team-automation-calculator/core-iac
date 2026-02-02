@@ -39,3 +39,9 @@ variable "vpc_id" {
   description = "VPC ID of the VPC to put the app into"
   type        = string
 }
+
+variable "ami_type" {
+  default     = "AL2023_x86_64"
+  description = "The AMI type to use for the EKS node group."
+  type        = string
+}
