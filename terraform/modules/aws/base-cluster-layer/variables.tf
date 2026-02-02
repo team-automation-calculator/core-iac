@@ -45,3 +45,9 @@ variable "ami_type" {
   description = "The AMI type to use for the EKS node group."
   type        = string
 }
+
+variable "ami_id" {
+  default     = null
+  description = "The custom AMI ID to use for the EKS node group. If set, this will override the AMI type."
+  type        = string
+}

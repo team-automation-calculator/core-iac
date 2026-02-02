@@ -7,6 +7,7 @@ module "app_eks_cluster" {
     disk_size      = 20
     instance_types = var.node_group_instance_types
     ami_type       = var.ami_type
+    ami_id         = var.ami_id
   }
 
   eks_managed_node_groups = {
