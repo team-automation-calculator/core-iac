@@ -1,5 +1,6 @@
 module "aws_load_balancer_controller_irsa_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
 
   role_name                              = "${var.environment_name}_eks_lb"
   attach_load_balancer_controller_policy = true
@@ -104,7 +105,8 @@ resource "helm_release" "external-dns" {
 }
 
 module "external_dns_irsa_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
 
   role_name                  = "${var.environment_name}_eks_external_dns"
   attach_external_dns_policy = true
