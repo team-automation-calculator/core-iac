@@ -19,3 +19,9 @@ variable "kubernetes_cluster_version" {
   description = "The kubernetes cluster version"
   type        = string
 }
+
+variable "ami_type" {
+  default     = "AL2023_x86_64"
+  description = "The AMI type to use for the EKS node group."
+  type        = string
+}

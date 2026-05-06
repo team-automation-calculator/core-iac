@@ -23,19 +23,6 @@ terraform {
   }
 }
 
-# Configure the AWS Provider
-# Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables to authenticate
-provider "aws" {
-  region = var.aws_region
-  default_tags {
-    tags = {
-      Environment = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name,
-      Project     = var.project_tag,
-      SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
-    }
-  }
-}
-
 data "aws_eks_cluster" "target_cluster" {
   name = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
 }
@@ -53,22 +40,8 @@ data "tfe_outputs" "base_layer_state" {
   workspace    = var.tfe_base_layer_workspace_name
 }
 
-# Configure the helm provider with the EKS cluster auth variables
-provider "helm" {
-  kubernetes {
-    host                   = data.aws_eks_cluster.target_cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
-    token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
-  }
-}
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.target_cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
-  token                  = data.aws_eks_cluster_auth.target_cluster_auth.token
-}
-
 module "cluster_addons" {
+  alarm_email                   = var.alarm_email
   environment_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
   eks_cluster_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
   eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint
