@@ -79,8 +79,9 @@ resource "helm_release" "external-dns" {
     kubernetes_service_account.external_dns_service_account
   ]
   name       = "external-dns"
-  repository = "https://charts.bitnami.com/bitnami"
+  repository = "oci://registry-1.docker.io/bitnamicharts"
   chart      = "external-dns"
+  version    = "9.0.4"
   namespace  = "kube-system"
 
   set {
