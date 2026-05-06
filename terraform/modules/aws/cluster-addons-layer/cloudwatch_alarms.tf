@@ -6,6 +6,7 @@ data "aws_lb_target_group" "app" {
   tags = {
     "kubernetes.io/ingress-name" = "automation-calculator"
     "kubernetes.io/namespace"    = "automation-calculator"
+    "kubernetes.io/service-name" = "automation-calculator"
   }
 }
 
