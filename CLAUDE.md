@@ -84,14 +84,14 @@ scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (d
 
 ## Provider Versions
 
-| Provider | Constraint |
-|----------|-----------|
-| AWS | `>= 4.0` (resolved version pinned via `.terraform.lock.hcl`) |
-| TFE | `0.68.2` (pinned exactly in all tf_cloud configs) |
-| Helm | `~> 2.9` |
-| Kubernetes | defined per module |
+| Provider | Module constraint | Env config constraint |
+|----------|------------------|-----------------------|
+| AWS | `>= 4.0` | `~> 4.38.0` (cluster-addons) / `~> 4.47` (base-cluster) |
+| Helm | `~> 2.9` | `~> 2.9` |
+| Kubernetes | `~> 2.16` | `~> 2.16` |
+| TFE | — | `0.68.2` (pinned exactly in all tf_cloud configs) |
 
-Lock files (`.terraform.lock.hcl`) are committed. When updating providers, run `terraform init -upgrade` in each affected directory and commit the updated lockfile alongside the `versions.tf` change.
+Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. Module lock files are generated with HashiCorp Terraform (`registry.terraform.io`); env config lock files were generated with OpenTofu (`registry.opentofu.org`). When updating providers, run `terraform init -upgrade` in each affected directory and commit the updated lock file alongside the `versions.tf` change.
 
 ## External-DNS Helm Registry
 
