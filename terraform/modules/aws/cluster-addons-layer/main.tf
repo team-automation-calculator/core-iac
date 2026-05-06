@@ -81,7 +81,7 @@ resource "helm_release" "external-dns" {
   name       = "external-dns"
   repository = "oci://registry-1.docker.io/bitnamicharts"
   chart      = "external-dns"
-  version    = "9.0.4"
+  version    = "9.0.3"
   namespace  = "kube-system"
 
   set {
