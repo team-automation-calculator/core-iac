@@ -51,3 +51,8 @@ variable "tfe_base_layer_workspace_name" {
   description = "The name of the Terraform Cloud workspace for the base layer."
   type        = string
 }
+
+variable "alarm_email" {
+  description = "Email address to receive CloudWatch alarm notifications"
+  type        = string
+}
