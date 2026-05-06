@@ -92,7 +92,6 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
     expression  = "SELECT MAX(UnHealthyHostCount) FROM \"AWS/ApplicationELB\" WHERE LoadBalancer = '${local.alb_dimension}'"
     label       = "UnHealthyHostCount"
     return_data = true
-    period      = 60
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]
