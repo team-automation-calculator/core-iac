@@ -97,6 +97,7 @@ resource "aws_db_instance" "automation_calculator_app" {
   db_name                     = "automation_calculator_app"
   db_subnet_group_name        = aws_db_subnet_group.db_access_subnet_group.name
   engine                      = "postgres"
+  engine_version              = var.db_engine_version
   instance_class              = var.db_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result

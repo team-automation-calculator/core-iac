@@ -58,6 +58,7 @@ module "cluster_addons" {
 module "main_rails_app" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   automation_calculator_app_host                = var.automation_calculator_app_host
+  db_engine_version                             = "14"
   db_security_group_ids                         = data.aws_launch_template.target_cluster_launch_template.vpc_security_group_ids
   db_subnet_group_ids                           = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
   db_port                                       = 5432

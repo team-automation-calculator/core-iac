@@ -29,6 +29,12 @@ variable "automation_calculator_helm_release_local_path" {
   type        = string
 }
 
+variable "db_engine_version" {
+  default     = null
+  description = "The PostgreSQL engine version for the RDS instance. If null, AWS uses its default."
+  type        = string
+}
+
 variable "db_instance_class" {
   default     = "db.t4g.micro"
   description = "Amazon RDS instance type/class for the app database in this env."
