@@ -2,14 +2,6 @@ data "aws_lb" "app" {
   name = "ac-app-${var.environment_name}"
 }
 
-data "aws_lb_target_group" "app" {
-  tags = {
-    "kubernetes.io/ingress-name" = "automation-calculator"
-    "kubernetes.io/namespace"    = "automation-calculator"
-    "kubernetes.io/service-name" = "automation-calculator"
-  }
-}
-
 locals {
   # CloudWatch expects the ALB dimension as the ARN suffix, e.g.:
   # arn:aws:elasticloadbalancing:...:loadbalancer/app/ac-app-production/abc123
@@ -92,16 +84,15 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   alarm_description   = "One or more target group hosts are unhealthy"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
-  metric_name         = "UnHealthyHostCount"
-  namespace           = "AWS/ApplicationELB"
-  period              = 60
-  statistic           = "Maximum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
 
-  dimensions = {
-    LoadBalancer = local.alb_dimension
-    TargetGroup  = data.aws_lb_target_group.app.arn_suffix
+  metric_query {
+    id          = "m1"
+    expression  = "SELECT MAX(UnHealthyHostCount) FROM \"AWS/ApplicationELB\" WHERE LoadBalancer = '${local.alb_dimension}'"
+    label       = "UnHealthyHostCount"
+    return_data = true
+    period      = 60
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]
