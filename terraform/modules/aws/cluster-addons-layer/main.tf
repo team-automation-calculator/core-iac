@@ -100,6 +100,11 @@ resource "helm_release" "external-dns" {
   }
 
   set {
+    name  = "global.security.allowInsecureImages"
+    value = "true"
+  }
+
+  set {
     name  = "serviceAccount.create"
     value = "false"
   }
