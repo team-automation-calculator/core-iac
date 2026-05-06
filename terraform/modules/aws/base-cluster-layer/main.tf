@@ -4,10 +4,11 @@ module "app_eks_cluster" {
   cluster_endpoint_public_access = true
 
   eks_managed_node_group_defaults = {
-    disk_size      = 20
-    instance_types = var.node_group_instance_types
-    ami_type       = var.ami_type
-    ami_id         = var.ami_id
+    disk_size                  = 20
+    instance_types             = var.node_group_instance_types
+    ami_type                   = var.ami_type
+    ami_id                     = var.ami_id
+    use_custom_launch_template = false
   }
 
   eks_managed_node_groups = {
