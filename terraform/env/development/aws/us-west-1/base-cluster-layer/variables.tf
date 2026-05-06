@@ -14,6 +14,12 @@ variable "kubernetes_cluster_version" {
   type        = string
 }
 
+variable "ami_type" {
+  default     = "AL2023_x86_64"
+  description = "The AMI type to use for the EKS node group."
+  type        = string
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
