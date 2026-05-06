@@ -15,25 +15,18 @@ terraform {
   }
 }
 
-# Configure the AWS Provider
-# Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables to authenticate
-provider "aws" {
-  region = var.aws_region
-  default_tags {
-    tags = {
-      Environment = var.environment_name,
-      Project     = var.project_tag,
-      SourceRepo  = "https://github.com/team-automation-calculator/core-iac"
-    }
-  }
-}
-
 module "eks_cluster" {
   environment_name = var.environment_name
   cluster_version  = var.kubernetes_cluster_version
   source           = "../../../../../modules/aws/base-cluster-layer"
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
   vpc_id           = module.networking_layer.vpc.id
+  ami_type         = var.ami_type
+  node_group_scaling_config = {
+    desired_size = 1
+    max_size     = 2
+    min_size     = 1
+  }
 }
 
 module "networking_layer" {

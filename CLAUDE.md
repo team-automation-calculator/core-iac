@@ -10,16 +10,24 @@ Infrastructure as Code for the [automation-calculations.io](https://automation-c
 
 ```
 terraform/
-  modules/          # Reusable modules (tf_cloud, aws/*)
+  modules/
+    tf_cloud/tf_cloud_workspaces/   # TFE workspace module
+    aws/
+      base-cluster-layer/           # VPC, EKS cluster, IAM
+      cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
+      main_rails_app/               # Rails app Helm release module
+      networking/                   # VPC/subnet resources
   env/              # Per-environment configs (development, staging, production)
     <env>/
       tf_cloud/     # TFE workspace bootstrap (apply this first)
       aws/us-west-1/
-        base-cluster-layer/     # VPC, EKS cluster, IAM
-        cluster-addons-layer/   # ALB controller, external-dns, metrics-server
+        base-cluster-layer/
+        cluster-addons-layer/
 helm/
   automation-calculator/        # App Helm chart
-scripts/                        # Bash helpers (version bump, kubeconfig, db connect)
+scripts/                        # Bash helpers
+eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
+rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
 .circleci/config.yml            # CI validation pipeline
 ```
 
@@ -48,8 +56,8 @@ terraform apply
 
 ### Helm
 ```bash
-# Lint the chart (what CI runs)
-helm lint helm/automation-calculator/
+# Lint the chart (what CI runs — note the --strict flag)
+helm lint helm/automation-calculator/ --strict
 
 # Render templates locally
 helm template automation-calculator helm/automation-calculator/ --values helm/automation-calculator/values.yaml
@@ -57,9 +65,13 @@ helm template automation-calculator helm/automation-calculator/ --values helm/au
 
 ### Scripts
 ```bash
-scripts/update_kubeconfigs.sh   # Refresh kubeconfig for all envs
-scripts/connect_to_db.sh        # Port-forward to RDS via kubectl
-scripts/bump_version.sh         # Bump app version across chart/manifests
+scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
+scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
+scripts/bump_app_docker_image_version.sh       # Bump app Docker image version in Helm values + Terraform
+scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch
+scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
+scripts/install_tf.sh                          # Install a specific Terraform version
+scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
 ```
 
 ## Key Conventions
@@ -74,8 +86,8 @@ scripts/bump_version.sh         # Bump app version across chart/manifests
 
 | Provider | Constraint |
 |----------|-----------|
-| AWS | `~> 4.47` |
-| TFE | `0.68.2` (pinned exactly) |
+| AWS | `>= 4.0` (resolved version pinned via `.terraform.lock.hcl`) |
+| TFE | `0.68.2` (pinned exactly in all tf_cloud configs) |
 | Helm | `~> 2.9` |
 | Kubernetes | defined per module |
 

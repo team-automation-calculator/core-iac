@@ -42,3 +42,21 @@ variable "TF_VAR_GITHUB_TOKEN" {
   type        = string
   sensitive   = true
 }
+
+variable "enable_cluster_addons_run_trigger" {
+  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
+  type        = bool
+  default     = true
+}
+
+variable "auto_apply" {
+  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
+  type        = bool
+  default     = false
+}
+
+variable "tfe_workspace_tf_version" {
+  description = "Allows for version pinning of tfe workspaces that have been created, because otherwise TF Cloud just chooses the latest one."
+  type        = string
+  default     = "1.3.7"
+}
