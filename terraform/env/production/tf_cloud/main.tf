@@ -1,7 +1,3 @@
-provider "tfe" {
-  hostname = "app.terraform.io"
-}
-
 resource "tfe_oauth_client" "github" {
   api_url          = "https://api.github.com"
   http_url         = "https://github.com"
