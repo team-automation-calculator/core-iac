@@ -22,6 +22,11 @@ module "eks_cluster" {
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
   vpc_id           = module.networking_layer.vpc.id
   ami_type         = var.ami_type
+  node_group_scaling_config = {
+    desired_size = 1
+    max_size     = 2
+    min_size     = 1
+  }
 }
 
 module "networking_layer" {
