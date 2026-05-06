@@ -153,13 +153,3 @@ resource "helm_release" "metrics-server" {
   chart      = "metrics-server"
   version    = "3.8.3"
 }
-
-moved {
-  from = kubernetes_service_account.aws_load_balancer_controller_service_account
-  to   = kubernetes_service_account_v1.aws_load_balancer_controller_service_account
-}
-
-moved {
-  from = kubernetes_service_account.external_dns_service_account
-  to   = kubernetes_service_account_v1.external_dns_service_account
-}
