@@ -2,6 +2,14 @@ data "aws_lb" "app" {
   name = "ac-app-${var.environment_name}"
 }
 
+data "aws_lb_target_group" "app" {
+  tags = {
+    "kubernetes.io/ingress-name" = "automation-calculator"
+    "kubernetes.io/namespace"    = "automation-calculator"
+    "kubernetes.io/service-name" = "automation-calculator"
+  }
+}
+
 locals {
   # CloudWatch expects the ALB dimension as the ARN suffix, e.g.:
   # arn:aws:elasticloadbalancing:...:loadbalancer/app/ac-app-production/abc123
