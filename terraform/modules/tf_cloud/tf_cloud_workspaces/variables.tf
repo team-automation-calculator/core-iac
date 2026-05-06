@@ -60,3 +60,9 @@ variable "tfe_workspace_tf_version" {
   type        = string
   default     = "1.3.7"
 }
+
+variable "enable_cluster_addons_run_trigger" {
+  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
+  type        = bool
+  default     = true
+}
