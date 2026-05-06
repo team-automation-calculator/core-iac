@@ -1,0 +1,40 @@
+{
+  "rds_postgresql_version_support": [
+    {
+      "major_version": "13",
+      "rds_ga_date": "2021-02-24",
+      "standard_support_end": "2026-02-28",
+      "extended_support_end": "2029-02-28"
+    },
+    {
+      "major_version": "14",
+      "rds_ga_date": "2022-02-03",
+      "standard_support_end": "2027-02-28",
+      "extended_support_end": "2030-02-28"
+    },
+    {
+      "major_version": "15",
+      "rds_ga_date": "2023-02-27",
+      "standard_support_end": "2028-02-29",
+      "extended_support_end": "2031-02-28"
+    },
+    {
+      "major_version": "16",
+      "rds_ga_date": "2023-11-20",
+      "standard_support_end": "2029-02-28",
+      "extended_support_end": "2032-02-29"
+    },
+    {
+      "major_version": "17",
+      "rds_ga_date": "2024-11-14",
+      "standard_support_end": "2030-02-28",
+      "extended_support_end": "2033-02-28"
+    },
+    {
+      "major_version": "18",
+      "rds_ga_date": "2025-11-14",
+      "standard_support_end": "2031-02-28",
+      "extended_support_end": "2034-02-28"
+    }
+  ]
+}
