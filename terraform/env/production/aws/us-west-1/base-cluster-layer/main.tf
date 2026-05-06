@@ -34,6 +34,7 @@ module "eks_cluster" {
   source           = "../../../../../modules/aws/base-cluster-layer"
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
   vpc_id           = module.networking_layer.vpc.id
+  ami_type         = var.ami_type
 }
 
 module "networking_layer" {

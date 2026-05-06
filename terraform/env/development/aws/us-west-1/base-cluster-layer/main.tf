@@ -34,6 +34,7 @@ module "eks_cluster" {
   subnet_ids       = module.networking_layer.private_eks_subnet_ids
   cluster_version  = var.kubernetes_cluster_version
   vpc_id           = module.networking_layer.vpc.id
+  ami_type         = var.ami_type
 }
 
 module "networking_layer" {
