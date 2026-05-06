@@ -11,6 +11,7 @@ resource "tfe_oauth_client" "github" {
 }
 
 module "tf_cloud_workspaces" {
+  auto_apply                              = var.auto_apply
   base_cluster_layer_working_directory    = var.base_cluster_layer_working_directory
   cluster_addons_layer_module_directories = var.cluster_addons_layer_module_directories
   cluster_addons_layer_working_directory  = var.cluster_addons_layer_working_directory

@@ -36,3 +36,9 @@ variable "enable_cluster_addons_run_trigger" {
   type        = bool
   default     = true
 }
+
+variable "auto_apply" {
+  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
+  type        = bool
+  default     = false
+}

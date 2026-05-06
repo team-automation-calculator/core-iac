@@ -1,6 +1,7 @@
 resource "tfe_workspace" "base_cluster_tfe_workspace" {
   name              = "ac_app_${var.environment_name}_base_cluster_layer"
   organization      = var.tf_cloud_organization_name
+  auto_apply        = var.auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.base_cluster_layer_working_directory], var.base_cluster_layer_module_directories)
@@ -25,6 +26,7 @@ resource "tfe_run_trigger" "cluster_addons_run_trigger" {
 resource "tfe_workspace" "cluster_addons_tfe_workspace" {
   name              = "ac_app_${var.environment_name}_cluster_addons_layer"
   organization      = var.tf_cloud_organization_name
+  auto_apply        = var.auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.cluster_addons_layer_working_directory], var.cluster_addons_layer_module_directories)
