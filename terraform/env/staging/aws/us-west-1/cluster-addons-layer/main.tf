@@ -69,6 +69,7 @@ provider "kubernetes" {
 }
 
 module "cluster_addons" {
+  alarm_email                   = var.alarm_email
   environment_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
   eks_cluster_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
   eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint

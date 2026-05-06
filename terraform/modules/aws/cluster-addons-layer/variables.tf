@@ -28,3 +28,8 @@ variable "vpc_id" {
   description = "VPC ID of the VPC to put the app into"
   type        = string
 }
+
+variable "alarm_email" {
+  description = "Email address to receive CloudWatch alarm notifications"
+  type        = string
+}
