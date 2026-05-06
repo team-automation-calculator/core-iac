@@ -95,6 +95,11 @@ resource "helm_release" "external-dns" {
   }
 
   set {
+    name  = "image.registry"
+    value = "public.ecr.aws"
+  }
+
+  set {
     name  = "serviceAccount.create"
     value = "false"
   }
