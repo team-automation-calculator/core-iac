@@ -47,7 +47,7 @@ variable "ami_type" {
 }
 
 variable "ami_id" {
-  default     = "ami-1234567890abcdef0"
+  default     = null
   description = "The custom AMI ID to use for the EKS node group. If set, this will override the AMI type."
   type        = string
 }
