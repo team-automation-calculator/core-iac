@@ -1,0 +1,22 @@
+{
+  "eks_kubernetes_version_support": [
+    {
+      "version": "1.33",
+      "eks_ga_date": "2025-05-29",
+      "standard_support_end": "2026-07-29",
+      "extended_support_end": "2027-07-29"
+    },
+    {
+      "version": "1.34",
+      "eks_ga_date": "2025-10-02",
+      "standard_support_end": "2026-12-02",
+      "extended_support_end": "2027-12-02"
+    },
+    {
+      "version": "1.35",
+      "eks_ga_date": "2026-01-27",
+      "standard_support_end": "2027-03-27",
+      "extended_support_end": "2028-03-27"
+    }
+  ]
+}

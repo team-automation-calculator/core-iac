@@ -3,7 +3,7 @@
 
 provider "registry.opentofu.org/hashicorp/tfe" {
   version     = "0.68.2"
-  constraints = "0.68.2, <= 0.68.2"
+  constraints = "<= 0.68.2"
   hashes = [
     "h1:O6D37+7OFv8upUOds0HXjGce6WBUmUz7rDuZHaYE0IY=",
     "zh:0e426eb3bf4eccb182978f3c71f8fe62c433be8095e3e4d49c42570fcd7cba5c",

@@ -6,7 +6,11 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.4.0"
+      version = "~> 2.9"
+    }
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "0.68.2"
     }
   }
   backend "remote" {
