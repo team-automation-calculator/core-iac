@@ -14,6 +14,7 @@ module "tf_cloud_workspaces" {
   base_cluster_layer_working_directory    = var.base_cluster_layer_working_directory
   cluster_addons_layer_module_directories = var.cluster_addons_layer_module_directories
   cluster_addons_layer_working_directory  = var.cluster_addons_layer_working_directory
+  enable_cluster_addons_run_trigger       = var.enable_cluster_addons_run_trigger
   environment_name                        = var.environment_name
   google_cloud_working_directory          = var.google_cloud_working_directory
   source                                  = "../../../modules/tf_cloud/tf_cloud_workspaces"

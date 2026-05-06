@@ -30,3 +30,9 @@ variable "TF_VAR_GITHUB_TOKEN" {
   type        = string
   sensitive   = true
 }
+
+variable "enable_cluster_addons_run_trigger" {
+  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
+  type        = bool
+  default     = true
+}
