@@ -78,3 +78,30 @@ resource "aws_cloudwatch_metric_alarm" "alb_latency_p99" {
   alarm_actions = [aws_sns_topic.alarms.arn]
   ok_actions    = [aws_sns_topic.alarms.arn]
 }
+
+resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
+  alarm_name          = "ac-app-${var.environment_name}-unhealthy-hosts"
+  alarm_description   = "One or more target group hosts are unhealthy"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  # SEARCH returns one time series per target group; MAX collapses them into
+  # a single series so CloudWatch Alarms gets an unambiguous input.
+  metric_query {
+    id         = "tg_unhealthy"
+    expression = "SEARCH('{AWS/ApplicationELB,LoadBalancer,TargetGroup} MetricName=\"UnHealthyHostCount\" LoadBalancer=\"${local.alb_dimension}\"', 'Maximum', 60)"
+    label      = "UnHealthyHostCount per TG"
+  }
+
+  metric_query {
+    id          = "max_unhealthy"
+    expression  = "MAX(tg_unhealthy)"
+    label       = "Max Unhealthy Hosts"
+    return_data = true
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+}
