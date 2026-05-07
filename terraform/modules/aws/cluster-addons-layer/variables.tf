@@ -33,3 +33,9 @@ variable "alarm_email" {
   description = "Email address to receive CloudWatch alarm notifications"
   type        = string
 }
+
+variable "cloudwatch_alarms_enabled" {
+  description = "Set to true to create the CloudWatch alarms and SNS alerting resources. Requires the app ALB to exist, so must be false on initial bootstrap."
+  type        = bool
+  default     = false
+}
