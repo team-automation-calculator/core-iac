@@ -1,6 +1,6 @@
 module "app_eks_cluster" {
-  name               = "ac_app_${var.environment_name}"
-  kubernetes_version = var.cluster_version
+  name                   = "ac_app_${var.environment_name}"
+  kubernetes_version     = var.cluster_version
   endpoint_public_access = true
 
   eks_managed_node_groups = {
