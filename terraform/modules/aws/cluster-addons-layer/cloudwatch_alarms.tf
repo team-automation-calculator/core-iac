@@ -84,23 +84,15 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   alarm_description   = "One or more target group hosts are unhealthy"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Maximum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
 
-  # SEARCH returns one time series per target group; MAX collapses them into
-  # a single series so CloudWatch Alarms gets an unambiguous input.
-  metric_query {
-    id         = "tg_unhealthy"
-    expression = "SEARCH('{AWS/ApplicationELB,LoadBalancer,TargetGroup} MetricName=\"UnHealthyHostCount\" LoadBalancer=\"${local.alb_dimension}\"', 'Maximum', 60)"
-    label      = "UnHealthyHostCount per TG"
-  }
-
-  metric_query {
-    id          = "max_unhealthy"
-    expression  = "MAX(tg_unhealthy)"
-    label       = "Max Unhealthy Hosts"
-    period      = 60
-    return_data = true
+  dimensions = {
+    LoadBalancer = local.alb_dimension
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]
