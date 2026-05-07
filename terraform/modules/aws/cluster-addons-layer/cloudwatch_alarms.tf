@@ -99,6 +99,7 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
     id          = "max_unhealthy"
     expression  = "MAX(tg_unhealthy)"
     label       = "Max Unhealthy Hosts"
+    period      = 60
     return_data = true
   }
 
