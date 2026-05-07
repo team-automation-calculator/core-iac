@@ -20,21 +20,3 @@ variable "domain_names" {
   type        = set(string)
   default     = ["automation-calculations.net"]
 }
-
-variable "registrant_contact" {
-  description = "WHOIS contact details for the domain registrant."
-  type = object({
-    first_name        = string
-    last_name         = string
-    contact_type      = string
-    organization_name = string
-    address_line_1    = string
-    city              = string
-    state             = string
-    zip_code          = string
-    country_code      = string
-    email             = string
-    phone_number      = string
-  })
-  sensitive = true
-}

@@ -3,5 +3,4 @@ module "route53_domains" {
   source             = "../../../../../modules/aws/route53-domain"
   domain_name        = each.key
   privacy_protection = true
-  registrant_contact = var.registrant_contact
 }
