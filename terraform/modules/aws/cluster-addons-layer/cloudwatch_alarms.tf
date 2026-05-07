@@ -1,25 +1,26 @@
 data "aws_lb" "app" {
-  name = "ac-app-${var.environment_name}"
+  count = var.cloudwatch_alarms_enabled ? 1 : 0
+  name  = "ac-app-${var.environment_name}"
 }
 
 locals {
-  # CloudWatch expects the ALB dimension as the ARN suffix, e.g.:
-  # arn:aws:elasticloadbalancing:...:loadbalancer/app/ac-app-production/abc123
-  # → "app/ac-app-production/abc123"
-  alb_dimension = join("/", slice(split("/", data.aws_lb.app.arn), 1, 4))
+  alb_dimension = try(join("/", slice(split("/", data.aws_lb.app[0].arn), 1, 4)), "")
 }
 
 resource "aws_sns_topic" "alarms" {
-  name = "ac-app-${var.environment_name}-alarms"
+  count = var.cloudwatch_alarms_enabled ? 1 : 0
+  name  = "ac-app-${var.environment_name}-alarms"
 }
 
 resource "aws_sns_topic_subscription" "alarms_email" {
-  topic_arn = aws_sns_topic.alarms.arn
+  count     = var.cloudwatch_alarms_enabled ? 1 : 0
+  topic_arn = aws_sns_topic.alarms[0].arn
   protocol  = "email"
   endpoint  = var.alarm_email
 }
 
 resource "aws_cloudwatch_metric_alarm" "alb_5xx_errors" {
+  count               = var.cloudwatch_alarms_enabled ? 1 : 0
   alarm_name          = "ac-app-${var.environment_name}-alb-5xx-errors"
   alarm_description   = "ALB is returning 5xx errors"
   comparison_operator = "GreaterThanThreshold"
@@ -35,11 +36,12 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_errors" {
     LoadBalancer = local.alb_dimension
   }
 
-  alarm_actions = [aws_sns_topic.alarms.arn]
-  ok_actions    = [aws_sns_topic.alarms.arn]
+  alarm_actions = [aws_sns_topic.alarms[0].arn]
+  ok_actions    = [aws_sns_topic.alarms[0].arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "target_5xx_errors" {
+  count               = var.cloudwatch_alarms_enabled ? 1 : 0
   alarm_name          = "ac-app-${var.environment_name}-target-5xx-errors"
   alarm_description   = "App instances are returning 5xx errors"
   comparison_operator = "GreaterThanThreshold"
@@ -55,11 +57,12 @@ resource "aws_cloudwatch_metric_alarm" "target_5xx_errors" {
     LoadBalancer = local.alb_dimension
   }
 
-  alarm_actions = [aws_sns_topic.alarms.arn]
-  ok_actions    = [aws_sns_topic.alarms.arn]
+  alarm_actions = [aws_sns_topic.alarms[0].arn]
+  ok_actions    = [aws_sns_topic.alarms[0].arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "alb_latency_p99" {
+  count               = var.cloudwatch_alarms_enabled ? 1 : 0
   alarm_name          = "ac-app-${var.environment_name}-latency-p99"
   alarm_description   = "ALB p99 response time exceeded 3 seconds"
   comparison_operator = "GreaterThanThreshold"
@@ -75,11 +78,12 @@ resource "aws_cloudwatch_metric_alarm" "alb_latency_p99" {
     LoadBalancer = local.alb_dimension
   }
 
-  alarm_actions = [aws_sns_topic.alarms.arn]
-  ok_actions    = [aws_sns_topic.alarms.arn]
+  alarm_actions = [aws_sns_topic.alarms[0].arn]
+  ok_actions    = [aws_sns_topic.alarms[0].arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
+  count               = var.cloudwatch_alarms_enabled ? 1 : 0
   alarm_name          = "ac-app-${var.environment_name}-unhealthy-hosts"
   alarm_description   = "One or more target group hosts are unhealthy"
   comparison_operator = "GreaterThanThreshold"
@@ -95,6 +99,6 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
     LoadBalancer = local.alb_dimension
   }
 
-  alarm_actions = [aws_sns_topic.alarms.arn]
-  ok_actions    = [aws_sns_topic.alarms.arn]
+  alarm_actions = [aws_sns_topic.alarms[0].arn]
+  ok_actions    = [aws_sns_topic.alarms[0].arn]
 }
