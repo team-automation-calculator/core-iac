@@ -1,32 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.38.0"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.9"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.16"
-    }
-    tfe = {
-      source  = "hashicorp/tfe"
-      version = "0.68.2"
-    }
-  }
-  backend "remote" {
-    hostname     = "app.terraform.io"
-    organization = "team-automation-calculator"
-
-    workspaces {
-      name = "ac_app_development_cluster_addons_layer"
-    }
-  }
-}
-
 data "aws_eks_cluster" "target_cluster" {
   name = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
 }
