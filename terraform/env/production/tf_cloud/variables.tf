@@ -48,3 +48,15 @@ variable "tfe_workspace_tf_version" {
   type        = string
   default     = "1.3.7"
 }
+
+variable "enable_route53_domains_workspace" {
+  description = "When true, creates a TFC workspace for the route53-domains env config."
+  type        = bool
+  default     = false
+}
+
+variable "route53_domains_working_directory" {
+  description = "The path to the route53-domains env config directory."
+  type        = string
+  default     = ""
+}

@@ -72,3 +72,21 @@ variable "auto_apply" {
   type        = bool
   default     = false
 }
+
+variable "enable_route53_domains_workspace" {
+  description = "When true, creates a TFC workspace for the route53-domains env config."
+  type        = bool
+  default     = false
+}
+
+variable "route53_domains_working_directory" {
+  description = "The path to the route53-domains env config directory."
+  type        = string
+  default     = ""
+}
+
+variable "route53_domains_module_directories" {
+  description = "Module directories that trigger a run in the route53-domains workspace."
+  type        = list(string)
+  default     = ["terraform/modules/aws/route53-domain"]
+}
