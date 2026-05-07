@@ -2,18 +2,6 @@ locals {
   www_redirect_name = "www.${var.automation_calculator_app_host}"
 }
 
-data "template_file" "automation_calculator_helm_chart_values" {
-  template = file("${path.module}/values.yml")
-  vars = {
-    app_image_pull_policy          = var.app_image_pull_policy
-    app_image_repo                 = var.app_image_repo
-    app_version                    = var.app_version
-    automation_calculator_app_host = var.automation_calculator_app_host
-    alb_name                       = "ac-app-${var.environment_name}"
-    cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
-  }
-}
-
 resource "helm_release" "automation-calculator" {
   atomic           = true
   name             = "automation-calculator"
@@ -23,7 +11,14 @@ resource "helm_release" "automation-calculator" {
   version          = "0.1.0"
 
   values = [
-    data.template_file.automation_calculator_helm_chart_values.rendered
+    templatefile("${path.module}/values.yml", {
+      app_image_pull_policy          = var.app_image_pull_policy
+      app_image_repo                 = var.app_image_repo
+      app_version                    = var.app_version
+      automation_calculator_app_host = var.automation_calculator_app_host
+      alb_name                       = "ac-app-${var.environment_name}"
+      cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
+    })
   ]
 
   set_sensitive {
