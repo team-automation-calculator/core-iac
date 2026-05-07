@@ -8,11 +8,6 @@ output "eks_cluster_oidc_provider_arn" {
   value       = module.eks_cluster.eks_cluster_oidc_provider_arn
 }
 
-output "eks_cluster_launch_template_name" {
-  description = "The name of the EKS cluster launch template"
-  value       = module.eks_cluster.eks_cluster_launch_template_name
-}
-
 output "environment_name" {
   description = "The name of the environment"
   value       = var.environment_name
