@@ -45,6 +45,9 @@ Each environment must be applied in order:
 # Format check (what CI runs)
 terraform fmt -check -recursive terraform/
 
+# Format all tf files — run this before committing any .tf changes
+terraform fmt -recursive terraform/
+
 # Validate a specific config
 cd terraform/env/development/aws/us-west-1/base-cluster-layer
 terraform init && terraform validate
@@ -53,6 +56,8 @@ terraform init && terraform validate
 terraform plan
 terraform apply
 ```
+
+> **Always run `terraform fmt -recursive terraform/` before committing changes to any `.tf` file.** CI runs `terraform fmt -check` and will fail if files are not formatted.
 
 ### Helm
 ```bash
