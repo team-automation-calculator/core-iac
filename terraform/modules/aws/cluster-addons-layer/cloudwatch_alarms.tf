@@ -2,11 +2,23 @@ data "aws_lb" "app" {
   name = "ac-app-${var.environment_name}"
 }
 
+data "aws_lb_target_group" "app" {
+  tags = {
+    "elbv2.k8s.aws/cluster"      = var.eks_cluster_name
+    "kubernetes.io/service-name" = "automation-calculator/automation-calculator"
+  }
+}
+
 locals {
   # CloudWatch expects the ALB dimension as the ARN suffix, e.g.:
   # arn:aws:elasticloadbalancing:...:loadbalancer/app/ac-app-production/abc123
   # → "app/ac-app-production/abc123"
   alb_dimension = join("/", slice(split("/", data.aws_lb.app.arn), 1, 4))
+
+  # CloudWatch expects the TargetGroup dimension as the ARN suffix after the last colon, e.g.:
+  # arn:aws:elasticloadbalancing:...:targetgroup/k8s-automati-automati-abc123/def456
+  # → "targetgroup/k8s-automati-automati-abc123/def456"
+  target_group_dimension = regex("targetgroup/.+", data.aws_lb_target_group.app.arn)
 }
 
 resource "aws_sns_topic" "alarms" {
@@ -84,23 +96,16 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   alarm_description   = "One or more target group hosts are unhealthy"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Maximum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
 
-  # SEARCH returns one time series per target group; MAX collapses them into
-  # a single series so CloudWatch Alarms gets an unambiguous input.
-  metric_query {
-    id         = "tg_unhealthy"
-    expression = "SEARCH('{AWS/ApplicationELB,LoadBalancer,TargetGroup} MetricName=\"UnHealthyHostCount\" LoadBalancer=\"${local.alb_dimension}\"', 'Maximum', 60)"
-    label      = "UnHealthyHostCount per TG"
-  }
-
-  metric_query {
-    id          = "max_unhealthy"
-    expression  = "MAX(tg_unhealthy)"
-    label       = "Max Unhealthy Hosts"
-    period      = 60
-    return_data = true
+  dimensions = {
+    LoadBalancer = local.alb_dimension
+    TargetGroup  = local.target_group_dimension
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]
