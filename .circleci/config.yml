@@ -149,6 +149,24 @@ jobs:
       - terraform/validate:
           path: ./terraform/modules/aws/networking
 
+  validate_route53_domain_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/aws/route53-domain
+      - terraform/validate:
+          path: ./terraform/modules/aws/route53-domain
+
+  validate_production_aws_route53_domains:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/aws/us-east-1/route53-domains
+      - terraform/validate:
+          path: ./terraform/env/production/aws/us-east-1/route53-domains
+
 workflows:
   validate:
     jobs:
@@ -167,3 +185,5 @@ workflows:
       - validate_production_aws_cluster_addons_layer
       - validate_main_rails_app_module
       - validate_networking_module
+      - validate_route53_domain_module
+      - validate_production_aws_route53_domains
