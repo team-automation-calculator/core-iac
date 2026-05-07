@@ -58,6 +58,11 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.vpc_id
   }
 
+  set {
+    name  = "image.repository"
+    value = "public.ecr.aws/eks/aws-load-balancer-controller"
+  }
+
   version = "1.4.6"
 }
 
