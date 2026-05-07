@@ -57,3 +57,8 @@ variable "alarm_email" {
   description = "Email address to receive CloudWatch alarm notifications"
   type        = string
 }
+
+variable "db_engine_version" {
+  description = "The PostgreSQL engine version for the RDS instance."
+  type        = string
+}
