@@ -2,23 +2,11 @@ data "aws_lb" "app" {
   name = "ac-app-${var.environment_name}"
 }
 
-data "aws_lb_target_group" "app" {
-  tags = {
-    "elbv2.k8s.aws/cluster"      = var.eks_cluster_name
-    "kubernetes.io/service-name" = "automation-calculator/automation-calculator"
-  }
-}
-
 locals {
   # CloudWatch expects the ALB dimension as the ARN suffix, e.g.:
   # arn:aws:elasticloadbalancing:...:loadbalancer/app/ac-app-production/abc123
   # → "app/ac-app-production/abc123"
   alb_dimension = join("/", slice(split("/", data.aws_lb.app.arn), 1, 4))
-
-  # CloudWatch expects the TargetGroup dimension as the ARN suffix after the last colon, e.g.:
-  # arn:aws:elasticloadbalancing:...:targetgroup/k8s-automati-automati-abc123/def456
-  # → "targetgroup/k8s-automati-automati-abc123/def456"
-  target_group_dimension = regex("targetgroup/.+", data.aws_lb_target_group.app.arn)
 }
 
 resource "aws_sns_topic" "alarms" {
@@ -105,7 +93,6 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
 
   dimensions = {
     LoadBalancer = local.alb_dimension
-    TargetGroup  = local.target_group_dimension
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]
