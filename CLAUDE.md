@@ -102,6 +102,23 @@ Lock files (`.terraform.lock.hcl`) are committed in every module and env config 
 
 External-DNS uses the Bitnami OCI registry (`oci://registry-1.docker.io/bitnamicharts`), not the legacy HTTP repo. Use `chart = "external-dns"` with `repository = "oci://registry-1.docker.io/bitnamicharts"` in any `helm_release` resource.
 
+## Pull Requests
+
+Use the `hub` CLI (not `gh`) for all GitHub pull request operations:
+
+```bash
+# Create a draft PR
+hub pull-request --draft --message "Title
+
+Body line 1
+Body line 2"
+
+# Create a ready PR
+hub pull-request --message "Title
+
+Body"
+```
+
 ## Required Environment Variables
 
 ```
