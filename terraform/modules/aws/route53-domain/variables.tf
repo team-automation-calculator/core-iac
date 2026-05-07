@@ -21,3 +21,27 @@ variable "privacy_protection" {
   type        = bool
   default     = true
 }
+
+variable "enable_health_check" {
+  description = "Whether to create a Route 53 health check for this domain."
+  type        = bool
+  default     = false
+}
+
+variable "health_check_path" {
+  description = "Path to request for the health check."
+  type        = string
+  default     = "/"
+}
+
+variable "health_check_port" {
+  description = "Port to use for the health check."
+  type        = number
+  default     = 443
+}
+
+variable "health_check_type" {
+  description = "Protocol for the health check (HTTP, HTTPS, HTTP_STR_MATCH, HTTPS_STR_MATCH, TCP)."
+  type        = string
+  default     = "HTTPS"
+}
