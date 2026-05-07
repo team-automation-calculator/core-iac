@@ -4,13 +4,13 @@ locals {
 }
 
 resource "aws_route53domains_registered_domain" "this" {
-  domain_name           = var.domain_name
-  auto_renew            = var.auto_renew
-  transfer_lock_enabled = var.transfer_lock_enabled
+  domain_name   = var.domain_name
+  auto_renew    = var.auto_renew
+  transfer_lock = var.transfer_lock_enabled
 
-  privacy_protect_admin_contact      = var.privacy_protection
-  privacy_protect_registrant_contact = var.privacy_protection
-  privacy_protect_tech_contact       = var.privacy_protection
+  admin_privacy      = var.privacy_protection
+  registrant_privacy = var.privacy_protection
+  tech_privacy       = var.privacy_protection
 
   registrant_contact {
     first_name        = var.registrant_contact.first_name
