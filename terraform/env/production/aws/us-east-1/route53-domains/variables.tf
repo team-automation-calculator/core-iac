@@ -15,6 +15,12 @@ variable "project_tag" {
   type        = string
 }
 
+variable "domain_names" {
+  description = "Set of domain names to register via Route 53."
+  type        = set(string)
+  default     = ["automation-calculations.net"]
+}
+
 variable "registrant_contact" {
   description = "WHOIS contact details for the domain registrant."
   type = object({

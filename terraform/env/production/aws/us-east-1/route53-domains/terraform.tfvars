@@ -1,5 +1,9 @@
 environment_name = "production"
 
+domain_names = [
+  "automation-calculations.net",
+]
+
 registrant_contact = {
   first_name        = "Steven"
   last_name         = "Uray"
