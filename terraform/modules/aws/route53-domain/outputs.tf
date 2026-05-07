@@ -27,3 +27,8 @@ output "name_servers" {
   description = "Name servers in the delegation set for the hosted zone."
   value       = data.aws_route53_zone.this.name_servers
 }
+
+output "health_check_id" {
+  description = "The ID of the Route 53 health check, or null if not enabled."
+  value       = length(aws_route53_health_check.this) > 0 ? aws_route53_health_check.this[0].id : null
+}

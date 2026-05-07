@@ -16,7 +16,14 @@ variable "project_tag" {
 }
 
 variable "domain_names" {
-  description = "Set of domain names to register via Route 53."
-  type        = set(string)
-  default     = ["automation-calculations.net"]
+  description = "Map of domain names to per-domain configuration."
+  type = map(object({
+    enable_health_check = optional(bool, false)
+    health_check_path   = optional(string, "/")
+    health_check_port   = optional(number, 443)
+    health_check_type   = optional(string, "HTTPS")
+  }))
+  default = {
+    "automation-calculations.net" = {}
+  }
 }
