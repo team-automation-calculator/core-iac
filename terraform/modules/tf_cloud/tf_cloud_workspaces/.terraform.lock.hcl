@@ -1,19 +1,22 @@
-# This file is maintained automatically by "tofu init".
+# This file is maintained automatically by "terraform init".
 # Manual edits may be lost in future updates.
 
-provider "registry.opentofu.org/hashicorp/tfe" {
+provider "registry.terraform.io/hashicorp/tfe" {
   version     = "0.68.2"
   constraints = "<= 0.68.2"
   hashes = [
-    "h1:O6D37+7OFv8upUOds0HXjGce6WBUmUz7rDuZHaYE0IY=",
-    "zh:0e426eb3bf4eccb182978f3c71f8fe62c433be8095e3e4d49c42570fcd7cba5c",
-    "zh:3e587f1aa3dbcb31d5cae0e5580c15864bd947278f2a472bc033e0b90646c083",
-    "zh:56e93b01d81fb4a2a2c64efc71732b37b43b7a2e46e541eb4005340163d5d991",
-    "zh:7ac4aed09df350dc4850aaf7be0b532156dbfb18d56b5721d7a3869d8a750386",
-    "zh:7f99595110423ccacff4e6f5e654cb207ae0e2021bbfef1610f9787068834a67",
-    "zh:b3ebbd280866b04d129de1bc0ba23f911d31269bd24b80c72ad632c835e0a9c0",
-    "zh:d9b84d9a82c8765d67bf8872d4736cebc6989bfd79680c8b8fd44cddc03eb8dc",
-    "zh:e67a7cde6b0671dbe9eb0429b792f6f067fcca2fc2bc0d9aa8864623338d50aa",
-    "zh:fea538817d5fd85d9464eeeb84d017001d33d4810e3685828f63e27839f391f4",
+    "h1:Lm0m9dTJ7OPaIlCXexLgN/GQo9V0GMRRwQQz11WWlxU=",
+    "zh:0d393692c080f3d44c8a5ba495d4e33a0dd5a5c3800e90cdb3101009e4a7edb7",
+    "zh:12432a6b4cabae79991d8b6762fbd2d9748d3136f88a1788d89802639399a9f1",
+    "zh:17749bc9c6df204f5793e15b209af5ac405d1638cc5a9b3c4f677de30b27b193",
+    "zh:3f0a6149f67354a962036780e0571e10fdf8be94b25659442b26d3707407ee8e",
+    "zh:456e7381715ca904de4e124798133989daf3fee2fbbec90f1c2e1ab552095c89",
+    "zh:7c7346c40e002d7b4ff11ea54cdbbf1c91f7a020e199fd6be2cff52b194fb2f5",
+    "zh:80958ae61afad3038a743229dba2c408ee1a61a19eadc6ee8c25fc9276cd1b37",
+    "zh:8aede5896eb80305c3c8d9dbb868e4f3fb0288416cc9feb94811b6ac94febad3",
+    "zh:8c0037d33a510e21f928cd2ac4552c304f858c233031f9fc579bfb349c5b082f",
+    "zh:8e03a47f757948b2614e967eb89422a64877c87e57766d647c49f8c16b7a7bf8",
+    "zh:98387599bea34f66e8ca749f95732c641825220e8d3885ea259991120b414c56",
+    "zh:d95ec293fa70e946b6cd657912b33155f8be3413e6128ed2bfa5a493f788e439",
   ]
 }
