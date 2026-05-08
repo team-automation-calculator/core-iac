@@ -1,3 +1,15 @@
+variable "ami_id" {
+  default     = null
+  description = "The custom AMI ID to use for the EKS node group. If set, this will override the AMI type."
+  type        = string
+}
+
+variable "ami_type" {
+  default     = "AL2023_x86_64"
+  description = "The AMI type to use for the EKS node group."
+  type        = string
+}
+
 variable "cluster_version" {
   default     = "1.26"
   description = "The AWS EKS version to use"
@@ -37,17 +49,5 @@ variable "subnet_ids" {
 
 variable "vpc_id" {
   description = "VPC ID of the VPC to put the app into"
-  type        = string
-}
-
-variable "ami_type" {
-  default     = "AL2023_x86_64"
-  description = "The AMI type to use for the EKS node group."
-  type        = string
-}
-
-variable "ami_id" {
-  default     = null
-  description = "The custom AMI ID to use for the EKS node group. If set, this will override the AMI type."
   type        = string
 }

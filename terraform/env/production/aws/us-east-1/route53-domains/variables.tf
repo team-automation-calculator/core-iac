@@ -4,17 +4,6 @@ variable "aws_region" {
   type        = string
 }
 
-variable "environment_name" {
-  description = "The application environment, i.e development/staging/production."
-  type        = string
-}
-
-variable "project_tag" {
-  default     = "automation_calculator"
-  description = "Tag for describing the name of the project."
-  type        = string
-}
-
 variable "domain_names" {
   description = "Map of domain names to per-domain configuration."
   type = map(object({
@@ -26,4 +15,15 @@ variable "domain_names" {
   default = {
     "automation-calculations.net" = {}
   }
+}
+
+variable "environment_name" {
+  description = "The application environment, i.e development/staging/production."
+  type        = string
+}
+
+variable "project_tag" {
+  default     = "automation_calculator"
+  description = "Tag for describing the name of the project."
+  type        = string
 }

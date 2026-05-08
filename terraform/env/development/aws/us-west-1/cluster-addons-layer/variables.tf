@@ -1,12 +1,27 @@
-variable "aws_region" {
-  default     = "us-west-1"
-  description = "AWS Region to deploy the stack to, i.e us-west-1, us-east-1, etc"
+variable "alarm_email" {
+  description = "Email address to receive CloudWatch alarm notifications"
+  type        = string
+}
+
+variable "app_version" {
+  description = "The version of the automation-calculator app to deploy."
   type        = string
 }
 
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
+  type        = string
+}
+
+variable "aws_region" {
+  default     = "us-west-1"
+  description = "AWS Region to deploy the stack to, i.e us-west-1, us-east-1, etc"
+  type        = string
+}
+
+variable "db_engine_version" {
+  description = "The PostgreSQL engine version for the RDS instance."
   type        = string
 }
 
@@ -50,20 +65,5 @@ variable "tf_cloud_workspace_path" {
 
 variable "tfe_base_layer_workspace_name" {
   description = "The name of the Terraform Cloud workspace for the base layer."
-  type        = string
-}
-
-variable "alarm_email" {
-  description = "Email address to receive CloudWatch alarm notifications"
-  type        = string
-}
-
-variable "app_version" {
-  description = "The version of the automation-calculator app to deploy."
-  type        = string
-}
-
-variable "db_engine_version" {
-  description = "The PostgreSQL engine version for the RDS instance."
   type        = string
 }
