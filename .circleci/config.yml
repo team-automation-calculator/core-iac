@@ -167,6 +167,28 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/aws/us-east-1/route53-domains
 
+  validate_app_docker_image_versions:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Validate app Docker image versions exist on Docker Hub
+          command: |
+            IMAGE_REPO="automationcalculationsci/automation-calculator"
+            VERSIONS=$(grep 'app_version' terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars | grep -oP '"\K[^"]+' | sort -u)
+            FAILED=0
+            for VERSION in $VERSIONS; do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://hub.docker.com/v2/repositories/${IMAGE_REPO}/tags/${VERSION}/")
+              if [ "${HTTP_STATUS}" = "200" ]; then
+                echo "OK: ${IMAGE_REPO}:${VERSION}"
+              else
+                echo "MISSING: ${IMAGE_REPO}:${VERSION} (HTTP ${HTTP_STATUS})"
+                FAILED=1
+              fi
+            done
+            exit ${FAILED}
+
 workflows:
   validate:
     jobs:
@@ -187,3 +209,4 @@ workflows:
       - validate_networking_module
       - validate_route53_domain_module
       - validate_production_aws_route53_domains
+      - validate_app_docker_image_versions
