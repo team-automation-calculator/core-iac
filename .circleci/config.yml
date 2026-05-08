@@ -175,10 +175,15 @@ jobs:
       - run:
           name: Validate app Docker image versions exist on Docker Hub
           command: |
+            git fetch origin main
+            CHANGED_VERSIONS=$(git diff origin/main...HEAD -- terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars | grep '^+app_version' | grep -oP '"\K[^"]+' | sort -u)
+            if [ -z "${CHANGED_VERSIONS}" ]; then
+              echo "No app_version changes detected, skipping Docker Hub validation"
+              exit 0
+            fi
             IMAGE_REPO="automationcalculationsci/automation-calculator"
-            VERSIONS=$(grep 'app_version' terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars | grep -oP '"\K[^"]+' | sort -u)
             FAILED=0
-            for VERSION in $VERSIONS; do
+            for VERSION in $CHANGED_VERSIONS; do
               HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://hub.docker.com/v2/repositories/${IMAGE_REPO}/tags/${VERSION}/")
               if [ "${HTTP_STATUS}" = "200" ]; then
                 echo "OK: ${IMAGE_REPO}:${VERSION}"
