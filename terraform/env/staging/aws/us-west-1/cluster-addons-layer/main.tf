@@ -24,6 +24,7 @@ module "cluster_addons" {
 
 module "main_rails_app" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
+  app_version                                   = var.app_version
   automation_calculator_app_host                = var.automation_calculator_app_host
   db_engine_version                             = var.db_engine_version
   db_security_group_ids                         = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]

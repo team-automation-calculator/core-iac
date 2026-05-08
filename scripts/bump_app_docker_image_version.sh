@@ -9,7 +9,9 @@ set -euo pipefail
 # This script assumes that the docker image has already been pushed to the registry
 
 HELM_VALUES_FILE="../helm/automation-calculator/values.yaml"
-TERRAFORM_APP_MODULE_VARIABLES_FILE="../terraform/modules/aws/main_rails_app/variables.tf"
+DEV_TFVARS="../terraform/env/development/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
+STAGING_TFVARS="../terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
+PROD_TFVARS="../terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
 NEW_VERSION=${1}
 
 if [ $# -ne 1 ]; then
@@ -18,7 +20,9 @@ if [ $# -ne 1 ]; then
 fi
 
 ls ${HELM_VALUES_FILE}
-ls ${TERRAFORM_APP_MODULE_VARIABLES_FILE}
+ls ${DEV_TFVARS}
+ls ${STAGING_TFVARS}
+ls ${PROD_TFVARS}
 
 YQ_EXPRESSION=".image.tag=\"${NEW_VERSION}\""
 
@@ -26,4 +30,6 @@ OLD_TAG_VALUE=$(yq -r .image.tag ${HELM_VALUES_FILE})
 
 yq -i ${HELM_VALUES_FILE} --expression ${YQ_EXPRESSION}
 
-sed -i -e "s/${OLD_TAG_VALUE}/${NEW_VERSION}/g" ${TERRAFORM_APP_MODULE_VARIABLES_FILE}
+for TFVARS_FILE in "${DEV_TFVARS}" "${STAGING_TFVARS}" "${PROD_TFVARS}"; do
+    sed -i '' "s/${OLD_TAG_VALUE}/${NEW_VERSION}/g" "${TFVARS_FILE}"
+done

@@ -57,6 +57,11 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "app_version" {
+  description = "The version of the automation-calculator app to deploy."
+  type        = string
+}
+
 variable "db_engine_version" {
   description = "The PostgreSQL engine version for the RDS instance."
   type        = string

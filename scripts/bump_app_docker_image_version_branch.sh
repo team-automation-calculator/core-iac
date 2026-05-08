@@ -25,7 +25,9 @@ git checkout -b bump-app-docker-image-version-${NEW_VERSION}
 
 #commit changes
 git add ../helm/automation-calculator/values.yaml
-git add ../terraform/modules/aws/main_rails_app/variables.tf
+git add ../terraform/env/development/aws/us-west-1/cluster-addons-layer/terraform.tfvars
+git add ../terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars
+git add ../terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars
 
 git commit -m "Bump app docker image version to ${NEW_VERSION}"
 
