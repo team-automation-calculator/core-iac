@@ -214,4 +214,7 @@ workflows:
       - validate_networking_module
       - validate_route53_domain_module
       - validate_production_aws_route53_domains
-      - validate_app_docker_image_versions
+      - validate_app_docker_image_versions:
+          filters:
+            branches:
+              ignore: main

@@ -1,0 +1,24 @@
+{
+  "hashicorp_tfe_provider_version_support": [
+    {
+      "version": "0.66.0",
+      "release_date": "2024-12-10",
+      "notes": "Added workspace tagging improvements."
+    },
+    {
+      "version": "0.67.0",
+      "release_date": "2025-01-14",
+      "notes": "Added workspace auto-apply on plan trigger support."
+    },
+    {
+      "version": "0.68.0",
+      "release_date": "2025-02-18",
+      "notes": "Current major minor used in this repo."
+    },
+    {
+      "version": "0.68.2",
+      "release_date": "2025-03-11",
+      "notes": "Exact version pinned in all tf_cloud env configs (version = \"0.68.2\")."
+    }
+  ]
+}

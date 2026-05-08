@@ -1,0 +1,34 @@
+{
+  "terraform_version_support": [
+    {
+      "minor_version": "1.9",
+      "initial_release_date": "2024-06-26",
+      "notes": "Last patch: 1.9.8. Superseded by 1.10."
+    },
+    {
+      "minor_version": "1.10",
+      "initial_release_date": "2024-11-06",
+      "notes": "Last patch: 1.10.5. Superseded by 1.11."
+    },
+    {
+      "minor_version": "1.11",
+      "initial_release_date": "2025-02-04",
+      "notes": "Used in TFE workspaces (tfe_workspace_tf_version = \"1.11\")."
+    },
+    {
+      "minor_version": "1.12",
+      "initial_release_date": "2025-04-08",
+      "notes": "Introduces ephemeral values and write-only attributes."
+    },
+    {
+      "minor_version": "1.13",
+      "initial_release_date": "2025-06-10",
+      "notes": "Provider-defined functions generally available."
+    },
+    {
+      "minor_version": "1.15",
+      "initial_release_date": "2025-12-09",
+      "notes": "Used in CI (hashicorp/terraform:1.15.2). Required version constraint in repo: >= 1.5.7."
+    }
+  ]
+}
