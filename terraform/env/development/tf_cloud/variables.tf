@@ -1,3 +1,9 @@
+variable "auto_apply" {
+  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
+  type        = bool
+  default     = false
+}
+
 variable "base_cluster_layer_working_directory" {
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
@@ -12,6 +18,12 @@ variable "cluster_addons_layer_module_directories" {
 variable "cluster_addons_layer_working_directory" {
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
+}
+
+variable "enable_cluster_addons_run_trigger" {
+  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
+  type        = bool
+  default     = true
 }
 
 variable "environment_name" {
@@ -41,18 +53,6 @@ variable "TF_VAR_GITHUB_TOKEN" {
   description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
   type        = string
   sensitive   = true
-}
-
-variable "enable_cluster_addons_run_trigger" {
-  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
-  type        = bool
-  default     = true
-}
-
-variable "auto_apply" {
-  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
-  type        = bool
-  default     = false
 }
 
 variable "tfe_workspace_tf_version" {

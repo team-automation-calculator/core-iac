@@ -1,4 +1,3 @@
-# Declare vars
 variable "app_image_pull_policy" {
   default     = "Always"
   description = "The image pull policy for the automation-calculator app."
@@ -40,6 +39,12 @@ variable "db_instance_class" {
   type        = string
 }
 
+variable "db_port" {
+  default     = 5432
+  description = "The port for the database."
+  type        = number
+}
+
 variable "db_security_group_ids" {
   description = "The security group ids allowed access to the database."
   type        = list(string)
@@ -48,12 +53,6 @@ variable "db_security_group_ids" {
 variable "db_subnet_group_ids" {
   description = "The ids for the subnet group to put the DB in, note this also chooses the VPC of the DB based on the subnet."
   type        = list(string)
-}
-
-variable "db_port" {
-  default     = 5432
-  description = "The port for the database."
-  type        = number
 }
 
 variable "environment_name" {

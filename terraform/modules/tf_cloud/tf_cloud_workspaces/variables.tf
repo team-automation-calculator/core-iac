@@ -1,7 +1,7 @@
-variable "base_cluster_layer_working_directory" {
-  default     = ""
-  description = "The path to the Terraform Cloud workspace for this layer's file path"
-  type        = string
+variable "auto_apply" {
+  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
+  type        = bool
+  default     = false
 }
 
 variable "base_cluster_layer_module_directories" {
@@ -10,7 +10,7 @@ variable "base_cluster_layer_module_directories" {
   type        = list(string)
 }
 
-variable "cluster_addons_layer_working_directory" {
+variable "base_cluster_layer_working_directory" {
   default     = ""
   description = "The path to the Terraform Cloud workspace for this layer's file path"
   type        = string
@@ -22,9 +22,26 @@ variable "cluster_addons_layer_module_directories" {
   type        = list(string)
 }
 
-variable "google_cloud_working_directory" {
+variable "cluster_addons_layer_working_directory" {
   default     = ""
-  description = "The path to the google cloud folder for this environment"
+  description = "The path to the Terraform Cloud workspace for this layer's file path"
+  type        = string
+}
+
+variable "enable_cluster_addons_run_trigger" {
+  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
+  type        = bool
+  default     = true
+}
+
+variable "enable_route53_domains_workspace" {
+  description = "When true, creates a TFC workspace for the route53-domains env config."
+  type        = bool
+  default     = false
+}
+
+variable "environment_name" {
+  description = "The application development environment, i.e development/staging/production."
   type        = string
 }
 
@@ -34,9 +51,22 @@ variable "google_cloud_module_directories" {
   type        = list(string)
 }
 
-variable "environment_name" {
-  description = "The application development environment, i.e development/staging/production."
+variable "google_cloud_working_directory" {
+  default     = ""
+  description = "The path to the google cloud folder for this environment"
   type        = string
+}
+
+variable "route53_domains_module_directories" {
+  description = "Module directories that trigger a run in the route53-domains workspace."
+  type        = list(string)
+  default     = ["terraform/modules/aws/route53-domain"]
+}
+
+variable "route53_domains_working_directory" {
+  description = "The path to the route53-domains env config directory."
+  type        = string
+  default     = ""
 }
 
 variable "tf_cloud_organization_name" {
@@ -59,34 +89,4 @@ variable "tfe_workspace_tf_version" {
   description = "Allows for version pinning of tfe workspaces that have been created, because otherwise TF Cloud just chooses the latest one."
   type        = string
   default     = "1.11"
-}
-
-variable "enable_cluster_addons_run_trigger" {
-  description = "When true, creates a run trigger so that a successful apply in the base cluster workspace automatically queues a run in the cluster addons workspace."
-  type        = bool
-  default     = true
-}
-
-variable "auto_apply" {
-  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
-  type        = bool
-  default     = false
-}
-
-variable "enable_route53_domains_workspace" {
-  description = "When true, creates a TFC workspace for the route53-domains env config."
-  type        = bool
-  default     = false
-}
-
-variable "route53_domains_working_directory" {
-  description = "The path to the route53-domains env config directory."
-  type        = string
-  default     = ""
-}
-
-variable "route53_domains_module_directories" {
-  description = "Module directories that trigger a run in the route53-domains workspace."
-  type        = list(string)
-  default     = ["terraform/modules/aws/route53-domain"]
 }
