@@ -175,7 +175,8 @@ jobs:
       - run:
           name: Validate app Docker image versions exist on Docker Hub
           command: |
-            CHANGED_VERSIONS=$(git diff ${CIRCLE_MERGE_BASE_SHA}..HEAD -- terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars | grep '^+app_version' | grep -oP '"\K[^"]+' | sort -u)
+            git fetch origin main
+            CHANGED_VERSIONS=$(git diff origin/main...HEAD -- terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars | grep '^+app_version' | grep -oP '"\K[^"]+' | sort -u)
             if [ -z "${CHANGED_VERSIONS}" ]; then
               echo "No app_version changes detected, skipping Docker Hub validation"
               exit 0
