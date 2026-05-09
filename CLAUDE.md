@@ -74,6 +74,7 @@ scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
 scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
 scripts/bump_app_docker_image_version.sh       # Bump app Docker image version in Helm values + Terraform
 scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch
+scripts/check_app_docker_image_versions.py     # CI: validate added app_version values exist on Docker Hub
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
