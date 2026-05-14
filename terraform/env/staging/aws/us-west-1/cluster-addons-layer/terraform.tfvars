@@ -1,5 +1,5 @@
 alarm_email                    = "steven.uray@automation-caluclations.net"
-app_version                    = "0.9.6-827"
+app_version                    = "0.9.6-829"
 automation_calculator_app_host = "staging.automation-calculations.io"
 db_engine_version              = "16.13"
 tfe_base_layer_workspace_name  = "ac_app_staging_base_cluster_layer"
