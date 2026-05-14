@@ -32,6 +32,8 @@ spec:
             value: "{{ .Values.logToStdout }}"
           - name: RAILS_SERVE_STATIC_FILES
             value: "true"
+          - name: SHORT_COMMIT_HASH
+            value: "{{ .Values.shortCommitHash }}"
           - name: DATABASE_URL
             valueFrom:
               secretKeyRef:
