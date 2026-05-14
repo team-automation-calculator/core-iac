@@ -38,6 +38,7 @@ module "main_rails_app" {
   github_oauth_app_secret = var.github_oauth_app_secret
   google_oauth_app_id     = var.google_oauth_app_id
   google_oauth_app_secret = var.google_oauth_app_secret
+  short_commit_hash       = var.short_commit_hash
   source                  = "../../../../../modules/aws/main_rails_app"
   vpc_id                  = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

@@ -3,6 +3,8 @@ image:
   repository: ${app_image_repo}
   tag: ${app_version}
 
+shortCommitHash: "${short_commit_hash}"
+
 ingress:
   annotations:
     alb.ingress.kubernetes.io/ssl-redirect: '443'

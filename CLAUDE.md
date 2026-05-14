@@ -105,7 +105,7 @@ External-DNS uses the Bitnami OCI registry (`oci://registry-1.docker.io/bitnamic
 
 ## Pull Requests
 
-Use the `hub` CLI (not `gh`) for all GitHub pull request operations:
+**Never push directly to `main`.** All changes must go through a branch and a pull request, even small ones. Use the `hub` CLI (not `gh`) for all GitHub pull request operations:
 
 ```bash
 # Create a draft PR

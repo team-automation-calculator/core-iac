@@ -18,6 +18,7 @@ resource "helm_release" "automation-calculator" {
       automation_calculator_app_host = var.automation_calculator_app_host
       alb_name                       = "ac-app-${var.environment_name}"
       cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
+      short_commit_hash              = var.short_commit_hash
     })
   ]
 

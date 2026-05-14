@@ -44,6 +44,12 @@ variable "google_oauth_app_secret" {
   type        = string
 }
 
+variable "short_commit_hash" {
+  default     = ""
+  description = "The short git commit hash of the automation-calculator app version being deployed."
+  type        = string
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"

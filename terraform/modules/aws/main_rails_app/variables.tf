@@ -81,6 +81,12 @@ variable "google_oauth_app_secret" {
   type        = string
 }
 
+variable "short_commit_hash" {
+  default     = ""
+  description = "The short git commit hash of the automation-calculator app version being deployed. Sourced from the image's org.opencontainers.image.revision label at bump time."
+  type        = string
+}
+
 variable "route53_zone_name" {
   default     = "automation-calculations.io"
   description = "The name of the Route53 zone to create the DNS records in."

@@ -29,6 +29,15 @@ TAGS_URL = (
     f"https://hub.docker.com/v2/repositories/{IMAGE_REPO}/tags/"
     "?page_size=25&ordering=last_updated"
 )
+REGISTRY_AUTH_URL = (
+    f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
+)
+REGISTRY_BASE_URL = f"https://registry-1.docker.io/v2/{IMAGE_REPO}"
+MANIFEST_ACCEPT = ", ".join([
+    "application/vnd.docker.distribution.manifest.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
+])
+REVISION_LABEL = "org.opencontainers.image.revision"
 HTTP_TIMEOUT_SECONDS = 15
 POLL_INTERVAL_SECONDS = 60
 POLL_DURATION_SECONDS = 600
@@ -51,6 +60,31 @@ def fetch_version_tags() -> list[dict]:
     return [t for t in data.get("results", []) if VERSION_RE.match(t["name"])]
 
 
+def fetch_short_commit_hash(tag: str) -> str:
+    """Fetch org.opencontainers.image.revision label from the image config.
+
+    Returns "" if the label is absent. The Docker Hub registry requires a bearer
+    token even for public repos, but it's anonymous and free.
+    """
+    with urllib.request.urlopen(REGISTRY_AUTH_URL, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        token = json.load(response)["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    manifest_req = urllib.request.Request(
+        f"{REGISTRY_BASE_URL}/manifests/{tag}",
+        headers={**headers, "Accept": MANIFEST_ACCEPT},
+    )
+    with urllib.request.urlopen(manifest_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        manifest = json.load(response)
+    config_digest = manifest["config"]["digest"]
+
+    blob_req = urllib.request.Request(f"{REGISTRY_BASE_URL}/blobs/{config_digest}", headers=headers)
+    with urllib.request.urlopen(blob_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        config = json.loads(response.read().decode("utf-8"), strict=False)
+    labels = config.get("config", {}).get("Labels") or {}
+    return labels.get(REVISION_LABEL, "")
+
+
 def read_tfvars_versions() -> dict[str, str]:
     versions: dict[str, str] = {}
     for env, path in TFVARS_FILES.items():
@@ -59,9 +93,11 @@ def read_tfvars_versions() -> dict[str, str]:
     return versions
 
 
-def run_bump(version: str) -> int:
-    print(f"Invoking {BUMP_SCRIPT.name} {version}")
-    result = subprocess.run([str(BUMP_SCRIPT), version], cwd=BUMP_SCRIPT.parent)
+def run_bump(version: str, short_commit_hash: str) -> int:
+    print(f"Invoking {BUMP_SCRIPT.name} {version} {short_commit_hash or '<empty>'}")
+    result = subprocess.run(
+        [str(BUMP_SCRIPT), version, short_commit_hash], cwd=BUMP_SCRIPT.parent
+    )
     return result.returncode
 
 
@@ -135,7 +171,16 @@ def main() -> int:
                 f"New tag detected: {target['name']} @ {target['last_updated']} "
                 f"({len(new_tags)} new tag(s) total)"
             )
-            return run_bump(target["name"])
+            try:
+                short_commit_hash = fetch_short_commit_hash(target["name"])
+            except urllib.error.URLError as exc:
+                print(f"Failed to fetch revision label: {exc}; bumping with empty hash")
+                short_commit_hash = ""
+            if not short_commit_hash:
+                print(f"Image {target['name']} has no {REVISION_LABEL} label; bumping with empty hash")
+            else:
+                print(f"Resolved short commit hash: {short_commit_hash}")
+            return run_bump(target["name"], short_commit_hash)
         remaining = int(deadline - time.monotonic())
         print(f"No new tags; {remaining}s remaining")
 

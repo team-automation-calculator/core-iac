@@ -4,12 +4,13 @@ set -euo pipefail
 
 # This script is used to make a branch and PR to bump the version of the docker image used by the helm chart/terraform
 
-NEW_VERSION=${1}
-
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <new_version>"
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <new_version> <short_commit_hash>"
     exit 1
 fi
+
+NEW_VERSION=${1}
+NEW_HASH=${2}
 
 #if branch is not main, exit
 if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then
@@ -21,7 +22,7 @@ fi
 git checkout -b bump-app-docker-image-version-${NEW_VERSION}
 
 #call bump_app_docker_image_version.sh
-./bump_app_docker_image_version.sh ${NEW_VERSION}
+./bump_app_docker_image_version.sh ${NEW_VERSION} ${NEW_HASH}
 
 #commit changes
 git add ../helm/automation-calculator/values.yaml

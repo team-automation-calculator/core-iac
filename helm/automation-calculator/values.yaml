@@ -43,6 +43,7 @@ secrets:
   kubernetesSecretObjectName: automation-calculator-app-secrets
   secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
 securityContext: {}
+shortCommitHash: ""
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
