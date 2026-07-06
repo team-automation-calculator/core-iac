@@ -10,6 +10,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "ci_trusted_principal_arns" {
+  default     = []
+  description = "IAM principal ARNs (CI users/roles) allowed to assume the CI Terraform role. When empty, no principal can assume it."
+  type        = list(string)
+}
+
 variable "environment_name" {
   description = "The application staging environment, i.e staging/staging/production."
   type        = string

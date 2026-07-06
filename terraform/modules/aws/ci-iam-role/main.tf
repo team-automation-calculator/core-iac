@@ -4,10 +4,14 @@ locals {
   role_name   = "ac_ci_terraform_${var.environment_name}"
   policy_name = "ac_ci_terraform_${var.environment_name}"
 
+  # When no principals are listed, fall back to a sentinel in a different
+  # (nonexistent) account. The trust statement below is already scoped to this
+  # account's principals, so the sentinel can never match and the role is
+  # assumable by no one until ARNs are explicitly added.
   trusted_principal_arns = (
     length(var.trusted_principal_arns) > 0
     ? var.trusted_principal_arns
-    : ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    : ["arn:aws:iam::000000000000:root"]
   )
 }
 
@@ -16,9 +20,20 @@ data "aws_iam_policy_document" "assume_role" {
     sid     = "AllowCiPrincipalsToAssume"
     actions = ["sts:AssumeRole"]
 
+    # The account root principal only scopes trust to principals in this
+    # account; the aws:PrincipalArn condition below restricts assumption to
+    # the explicit allowlist. Matching on ARN instead of listing principals
+    # directly keeps the trust policy valid when a listed principal does not
+    # exist yet, and avoids silent invalidation if one is deleted/recreated.
     principals {
       type        = "AWS"
-      identifiers = local.trusted_principal_arns
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:PrincipalArn"
+      values   = local.trusted_principal_arns
     }
   }
 }
