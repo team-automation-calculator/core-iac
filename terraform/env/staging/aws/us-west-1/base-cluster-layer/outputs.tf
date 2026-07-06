@@ -1,3 +1,8 @@
+output "ci_iam_role_arn" {
+  description = "The ARN of the IAM role CI assumes to manage Terraform-provisioned AWS resources"
+  value       = module.ci_iam_role.role_arn
+}
+
 output "eks_cluster_name" {
   description = "The name of the EKS cluster"
   value       = module.eks_cluster.eks_cluster_name
