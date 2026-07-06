@@ -20,6 +20,8 @@ module "app_eks_cluster" {
 
   source     = "terraform-aws-modules/eks/aws"
   subnet_ids = var.subnet_ids
-  version    = "~> 21.0"
-  vpc_id     = var.vpc_id
+  # Pinned: v21.24.0+ requires hashicorp/aws >= 6.52, but the committed lock
+  # files pin 6.44.0. Unpin (or bump) together with an AWS provider upgrade.
+  version = "21.22.0"
+  vpc_id  = var.vpc_id
 }

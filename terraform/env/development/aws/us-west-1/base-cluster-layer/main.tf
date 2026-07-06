@@ -1,3 +1,8 @@
+module "ci_iam_role" {
+  environment_name = var.environment_name
+  source           = "../../../../../modules/aws/ci-iam-role"
+}
+
 module "eks_cluster" {
   environment_name = var.environment_name
   source           = "../../../../../modules/aws/base-cluster-layer"
