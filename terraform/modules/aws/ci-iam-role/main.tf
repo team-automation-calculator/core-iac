@@ -3,7 +3,6 @@ data "aws_caller_identity" "current" {}
 locals {
   role_name   = "ac_ci_terraform_${var.environment_name}"
   policy_name = "ac_ci_terraform_${var.environment_name}"
-  policy_arn  = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ac_ci_terraform_${var.environment_name}"
 
   trusted_principal_arns = (
     length(var.trusted_principal_arns) > 0
@@ -55,36 +54,13 @@ data "aws_iam_policy_document" "ci_permissions" {
     resources = ["*"]
   }
 
+  # The CI role can manage all IAM, including itself: it sits at the top of
+  # the user management chain, so Terraform applies run by CI must be able to
+  # update this role and its policy.
   statement {
     sid       = "ManageIamForTerraform"
     actions   = ["iam:*"]
     resources = ["*"]
-  }
-
-  # The CI role must not be able to escalate its own privileges by editing
-  # itself or the policy attached to it.
-  statement {
-    sid    = "DenySelfModification"
-    effect = "Deny"
-    actions = [
-      "iam:AttachRolePolicy",
-      "iam:CreatePolicyVersion",
-      "iam:DeletePolicy",
-      "iam:DeleteRole",
-      "iam:DeleteRolePermissionsBoundary",
-      "iam:DeleteRolePolicy",
-      "iam:DetachRolePolicy",
-      "iam:PutRolePermissionsBoundary",
-      "iam:PutRolePolicy",
-      "iam:SetDefaultPolicyVersion",
-      "iam:UpdateAssumeRolePolicy",
-      "iam:UpdateRole",
-      "iam:UpdateRoleDescription",
-    ]
-    resources = [
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.role_name}",
-      local.policy_arn,
-    ]
   }
 }
 
