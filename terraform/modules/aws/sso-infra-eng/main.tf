@@ -10,11 +10,17 @@ data "aws_ssoadmin_instances" "this" {}
 locals {
   instance_arn      = tolist(data.aws_ssoadmin_instances.this.arns)[0]
   identity_store_id = tolist(data.aws_ssoadmin_instances.this.identity_store_ids)[0]
+
+  permission_set_name = (
+    var.permission_set_name != ""
+    ? var.permission_set_name
+    : "InfraEng${title(var.environment_name)}"
+  )
 }
 
 resource "aws_ssoadmin_permission_set" "infra_eng" {
-  name             = var.permission_set_name
-  description      = "Infrastructure engineers: assume the per-environment CI Terraform roles"
+  name             = local.permission_set_name
+  description      = "Infrastructure engineers: assume the ${var.environment_name} CI Terraform role"
   instance_arn     = local.instance_arn
   session_duration = var.session_duration
 
@@ -25,9 +31,9 @@ resource "aws_ssoadmin_permission_set" "infra_eng" {
 
 data "aws_iam_policy_document" "infra_eng" {
   statement {
-    sid       = "AssumeCiTerraformRoles"
+    sid       = "AssumeCiTerraformRole"
     actions   = ["sts:AssumeRole"]
-    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ac_ci_terraform_*"]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ac_ci_terraform_${var.environment_name}"]
   }
 }
 
