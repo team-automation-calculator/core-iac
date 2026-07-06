@@ -42,6 +42,21 @@ module "eks_cluster" {
   cluster_version  = var.kubernetes_cluster_version
   vpc_id           = module.networking_layer.vpc.id
   ami_type         = var.ami_type
+
+  # Grants the CI Terraform role kubectl/Helm access to the cluster API.
+  # Human InfraEng access flows through the same role: SSO users assume it
+  # (see ci_iam_role trust policy), so no per-user entries are needed.
+  access_entries = {
+    ci_terraform = {
+      principal_arn = module.ci_iam_role.role_arn
+      policy_associations = {
+        cluster_admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
 }
 
 module "networking_layer" {

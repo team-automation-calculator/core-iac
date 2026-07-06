@@ -1,3 +1,9 @@
+variable "access_entries" {
+  default     = {}
+  description = "EKS access entries granting IAM principals access to the cluster API, passed through to the EKS module. Map of entries keyed by a static name, each with principal_arn and optional policy_associations."
+  type        = any
+}
+
 variable "ami_id" {
   default     = null
   description = "The custom AMI ID to use for the EKS node group. If set, this will override the AMI type."
