@@ -11,7 +11,7 @@ variable "session_duration" {
 }
 
 variable "user_name" {
-  default     = "steven.uray@automation-calculations.io"
+  default     = "steven.uray@automation-calculations.net"
   description = "Identity Center userName (the Google Workspace email) to assign to this account with the permission set. Empty string skips the assignment."
   type        = string
 }
