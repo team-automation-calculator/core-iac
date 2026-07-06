@@ -1,12 +1,16 @@
 data "aws_caller_identity" "current" {}
 
 locals {
+  # The infra_eng role is account-global and created by the development
+  # base-cluster-layer workspace. The CI role trust policy matches principals
+  # on aws:PrincipalArn, so referencing the ARN by naming convention is safe
+  # even before that role exists.
+  infra_eng_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ac_infra_eng"
+
   # IAM role that Identity Center provisions for this environment's InfraEng
   # permission set. Its name carries a random suffix (and, depending on the
   # Identity Center instance region, a region path segment), so trust matches
-  # on wildcard patterns. Safe to trust before the role exists, since the CI
-  # role trust policy matches on aws:PrincipalArn rather than resolving the
-  # principal.
+  # on wildcard patterns.
   sso_permission_set_name = "InfraEng${title(var.environment_name)}"
   sso_infra_eng_role_arn_patterns = [
     "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_${local.sso_permission_set_name}_*",
@@ -17,7 +21,7 @@ locals {
 module "ci_iam_role" {
   environment_name       = var.environment_name
   source                 = "../../../../../modules/aws/ci-iam-role"
-  trusted_principal_arns = concat(local.sso_infra_eng_role_arn_patterns, var.ci_trusted_principal_arns)
+  trusted_principal_arns = concat(local.sso_infra_eng_role_arn_patterns, [local.infra_eng_role_arn], var.ci_trusted_principal_arns)
 }
 
 # Per-environment IAM Identity Center access for infrastructure engineers

@@ -18,6 +18,16 @@ output "environment_name" {
   value       = var.environment_name
 }
 
+output "infra_eng_role_arn" {
+  description = "The ARN of the account-global infra_eng IAM role"
+  value       = module.infra_eng_iam.role_arn
+}
+
+output "infra_eng_user_arn" {
+  description = "The ARN of the infra engineer IAM user allowed to assume the infra_eng role"
+  value       = module.infra_eng_iam.user_arn
+}
+
 output "private_eks_subnet_ids" {
   description = "The private subnet ids in the VPC"
   value       = module.networking_layer.private_eks_subnet_ids

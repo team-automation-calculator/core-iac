@@ -17,7 +17,14 @@ locals {
 module "ci_iam_role" {
   environment_name       = var.environment_name
   source                 = "../../../../../modules/aws/ci-iam-role"
-  trusted_principal_arns = concat(local.sso_infra_eng_role_arn_patterns, var.ci_trusted_principal_arns)
+  trusted_principal_arns = concat(local.sso_infra_eng_role_arn_patterns, [module.infra_eng_iam.role_arn], var.ci_trusted_principal_arns)
+}
+
+# Account-global human-access identities (infra_eng role + IAM user). All
+# environments share the AWS account, so these are created once, here in the
+# development workspace; other environments trust the role by its ARN.
+module "infra_eng_iam" {
+  source = "../../../../../modules/aws/infra-eng-iam-role"
 }
 
 # Per-environment IAM Identity Center access for infrastructure engineers
