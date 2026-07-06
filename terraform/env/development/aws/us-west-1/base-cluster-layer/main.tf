@@ -1,7 +1,31 @@
+data "aws_caller_identity" "current" {}
+
+locals {
+  # IAM role that Identity Center provisions for the InfraEng permission set.
+  # Its name carries a random suffix (and, depending on the Identity Center
+  # instance region, a region path segment), so trust matches on wildcard
+  # patterns. Safe to trust before the role exists, since the CI role trust
+  # policy matches on aws:PrincipalArn rather than resolving the principal.
+  sso_infra_eng_role_arn_patterns = [
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_InfraEng_*",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_InfraEng_*",
+  ]
+}
+
 module "ci_iam_role" {
   environment_name       = var.environment_name
   source                 = "../../../../../modules/aws/ci-iam-role"
-  trusted_principal_arns = var.ci_trusted_principal_arns
+  trusted_principal_arns = concat(local.sso_infra_eng_role_arn_patterns, var.ci_trusted_principal_arns)
+}
+
+# Account-global IAM Identity Center access for infrastructure engineers
+# (Google Workspace federated). All environments share the AWS account, so
+# this is created once, here in the development workspace. Gated off until
+# the Identity Center instance is enabled and the Google Workspace identity
+# provider is connected — both manual console steps.
+module "sso_infra_eng" {
+  count  = var.enable_sso_infra_eng ? 1 : 0
+  source = "../../../../../modules/aws/sso-infra-eng"
 }
 
 module "eks_cluster" {

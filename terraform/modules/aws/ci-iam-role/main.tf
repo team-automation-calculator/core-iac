@@ -30,8 +30,11 @@ data "aws_iam_policy_document" "assume_role" {
       identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
     }
 
+    # ArnLike so trusted ARNs may contain wildcards (e.g. the random suffix
+    # in Identity Center's AWSReservedSSO_* role names); exact ARNs still
+    # match identically.
     condition {
-      test     = "ArnEquals"
+      test     = "ArnLike"
       variable = "aws:PrincipalArn"
       values   = local.trusted_principal_arns
     }

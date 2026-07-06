@@ -16,6 +16,12 @@ variable "ci_trusted_principal_arns" {
   type        = list(string)
 }
 
+variable "enable_sso_infra_eng" {
+  default     = false
+  description = "Create the IAM Identity Center InfraEng permission set and account assignment. Enable only after the Identity Center instance exists and the Google Workspace identity provider is connected."
+  type        = bool
+}
+
 variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
   type        = string
