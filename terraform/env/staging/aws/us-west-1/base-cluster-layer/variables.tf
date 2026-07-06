@@ -10,6 +10,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "ci_read_only_trusted_principal_arns" {
+  default     = []
+  description = "IAM principal ARNs allowed to assume the read-only CI Terraform role. When empty, no principal can assume it."
+  type        = list(string)
+}
+
 variable "ci_trusted_principal_arns" {
   default     = []
   description = "IAM principal ARNs (CI users/roles) allowed to assume the CI Terraform role. When empty, no principal can assume it."

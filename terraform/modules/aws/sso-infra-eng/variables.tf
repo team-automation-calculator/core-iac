@@ -9,6 +9,12 @@ variable "permission_set_name" {
   type        = string
 }
 
+variable "read_only_permission_set_name" {
+  default     = ""
+  description = "Name of the read-only IAM Identity Center permission set. Defaults to InfraEng<EnvironmentName>ReadOnly. Also determines the AWSReservedSSO_<name>_* role name that the read-only CI role trust policy matches on."
+  type        = string
+}
+
 variable "session_duration" {
   default     = "PT8H"
   description = "ISO-8601 session duration for the permission set."

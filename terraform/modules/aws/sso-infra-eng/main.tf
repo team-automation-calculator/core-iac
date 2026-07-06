@@ -16,6 +16,12 @@ locals {
     ? var.permission_set_name
     : "InfraEng${title(var.environment_name)}"
   )
+
+  read_only_permission_set_name = (
+    var.read_only_permission_set_name != ""
+    ? var.read_only_permission_set_name
+    : "InfraEng${title(var.environment_name)}ReadOnly"
+  )
 }
 
 resource "aws_ssoadmin_permission_set" "infra_eng" {
@@ -43,6 +49,34 @@ resource "aws_ssoadmin_permission_set_inline_policy" "infra_eng" {
   permission_set_arn = aws_ssoadmin_permission_set.infra_eng.arn
 }
 
+# Read-only variant: same shape as InfraEng<Env>, but its inline policy only
+# allows assuming the read-only CI role, for plans and inspection without
+# write access.
+resource "aws_ssoadmin_permission_set" "infra_eng_read_only" {
+  name             = local.read_only_permission_set_name
+  description      = "Infrastructure engineers (read-only): assume the ${var.environment_name} read-only CI Terraform role"
+  instance_arn     = local.instance_arn
+  session_duration = var.session_duration
+
+  tags = {
+    Project = "automation_calculator"
+  }
+}
+
+data "aws_iam_policy_document" "infra_eng_read_only" {
+  statement {
+    sid       = "AssumeCiTerraformReadOnlyRole"
+    actions   = ["sts:AssumeRole"]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ac_ci_terraform_${var.environment_name}_read_only"]
+  }
+}
+
+resource "aws_ssoadmin_permission_set_inline_policy" "infra_eng_read_only" {
+  inline_policy      = data.aws_iam_policy_document.infra_eng_read_only.json
+  instance_arn       = local.instance_arn
+  permission_set_arn = aws_ssoadmin_permission_set.infra_eng_read_only.arn
+}
+
 # The Identity Center user is provisioned from the external identity provider
 # (Google Workspace SCIM auto-provisioning, or created manually with the same
 # userName), not by Terraform. Looked up here so the account assignment fails
@@ -63,6 +97,18 @@ resource "aws_ssoadmin_account_assignment" "infra_eng" {
   count              = var.user_name == "" ? 0 : 1
   instance_arn       = local.instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.infra_eng.arn
+  principal_id       = data.aws_identitystore_user.infra_eng[0].user_id
+  principal_type     = "USER"
+  target_id          = data.aws_caller_identity.current.account_id
+  target_type        = "AWS_ACCOUNT"
+}
+
+# The same engineer gets both permission sets and picks the read-only or
+# read-write persona at sign-in.
+resource "aws_ssoadmin_account_assignment" "infra_eng_read_only" {
+  count              = var.user_name == "" ? 0 : 1
+  instance_arn       = local.instance_arn
+  permission_set_arn = aws_ssoadmin_permission_set.infra_eng_read_only.arn
   principal_id       = data.aws_identitystore_user.infra_eng[0].user_id
   principal_type     = "USER"
   target_id          = data.aws_caller_identity.current.account_id
