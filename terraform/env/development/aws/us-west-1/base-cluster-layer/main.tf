@@ -20,12 +20,16 @@ module "ci_iam_role" {
 
 # Account-global IAM Identity Center access for infrastructure engineers
 # (Google Workspace federated). All environments share the AWS account, so
-# this is created once, here in the development workspace. Gated off until
-# the Identity Center instance is enabled and the Google Workspace identity
-# provider is connected — both manual console steps.
+# this is created once, here in the development workspace. Runs against
+# us-east-1, where the Identity Center organization instance lives. Gated
+# off until the Google Workspace identity provider is connected and the
+# user is provisioned — manual console steps.
 module "sso_infra_eng" {
   count  = var.enable_sso_infra_eng ? 1 : 0
   source = "../../../../../modules/aws/sso-infra-eng"
+  providers = {
+    aws = aws.us_east_1
+  }
 }
 
 module "eks_cluster" {

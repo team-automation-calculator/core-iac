@@ -1,8 +1,10 @@
 data "aws_caller_identity" "current" {}
 
-# Requires an IAM Identity Center instance to already be enabled in this
-# account and region; enabling it (and connecting the external identity
-# provider) is a manual console step with no AWS API.
+# Requires an IAM Identity Center instance to already exist, and the AWS
+# provider passed to this module must target the instance's primary region
+# (us-east-1 for this organization) — ssoadmin/identitystore APIs only
+# respond there. Connecting the external identity provider is a manual
+# console step with no AWS API.
 data "aws_ssoadmin_instances" "this" {}
 
 locals {
