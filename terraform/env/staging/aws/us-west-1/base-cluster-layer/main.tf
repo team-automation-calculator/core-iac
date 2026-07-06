@@ -1,6 +1,7 @@
 module "ci_iam_role" {
-  environment_name = var.environment_name
-  source           = "../../../../../modules/aws/ci-iam-role"
+  environment_name       = var.environment_name
+  source                 = "../../../../../modules/aws/ci-iam-role"
+  trusted_principal_arns = var.ci_trusted_principal_arns
 }
 
 module "eks_cluster" {
