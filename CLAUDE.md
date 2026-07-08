@@ -125,6 +125,11 @@ Body"
 ```
 TFE_TOKEN                  # Terraform Cloud API token
 TF_VAR_GITHUB_TOKEN        # GitHub token (passed as TF variable)
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
+AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (see docs/aws-sso-auth.md)
 ```
+
+## AWS Authentication
+
+Human AWS access is **IAM Identity Center (SSO) only — no IAM user access keys**. Never set `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` locally and never create IAM users or access keys for human access. Authenticate with `aws sso login` and select a role with `AWS_PROFILE` (profiles chain SSO → `ac_ci_terraform_<env>`). Setup and profile reference: `docs/aws-sso-auth.md`.
+
+Terraform Cloud remote runs are the one exception: workspace variables in TFC hold CI credentials; they are managed in TFC, never locally.
