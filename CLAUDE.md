@@ -70,6 +70,7 @@ helm template automation-calculator helm/automation-calculator/ --values helm/au
 
 ### Scripts
 ```bash
+scripts/infra_eng_sso.py                       # SSO login + kubectl setup: writes AWS profiles, runs aws sso login, updates kubeconfig
 scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
 scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
 scripts/bump_app_docker_image_version.sh       # Bump app Docker image version in Helm values + Terraform
