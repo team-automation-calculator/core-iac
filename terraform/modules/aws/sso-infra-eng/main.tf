@@ -22,11 +22,53 @@ locals {
     ? var.read_only_permission_set_name
     : "InfraEng${title(var.environment_name)}ReadOnly"
   )
+
+  # Direct read-only access for both InfraEng personas, mirroring the
+  # ReadInfrastructureServices statement of the CI read-only role
+  # (modules/aws/ci-iam-role): enough to list EKS clusters, read CloudWatch
+  # logs and metrics, and inspect resources from the console or CLI without
+  # first assuming the CI role. Kept verb-uniform per service to stay easy
+  # to diff against the CI role's lists.
+  read_only_infrastructure_actions = [
+    "acm:Describe*",
+    "acm:Get*",
+    "acm:List*",
+    "autoscaling:Describe*",
+    "autoscaling:Get*",
+    "autoscaling:List*",
+    "cloudwatch:Describe*",
+    "cloudwatch:Get*",
+    "cloudwatch:List*",
+    "ec2:Describe*",
+    "ec2:Get*",
+    "ec2:List*",
+    "eks:Describe*",
+    "eks:Get*",
+    "eks:List*",
+    "elasticloadbalancing:Describe*",
+    "elasticloadbalancing:Get*",
+    "elasticloadbalancing:List*",
+    "kms:Describe*",
+    "kms:Get*",
+    "kms:List*",
+    "logs:Describe*",
+    "logs:Get*",
+    "logs:List*",
+    "rds:Describe*",
+    "rds:Get*",
+    "rds:List*",
+    "route53:Get*",
+    "route53:List*",
+    "route53domains:Get*",
+    "route53domains:List*",
+    "sns:Get*",
+    "sns:List*",
+  ]
 }
 
 resource "aws_ssoadmin_permission_set" "infra_eng" {
   name             = local.permission_set_name
-  description      = "Infrastructure engineers: assume the ${var.environment_name} CI Terraform role"
+  description      = "Infrastructure engineers: assume the ${var.environment_name} CI Terraform role, plus direct read-only infrastructure access"
   instance_arn     = local.instance_arn
   session_duration = var.session_duration
 
@@ -41,6 +83,12 @@ data "aws_iam_policy_document" "infra_eng" {
     actions   = ["sts:AssumeRole"]
     resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ac_ci_terraform_${var.environment_name}"]
   }
+
+  statement {
+    sid       = "ReadInfrastructureServices"
+    actions   = local.read_only_infrastructure_actions
+    resources = ["*"]
+  }
 }
 
 resource "aws_ssoadmin_permission_set_inline_policy" "infra_eng" {
@@ -54,7 +102,7 @@ resource "aws_ssoadmin_permission_set_inline_policy" "infra_eng" {
 # write access.
 resource "aws_ssoadmin_permission_set" "infra_eng_read_only" {
   name             = local.read_only_permission_set_name
-  description      = "Infrastructure engineers (read-only): assume the ${var.environment_name} read-only CI Terraform role"
+  description      = "Infrastructure engineers (read-only): assume the ${var.environment_name} read-only CI Terraform role, plus direct read-only infrastructure access"
   instance_arn     = local.instance_arn
   session_duration = var.session_duration
 
@@ -68,6 +116,12 @@ data "aws_iam_policy_document" "infra_eng_read_only" {
     sid       = "AssumeCiTerraformReadOnlyRole"
     actions   = ["sts:AssumeRole"]
     resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ac_ci_terraform_${var.environment_name}_read_only"]
+  }
+
+  statement {
+    sid       = "ReadInfrastructureServices"
+    actions   = local.read_only_infrastructure_actions
+    resources = ["*"]
   }
 }
 
