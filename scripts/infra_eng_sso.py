@@ -23,8 +23,11 @@ or run the full flow and copy the printed export line:
     scripts/infra_eng_sso.py up --environment staging
 
 First run needs --sso-start-url and --account-id; both are persisted in
-~/.aws/config and read back on later runs. Runs on the standard library
-plus the aws CLI (v2, for sso-session support).
+~/.aws/config and read back on later runs. The start URL must be the AWS
+access portal URL (https://<subdomain>.awsapps.com/start), not the Identity
+Center instance URL (https://identitycenter.amazonaws.com/ssoins-...) also
+shown in the console. Runs on the standard library plus the aws CLI (v2,
+for sso-session support).
 """
 
 from __future__ import annotations
@@ -45,6 +48,30 @@ SHORT_ENV_NAMES = {"development": "dev", "staging": "staging", "production": "pr
 AWS_CONFIG_PATH = Path.home() / ".aws" / "config"
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]+\]\s*$")
+
+# `aws sso login` needs the AWS access portal URL. The Identity Center console
+# also shows an instance/issuer URL (https://identitycenter.amazonaws.com/
+# ssoins-...); the device flow accepts it but browser sign-in then fails with
+# "We couldn't verify your sign-in credentials", so reject it before writing.
+PORTAL_URL_RE = re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com/start/?$")
+ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
+
+
+def validate_sso_start_url(sso_start_url: str) -> None:
+    if PORTAL_URL_RE.match(sso_start_url):
+        return
+    message = f"error: {sso_start_url!r} is not an AWS access portal URL"
+    if "identitycenter.amazonaws.com" in sso_start_url:
+        message += (
+            ":\nthis is the Identity Center instance (issuer) URL; browser sign-in"
+            '\nwith it fails with "We couldn\'t verify your sign-in credentials"'
+        )
+    sys.exit(
+        message
+        + "\nexpected form: https://<subdomain>.awsapps.com/start"
+        + "\n(Identity Center console -> Settings -> AWS access portal URL;"
+        + "\nre-run configure with --sso-start-url to replace a persisted value)"
+    )
 
 
 def profile_names(environment: str, read_only: bool) -> tuple[str, str]:
@@ -127,6 +154,9 @@ def configure(environment: str, read_only: bool, sso_start_url: str | None, acco
             f"error: {' and '.join(missing)} required on first run "
             "(persisted in ~/.aws/config afterwards)"
         )
+    validate_sso_start_url(sso_start_url)
+    if not ACCOUNT_ID_RE.match(account_id):
+        sys.exit(f"error: account id must be 12 digits, got {account_id!r}")
 
     sso_profile, ci_profile = profile_names(environment, read_only)
     config_text = AWS_CONFIG_PATH.read_text() if AWS_CONFIG_PATH.exists() else ""
@@ -218,7 +248,13 @@ def main() -> int:
         action="store_true",
         help="use the InfraEng<Env>ReadOnly permission set and read-only CI role",
     )
-    parser.add_argument("--sso-start-url", help="Identity Center start URL (first run only)")
+    parser.add_argument(
+        "--sso-start-url",
+        help=(
+            "AWS access portal URL, https://<subdomain>.awsapps.com/start — "
+            "not the identitycenter.amazonaws.com instance URL (first run only)"
+        ),
+    )
     parser.add_argument("--account-id", help="AWS account id (first run only)")
     args = parser.parse_args()
 
