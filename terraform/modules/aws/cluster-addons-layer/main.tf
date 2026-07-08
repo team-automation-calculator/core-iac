@@ -1,8 +1,8 @@
 module "aws_load_balancer_controller_irsa_role" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.0"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "~> 6.0"
 
-  role_name                              = "${var.environment_name}_eks_lb"
+  name                                   = "${var.environment_name}_eks_lb"
   attach_load_balancer_controller_policy = true
 
   oidc_providers = {
@@ -22,7 +22,7 @@ resource "kubernetes_service_account_v1" "aws_load_balancer_controller_service_a
       "app.kubernetes.io/component" = "controller"
     }
     annotations = {
-      "eks.amazonaws.com/role-arn"               = module.aws_load_balancer_controller_irsa_role.iam_role_arn
+      "eks.amazonaws.com/role-arn"               = module.aws_load_balancer_controller_irsa_role.arn
       "eks.amazonaws.com/sts-regional-endpoints" = "true"
     }
   }
@@ -121,11 +121,12 @@ resource "helm_release" "external-dns" {
 }
 
 module "external_dns_irsa_role" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.0"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "~> 6.0"
 
-  role_name                  = "${var.environment_name}_eks_external_dns"
-  attach_external_dns_policy = true
+  name                          = "${var.environment_name}_eks_external_dns"
+  attach_external_dns_policy    = true
+  external_dns_hosted_zone_arns = ["arn:aws:route53:::hostedzone/*"]
 
   oidc_providers = {
     main = {
@@ -143,7 +144,7 @@ resource "kubernetes_service_account_v1" "external_dns_service_account" {
       "app.kubernetes.io/name" = "external-dns"
     }
     annotations = {
-      "eks.amazonaws.com/role-arn"               = module.external_dns_irsa_role.iam_role_arn
+      "eks.amazonaws.com/role-arn"               = module.external_dns_irsa_role.arn
       "eks.amazonaws.com/sts-regional-endpoints" = "true"
     }
   }
