@@ -39,7 +39,8 @@ from pathlib import Path
 SSO_SESSION_NAME = "automation-calculator"
 SSO_REGION = "us-east-1"  # Identity Center organization instance region
 CLUSTER_REGION = "us-west-1"
-ENVIRONMENTS = ["development", "staging", "production"]
+# Short names used in AWS profile names (infra-eng-staging, ac-ci-dev, ...)
+SHORT_ENV_NAMES = {"development": "dev", "staging": "staging", "production": "prod"}
 
 AWS_CONFIG_PATH = Path.home() / ".aws" / "config"
 
@@ -48,8 +49,9 @@ SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]+\]\s*$")
 
 def profile_names(environment: str, read_only: bool) -> tuple[str, str]:
     """Return (sso_profile, chained_ci_role_profile) for the environment."""
+    short = SHORT_ENV_NAMES[environment]
     suffix = "-ro" if read_only else ""
-    return f"ac-{environment}-sso{suffix}", f"ac-{environment}{suffix}"
+    return f"infra-eng-{short}{suffix}", f"ac-ci-{short}{suffix}"
 
 
 def permission_set_name(environment: str, read_only: bool) -> str:
@@ -100,9 +102,9 @@ def persisted_value(config: configparser.ConfigParser, section: str, key: str) -
 
 
 def discover_account_id(config: configparser.ConfigParser) -> str | None:
-    """Find the account id from any previously configured ac-* SSO profile."""
+    """Find the account id from any previously configured InfraEng SSO profile."""
     for section in config.sections():
-        if section.startswith("profile ac-") and config.has_option(section, "sso_account_id"):
+        if section.startswith("profile infra-eng-") and config.has_option(section, "sso_account_id"):
             return config.get(section, "sso_account_id")
     return None
 
@@ -210,7 +212,7 @@ def main() -> int:
             "export: print an eval-able AWS_PROFILE export line"
         ),
     )
-    parser.add_argument("--environment", "-e", choices=ENVIRONMENTS, required=True)
+    parser.add_argument("--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True)
     parser.add_argument(
         "--read-only",
         action="store_true",
