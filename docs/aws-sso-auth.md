@@ -104,6 +104,23 @@ AWS_PROFILE=ac-ci-staging kubectl get nodes             # kubectl (read-write ro
 Prefer the `-ro` profiles for anything that only reads (plans, inspection,
 `update_kubeconfigs.sh`).
 
+## Troubleshooting
+
+**Browser shows "Something doesn't compute — We couldn't verify your sign-in
+credentials" during `aws sso login`.** The local config is usually not the
+problem: `aws sso login` builds the authorization URL from a client it
+registers fresh, and this error page comes from the AWS sign-in service later
+in the browser flow — stale Identity Center / AWS sign-in session state in the
+browser, or Google federating the wrong account. In order:
+
+1. Retry in a private/incognito window and pick your **Workspace** account in
+   the Google sign-in (not a personal Google account).
+2. If a normal window is needed, clear cookies for `awsapps.com`,
+   `signin.aws.amazon.com`, and `aws.amazon.com`, then retry.
+3. Only if it persists in a private window, re-check the config: `sso_start_url`
+   must be the access portal URL (`https://<subdomain>.awsapps.com/start`) and
+   `sso_region` must be the Identity Center home region (`us-east-1`).
+
 ## What is NOT used
 
 - **IAM users / access keys for humans** — none. If you find a human-use IAM

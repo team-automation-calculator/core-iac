@@ -49,10 +49,11 @@ AWS_CONFIG_PATH = Path.home() / ".aws" / "config"
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]+\]\s*$")
 
-# `aws sso login` needs the AWS access portal URL. The Identity Center console
-# also shows an instance/issuer URL (https://identitycenter.amazonaws.com/
-# ssoins-...); the device flow accepts it but browser sign-in then fails with
-# "We couldn't verify your sign-in credentials", so reject it before writing.
+# The documented sso_start_url value is the AWS access portal URL. The
+# Identity Center console also shows an instance/issuer URL
+# (https://identitycenter.amazonaws.com/ssoins-...); logins with it can work,
+# but it is not the documented start URL and diverges from the profile
+# reference in docs/aws-sso-auth.md, so reject it before persisting.
 PORTAL_URL_RE = re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com/start/?$")
 ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
 
@@ -62,10 +63,7 @@ def validate_sso_start_url(sso_start_url: str) -> None:
         return
     message = f"error: {sso_start_url!r} is not an AWS access portal URL"
     if "identitycenter.amazonaws.com" in sso_start_url:
-        message += (
-            ":\nthis is the Identity Center instance (issuer) URL; browser sign-in"
-            '\nwith it fails with "We couldn\'t verify your sign-in credentials"'
-        )
+        message += ":\nthis is the Identity Center instance (issuer) URL, not the portal URL"
     sys.exit(
         message
         + "\nexpected form: https://<subdomain>.awsapps.com/start"
@@ -206,7 +204,18 @@ def aws(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
 
 
 def login(ci_profile: str) -> None:
-    aws("sso", "login", "--sso-session", SSO_SESSION_NAME)
+    try:
+        aws("sso", "login", "--sso-session", SSO_SESSION_NAME)
+    except subprocess.CalledProcessError as error:
+        sys.exit(
+            f"error: aws sso login exited with status {error.returncode}\n"
+            'if the browser showed "Something doesn\'t compute - We couldn\'t verify\n'
+            'your sign-in credentials", the local config is usually not the problem:\n'
+            "that page comes from stale AWS sign-in state in the browser or from\n"
+            "federating the wrong Google account. Retry in a private window and pick\n"
+            "your Workspace account, or clear cookies for awsapps.com and\n"
+            "signin.aws.amazon.com. See docs/aws-sso-auth.md#troubleshooting."
+        )
     identity = aws(
         "sts", "get-caller-identity", "--profile", ci_profile, "--output", "text",
         "--query", "Arn", capture=True,
