@@ -10,8 +10,15 @@ Manages the InfraEng SSO flow end to end for one environment:
    access entry — so the chained profile is the one to use day to day.
 2. Runs `aws sso login` (opens the browser device flow) to cache a local
    Identity Center token.
-3. Updates the kubeconfig for the environment's EKS clusters with the
-   chained profile embedded, so kubectl works without any shell setup.
+3. Updates the kubeconfig entry for the environment's EKS cluster
+   (ac_app_<env>) with the chained profile embedded, so kubectl works
+   without any shell setup. Only that cluster's entry is touched: all
+   environments share one AWS account, so updating every cluster in the
+   account would stamp this environment's profile into the other
+   environments' contexts and break them.
+4. Switches the current kubectl context to the environment's cluster.
+   The `context` command runs this step alone — use it to hop between
+   environments that are already in the kubeconfig without any AWS calls.
 
 A child process cannot set AWS_PROFILE in the calling shell, so `up` and
 `login` print an eval-able export line for the chained profile as their
@@ -86,6 +93,11 @@ def profile_names(environment: str, read_only: bool) -> tuple[str, str]:
     short = SHORT_ENV_NAMES[environment]
     suffix = "-ro" if read_only else ""
     return f"infra-eng-{short}{suffix}", f"ac-ci-{short}{suffix}"
+
+
+def cluster_name(environment: str) -> str:
+    # Matches the EKS cluster name set in terraform/modules/aws/base-cluster-layer.
+    return f"ac_app_{environment}"
 
 
 def permission_set_name(environment: str, read_only: bool) -> str:
@@ -231,20 +243,47 @@ def login(ci_profile: str) -> None:
     print(f"logged in; {ci_profile} resolves to {identity}", file=sys.stderr)
 
 
-def update_kubeconfig(ci_profile: str) -> None:
-    clusters = aws(
-        "eks", "list-clusters", "--profile", ci_profile,
-        "--region", CLUSTER_REGION, "--output", "text", "--query", "clusters",
-        capture=True,
-    ).stdout.split()
-    if not clusters:
-        print("no EKS clusters found in this account/region", file=sys.stderr)
-        return
-    for cluster in clusters:
+def kubectl(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
+    try:
+        if capture:
+            return subprocess.run(["kubectl", *args], check=True, text=True, capture_output=True)
+        # Like aws(): uncaptured output goes to stderr, stdout stays eval-able.
+        return subprocess.run(["kubectl", *args], check=True, text=True, stdout=sys.stderr)
+    except FileNotFoundError:
+        sys.exit("error: kubectl not found on PATH")
+
+
+def update_kubeconfig(ci_profile: str, environment: str) -> None:
+    """Update the kubeconfig entry for this environment's cluster only.
+
+    All environments live in one AWS account, so updating every cluster
+    list-clusters returns would embed this environment's profile into the
+    other environments' contexts and break their kubectl auth.
+    """
+    cluster = cluster_name(environment)
+    try:
         aws(
             "eks", "update-kubeconfig", "--name", cluster,
             "--profile", ci_profile, "--region", CLUSTER_REGION,
         )
+    except subprocess.CalledProcessError as error:
+        sys.exit(
+            f"error: aws eks update-kubeconfig for cluster {cluster} "
+            f"exited with status {error.returncode}"
+        )
+
+
+def use_context(environment: str) -> None:
+    """Point kubectl's current context at this environment's cluster."""
+    cluster = cluster_name(environment)
+    contexts = kubectl("config", "get-contexts", "-o", "name", capture=True).stdout.split()
+    matches = [c for c in contexts if c == cluster or c.endswith(f"/{cluster}")]
+    if not matches:
+        sys.exit(
+            f"error: no kubeconfig context found for cluster {cluster}; "
+            f"run `{sys.argv[0]} kubeconfig --environment {environment}` first"
+        )
+    kubectl("config", "use-context", matches[0])
 
 
 def main() -> int:
@@ -253,9 +292,11 @@ def main() -> int:
     )
     parser.add_argument(
         "command",
-        choices=["up", "configure", "login", "kubeconfig", "export"],
+        choices=["up", "configure", "login", "kubeconfig", "context", "export"],
         help=(
-            "up: configure + login + kubeconfig; "
+            "up: configure + login + kubeconfig + context; "
+            "kubeconfig: update the env's cluster entry and switch context; "
+            "context: switch kubectl's current context to the env's cluster (no AWS calls); "
             "up, login, and export print an eval-able AWS_PROFILE export line"
         ),
     )
@@ -287,7 +328,9 @@ def main() -> int:
     if args.command in ("up", "login"):
         login(ci_profile)
     if args.command in ("up", "kubeconfig"):
-        update_kubeconfig(ci_profile)
+        update_kubeconfig(ci_profile, args.environment)
+    if args.command in ("up", "kubeconfig", "context"):
+        use_context(args.environment)
 
     if args.command in ("up", "login"):
         hint = (
@@ -296,7 +339,10 @@ def main() -> int:
             f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
         )
         if args.command == "up":
-            hint += "\nkubectl already works: the kubeconfig embeds the profile."
+            hint += (
+                "\nkubectl already works: the kubeconfig embeds the profile and "
+                f"the current context\npoints at {cluster_name(args.environment)}."
+            )
         print(hint + "\n", file=sys.stderr)
         print(f"export AWS_PROFILE={ci_profile}")
     return 0
