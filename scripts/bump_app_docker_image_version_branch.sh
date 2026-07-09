@@ -36,7 +36,7 @@ git commit -m "Bump app docker image version to ${NEW_VERSION}"
 git push origin bump-app-docker-image-version-${NEW_VERSION}
 
 #make PR
-hub pull-request -m "Bump app docker image version to ${NEW_VERSION}"
+gh pr create --title "Bump app docker image version to ${NEW_VERSION}" --body ""
 
 #show PR
-hub pr show
+gh pr view --web
