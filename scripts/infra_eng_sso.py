@@ -13,14 +13,16 @@ Manages the InfraEng SSO flow end to end for one environment:
 3. Updates the kubeconfig for the environment's EKS clusters with the
    chained profile embedded, so kubectl works without any shell setup.
 
-A child process cannot set AWS_PROFILE in the calling shell, so to point
-subsequent commands at the chained profile either eval the export line:
+A child process cannot set AWS_PROFILE in the calling shell, so `up` and
+`login` print an eval-able export line for the chained profile as their
+only stdout (all progress output goes to stderr). To log in and point the
+current shell at the profile in one step:
+
+    eval "$(scripts/infra_eng_sso.py up --environment staging)"
+
+Without eval, copy the printed export line, or print it again any time with:
 
     eval "$(scripts/infra_eng_sso.py export --environment staging)"
-
-or run the full flow and copy the printed export line:
-
-    scripts/infra_eng_sso.py up --environment staging
 
 First run needs --sso-start-url and --account-id; both are persisted in
 ~/.aws/config and read back on later runs. The start URL must be the AWS
@@ -197,17 +199,16 @@ def configure(environment: str, read_only: bool, sso_start_url: str | None, acco
 
     AWS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     AWS_CONFIG_PATH.write_text(config_text)
-    print(f"configured profiles {sso_profile} -> {ci_profile} in {AWS_CONFIG_PATH}")
+    print(f"configured profiles {sso_profile} -> {ci_profile} in {AWS_CONFIG_PATH}", file=sys.stderr)
     return ci_profile
 
 
 def aws(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["aws", *args],
-        check=True,
-        capture_output=capture,
-        text=True,
-    )
+    if capture:
+        return subprocess.run(["aws", *args], check=True, text=True, capture_output=True)
+    # Uncaptured aws output (login prompts, kubeconfig updates) goes to
+    # stderr: stdout is reserved for the eval-able AWS_PROFILE export line.
+    return subprocess.run(["aws", *args], check=True, text=True, stdout=sys.stderr)
 
 
 def login(ci_profile: str) -> None:
@@ -227,7 +228,7 @@ def login(ci_profile: str) -> None:
         "sts", "get-caller-identity", "--profile", ci_profile, "--output", "text",
         "--query", "Arn", capture=True,
     ).stdout.strip()
-    print(f"logged in; {ci_profile} resolves to {identity}")
+    print(f"logged in; {ci_profile} resolves to {identity}", file=sys.stderr)
 
 
 def update_kubeconfig(ci_profile: str) -> None:
@@ -255,7 +256,7 @@ def main() -> int:
         choices=["up", "configure", "login", "kubeconfig", "export"],
         help=(
             "up: configure + login + kubeconfig; "
-            "export: print an eval-able AWS_PROFILE export line"
+            "up, login, and export print an eval-able AWS_PROFILE export line"
         ),
     )
     parser.add_argument("--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True)
@@ -288,13 +289,16 @@ def main() -> int:
     if args.command in ("up", "kubeconfig"):
         update_kubeconfig(ci_profile)
 
-    if args.command == "up":
-        print(
-            "\nto point subsequent aws/terraform commands at this environment:\n"
-            f'  eval "$({Path(sys.argv[0])} export --environment {args.environment}'
-            f'{" --read-only" if args.read_only else ""})"\n'
-            "kubectl already works: the kubeconfig embeds the profile."
+    if args.command in ("up", "login"):
+        hint = (
+            "\nexport line follows on stdout; to adopt the profile in the "
+            "current shell,\nrun this command as "
+            f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
         )
+        if args.command == "up":
+            hint += "\nkubectl already works: the kubeconfig embeds the profile."
+        print(hint + "\n", file=sys.stderr)
+        print(f"export AWS_PROFILE={ci_profile}")
     return 0
 
 
