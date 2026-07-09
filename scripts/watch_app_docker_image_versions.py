@@ -6,6 +6,11 @@ Snapshots the current set of tags on Docker Hub, then polls every minute for
 invokes `bump_app_docker_image_version_branch.sh` with that version to create
 the branch, commit, push, and open a PR bumping all envs.
 
+If the startup sync check finds a bump already pending (all envs on the same
+version but Docker Hub's newest tag is different) and no PR exists yet for
+that version's bump branch, the bump runs immediately instead of waiting for
+a new tag to appear.
+
 Designed for local operator use. Standard library only.
 
 Assumes the caller is on the `main` branch with a clean working tree; the
@@ -93,12 +98,46 @@ def read_tfvars_versions() -> dict[str, str]:
     return versions
 
 
+def find_bump_pr(version: str) -> dict | None:
+    """Return {url, state} for a PR (any state) on this version's bump branch, or None."""
+    branch = f"bump-app-docker-image-version-{version}"
+    result = subprocess.run(
+        [
+            "gh", "pr", "list",
+            "--head", branch,
+            "--state", "all",
+            "--json", "url,state",
+            "--limit", "1",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "gh pr list failed")
+    prs = json.loads(result.stdout or "[]")
+    return prs[0] if prs else None
+
+
 def run_bump(version: str, short_commit_hash: str) -> int:
     print(f"Invoking {BUMP_SCRIPT.name} {version} {short_commit_hash or '<empty>'}")
     result = subprocess.run(
         [str(BUMP_SCRIPT), version, short_commit_hash], cwd=BUMP_SCRIPT.parent
     )
     return result.returncode
+
+
+def resolve_hash_and_bump(version: str) -> int:
+    try:
+        short_commit_hash = fetch_short_commit_hash(version)
+    except urllib.error.URLError as exc:
+        print(f"Failed to fetch revision label: {exc}; bumping with empty hash")
+        short_commit_hash = ""
+    if not short_commit_hash:
+        print(f"Image {version} has no {REVISION_LABEL} label; bumping with empty hash")
+    else:
+        print(f"Resolved short commit hash: {short_commit_hash}")
+    return run_bump(version, short_commit_hash)
 
 
 def main() -> int:
@@ -144,6 +183,7 @@ def main() -> int:
         print(f"  {env:15s}  app_version = {version}")
 
     deployed = set(tfvars_versions.values())
+    pending_version: str | None = None
     print()
     if hub_newest is None:
         print("Sync: cannot compare (no Docker Hub tags)")
@@ -152,9 +192,25 @@ def main() -> int:
     elif len(deployed) == 1:
         (current,) = deployed
         print(f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)")
+        pending_version = hub_newest
     else:
         print(f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}")
     print()
+
+    if pending_version is not None:
+        try:
+            pr = find_bump_pr(pending_version)
+        except (OSError, RuntimeError, json.JSONDecodeError) as exc:
+            print(f"Could not check for an existing bump PR: {exc}; watching for new tags instead")
+        else:
+            if pr is None:
+                print(f"No PR found for pending bump to {pending_version}; bumping now")
+                return resolve_hash_and_bump(pending_version)
+            print(
+                f"PR already exists for bump to {pending_version}: "
+                f"{pr['url']} ({pr['state']}); watching for new tags"
+            )
+        print()
 
     deadline = time.monotonic() + args.duration
     while time.monotonic() < deadline:
@@ -171,16 +227,7 @@ def main() -> int:
                 f"New tag detected: {target['name']} @ {target['last_updated']} "
                 f"({len(new_tags)} new tag(s) total)"
             )
-            try:
-                short_commit_hash = fetch_short_commit_hash(target["name"])
-            except urllib.error.URLError as exc:
-                print(f"Failed to fetch revision label: {exc}; bumping with empty hash")
-                short_commit_hash = ""
-            if not short_commit_hash:
-                print(f"Image {target['name']} has no {REVISION_LABEL} label; bumping with empty hash")
-            else:
-                print(f"Resolved short commit hash: {short_commit_hash}")
-            return run_bump(target["name"], short_commit_hash)
+            return resolve_hash_and_bump(target["name"])
         remaining = int(deadline - time.monotonic())
         print(f"No new tags; {remaining}s remaining")
 
