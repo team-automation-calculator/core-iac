@@ -24,10 +24,11 @@ or run the full flow and copy the printed export line:
 
 First run needs --sso-start-url and --account-id; both are persisted in
 ~/.aws/config and read back on later runs. The start URL must be the AWS
-access portal URL (https://<subdomain>.awsapps.com/start), not the Identity
-Center instance URL (https://identitycenter.amazonaws.com/ssoins-...) also
-shown in the console. Runs on the standard library plus the aws CLI (v2,
-for sso-session support).
+access portal URL — https://<subdomain>.awsapps.com/start or the newer
+https://ssoins-<id>.portal.<region>.app.aws — not the Identity Center
+instance URL (https://identitycenter.amazonaws.com/ssoins-...) also shown
+in the console. Runs on the standard library plus the aws CLI (v2, for
+sso-session support).
 """
 
 from __future__ import annotations
@@ -49,17 +50,22 @@ AWS_CONFIG_PATH = Path.home() / ".aws" / "config"
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]+\]\s*$")
 
-# The documented sso_start_url value is the AWS access portal URL. The
-# Identity Center console also shows an instance/issuer URL
+# The documented sso_start_url value is the AWS access portal URL, in either
+# the legacy form (https://<subdomain>.awsapps.com/start) or the newer form
+# (https://ssoins-<id>.portal.<region>.app.aws). The Identity Center console
+# also shows an instance/issuer URL
 # (https://identitycenter.amazonaws.com/ssoins-...); logins with it can work,
 # but it is not the documented start URL and diverges from the profile
 # reference in docs/aws-sso-auth.md, so reject it before persisting.
-PORTAL_URL_RE = re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com/start/?$")
+PORTAL_URL_RES = (
+    re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com/start/?$"),
+    re.compile(r"^https://ssoins-[a-z0-9]+\.portal\.[a-z0-9-]+\.app\.aws/?$"),
+)
 ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
 
 
 def validate_sso_start_url(sso_start_url: str) -> None:
-    if PORTAL_URL_RE.match(sso_start_url):
+    if any(pattern.match(sso_start_url) for pattern in PORTAL_URL_RES):
         return
     message = f"error: {sso_start_url!r} is not an AWS access portal URL"
     if "identitycenter.amazonaws.com" in sso_start_url:
@@ -67,6 +73,7 @@ def validate_sso_start_url(sso_start_url: str) -> None:
     sys.exit(
         message
         + "\nexpected form: https://<subdomain>.awsapps.com/start"
+        + "\n            or https://ssoins-<id>.portal.<region>.app.aws"
         + "\n(Identity Center console -> Settings -> AWS access portal URL;"
         + "\nre-run configure with --sso-start-url to replace a persisted value)"
     )
@@ -260,8 +267,9 @@ def main() -> int:
     parser.add_argument(
         "--sso-start-url",
         help=(
-            "AWS access portal URL, https://<subdomain>.awsapps.com/start — "
-            "not the identitycenter.amazonaws.com instance URL (first run only)"
+            "AWS access portal URL, https://<subdomain>.awsapps.com/start or "
+            "https://ssoins-<id>.portal.<region>.app.aws — not the "
+            "identitycenter.amazonaws.com instance URL (first run only)"
         ),
     )
     parser.add_argument("--account-id", help="AWS account id (first run only)")

@@ -29,12 +29,15 @@ aws configure sso   # start URL: your Identity Center portal URL; SSO region: us
 
 or paste the config below into `~/.aws/config`, filling in the account ID and
 start URL (find them in the Identity Center console or ask an existing infra
-engineer — this repo is public, so they are not committed here):
+engineer — this repo is public, so they are not committed here). The start URL
+is the **AWS access portal URL**, which comes in two forms depending on the
+instance: `https://<subdomain>.awsapps.com/start` or the newer
+`https://ssoins-<id>.portal.<region>.app.aws`.
 
 ```ini
 # One SSO session shared by all profiles: a single login covers everything.
 [sso-session ac]
-sso_start_url = https://<IDENTITY_CENTER_PORTAL>.awsapps.com/start
+sso_start_url = <AWS_ACCESS_PORTAL_URL>
 sso_region = us-east-1
 sso_registration_scopes = sso:account:access
 
@@ -118,8 +121,9 @@ browser, or Google federating the wrong account. In order:
 2. If a normal window is needed, clear cookies for `awsapps.com`,
    `signin.aws.amazon.com`, and `aws.amazon.com`, then retry.
 3. Only if it persists in a private window, re-check the config: `sso_start_url`
-   must be the access portal URL (`https://<subdomain>.awsapps.com/start`) and
-   `sso_region` must be the Identity Center home region (`us-east-1`).
+   must be the access portal URL (`https://<subdomain>.awsapps.com/start` or
+   `https://ssoins-<id>.portal.<region>.app.aws`) and `sso_region` must be the
+   Identity Center home region (`us-east-1`).
 
 ## What is NOT used
 
