@@ -29,12 +29,15 @@ aws configure sso   # start URL: your Identity Center portal URL; SSO region: us
 
 or paste the config below into `~/.aws/config`, filling in the account ID and
 start URL (find them in the Identity Center console or ask an existing infra
-engineer — this repo is public, so they are not committed here):
+engineer — this repo is public, so they are not committed here). The start URL
+is the **AWS access portal URL**, which comes in two forms depending on the
+instance: `https://<subdomain>.awsapps.com/start` or the newer
+`https://ssoins-<id>.portal.<region>.app.aws`.
 
 ```ini
 # One SSO session shared by all profiles: a single login covers everything.
 [sso-session ac]
-sso_start_url = https://<IDENTITY_CENTER_PORTAL>.awsapps.com/start
+sso_start_url = <AWS_ACCESS_PORTAL_URL>
 sso_region = us-east-1
 sso_registration_scopes = sso:account:access
 
@@ -103,6 +106,24 @@ AWS_PROFILE=ac-ci-staging kubectl get nodes             # kubectl (read-write ro
 
 Prefer the `-ro` profiles for anything that only reads (plans, inspection,
 `update_kubeconfigs.sh`).
+
+## Troubleshooting
+
+**Browser shows "Something doesn't compute — We couldn't verify your sign-in
+credentials" during `aws sso login`.** The local config is usually not the
+problem: `aws sso login` builds the authorization URL from a client it
+registers fresh, and this error page comes from the AWS sign-in service later
+in the browser flow — stale Identity Center / AWS sign-in session state in the
+browser, or Google federating the wrong account. In order:
+
+1. Retry in a private/incognito window and pick your **Workspace** account in
+   the Google sign-in (not a personal Google account).
+2. If a normal window is needed, clear cookies for `awsapps.com`,
+   `signin.aws.amazon.com`, and `aws.amazon.com`, then retry.
+3. Only if it persists in a private window, re-check the config: `sso_start_url`
+   must be the access portal URL (`https://<subdomain>.awsapps.com/start` or
+   `https://ssoins-<id>.portal.<region>.app.aws`) and `sso_region` must be the
+   Identity Center home region (`us-east-1`).
 
 ## What is NOT used
 
