@@ -84,43 +84,24 @@ resource "helm_release" "external-dns" {
     kubernetes_service_account_v1.external_dns_service_account
   ]
   name       = "external-dns"
-  repository = "oci://registry-1.docker.io/bitnamicharts"
+  repository = "https://kubernetes-sigs.github.io/external-dns/"
   chart      = "external-dns"
-  version    = "9.0.3"
+  version    = "1.21.1"
   namespace  = "kube-system"
 
   set {
-    name  = "provider"
+    name  = "provider.name"
     value = "aws"
   }
 
   set {
-    name  = "aws.zoneType"
-    value = "public"
+    name  = "extraArgs[0]"
+    value = "--aws-zone-type=public"
   }
 
-  # Bitnami purged versioned tags from public.ecr.aws/bitnami; bitnamilegacy
-  # on Docker Hub is the frozen archive of the same images.
-  set {
-    name  = "image.registry"
-    value = "docker.io"
-  }
-
-  set {
-    name  = "image.repository"
-    value = "bitnamilegacy/external-dns"
-  }
-
-  set {
-    name  = "image.tag"
-    value = "0.18.0-debian-12-r4"
-  }
-
-  set {
-    name  = "global.security.allowInsecureImages"
-    value = "true"
-  }
-
+  # Chart defaults (policy=upsert-only, txt registry, owner id "default")
+  # match the previous Bitnami deployment, so existing Route 53 TXT
+  # ownership records stay valid across the migration.
   set {
     name  = "serviceAccount.create"
     value = "false"
