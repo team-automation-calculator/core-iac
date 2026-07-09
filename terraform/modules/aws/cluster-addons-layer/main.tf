@@ -99,9 +99,21 @@ resource "helm_release" "external-dns" {
     value = "public"
   }
 
+  # Bitnami purged versioned tags from public.ecr.aws/bitnami; bitnamilegacy
+  # on Docker Hub is the frozen archive of the same images.
   set {
     name  = "image.registry"
-    value = "public.ecr.aws"
+    value = "docker.io"
+  }
+
+  set {
+    name  = "image.repository"
+    value = "bitnamilegacy/external-dns"
+  }
+
+  set {
+    name  = "image.tag"
+    value = "0.18.0-debian-12-r4"
   }
 
   set {
