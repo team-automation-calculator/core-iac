@@ -63,7 +63,23 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = "public.ecr.aws/eks/aws-load-balancer-controller"
   }
 
-  version = "1.4.6"
+  # Watch discovery.k8s.io/v1 EndpointSlices instead of the v1 Endpoints API,
+  # which is deprecated as of Kubernetes 1.33. Defaults to false in 2.x.
+  set {
+    name  = "enableEndpointSlices"
+    value = "true"
+  }
+
+  # Chart 1.5.0+ defaults this to true, which makes the controller claim every
+  # new Service of type LoadBalancer. Keep the pre-upgrade behavior.
+  set {
+    name  = "enableServiceMutatorWebhook"
+    value = "false"
+  }
+
+  # Chart CRDs live in crds/, which helm upgrade never touches; apply them
+  # manually before upgrading (see the PR that bumped this from 1.4.6).
+  version = "1.17.1"
 }
 
 resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
