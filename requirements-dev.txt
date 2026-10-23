@@ -1,0 +1,3 @@
+# Dev-only tools for scripts/ (the scripts themselves are standard library only).
+pytest==8.4.2
+black==25.9.0

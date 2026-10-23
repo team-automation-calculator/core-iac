@@ -1,0 +1,9 @@
+# Tool config only: the scripts in scripts/ run on the standard library and
+# have no packaging. Dev tools are pinned in requirements-dev.txt.
+
+[tool.pytest.ini_options]
+pythonpath = ["scripts"]
+testpaths = ["tests"]
+
+[tool.black]
+target-version = ["py312"]

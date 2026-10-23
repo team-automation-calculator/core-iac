@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Check that any app_version values added in this branch exist on Docker Hub.
+"""Check that app_version values added in this branch are deployable.
 
 Diffs `<base>..HEAD` over the cluster-addons-layer terraform.tfvars files,
-extracts versions added on `+app_version` lines, and checks each tag against
-the Docker Hub registry API. Exits non-zero if any tag is missing.
+extracts versions added on `+app_version` lines, and for each tag checks:
 
-Designed for CircleCI; runs on the standard library only.
+1. it exists on Docker Hub, and
+2. its `org.opencontainers.image.revision` commit is on automation-calculator
+   `main` (see app_image_provenance.py), so images built from unmerged app
+   branches can't be deployed.
+
+Fails closed: a missing tag, a missing revision label, an off-main revision,
+or any registry/GitHub API error exits non-zero.
+
+Designed for CircleCI; runs on the standard library only. Set GITHUB_TOKEN or
+GH_TOKEN to avoid the anonymous GitHub API rate limit.
 """
 
 from __future__ import annotations
@@ -16,6 +24,12 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+
+from app_image_provenance import (
+    APP_MAIN_BRANCH,
+    ProvenanceError,
+    check_provenance,
+)
 
 TFVARS_PATHSPEC = "terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
 VAR_NAME = "app_version"
@@ -54,6 +68,34 @@ def tag_status(repo: str, tag: str) -> int:
         return exc.code
 
 
+def check_version(version: str) -> bool:
+    """Print the result for one tag; return True if it is deployable."""
+    image = f"{IMAGE_REPO}:{version}"
+    try:
+        status = tag_status(IMAGE_REPO, version)
+    except OSError as exc:
+        print(f"MISSING: {image} (Docker Hub lookup failed: {exc})")
+        return False
+    if status != 200:
+        print(f"MISSING: {image} (HTTP {status})")
+        return False
+
+    try:
+        provenance = check_provenance(version)
+    except ProvenanceError as exc:
+        print(f"UNVERIFIED: {image} ({exc}); failing closed")
+        return False
+    compare = f"compare {APP_MAIN_BRANCH}...{provenance.sha}: {provenance.status}"
+    if not provenance.on_main:
+        print(
+            f"NOT ON MAIN: {image} rev {provenance.sha} ({compare}); "
+            f"image was not built from automation-calculator {APP_MAIN_BRANCH}"
+        )
+        return False
+    print(f"OK: {image} rev {provenance.sha} ({compare})")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -69,15 +111,8 @@ def main() -> int:
         print(f"No {VAR_NAME} changes detected, skipping Docker Hub validation")
         return 0
 
-    failed = False
-    for version in versions:
-        status = tag_status(IMAGE_REPO, version)
-        if status == 200:
-            print(f"OK: {IMAGE_REPO}:{version}")
-        else:
-            print(f"MISSING: {IMAGE_REPO}:{version} (HTTP {status})")
-            failed = True
-    return 1 if failed else 0
+    results = [check_version(version) for version in versions]
+    return 0 if all(results) else 1
 
 
 if __name__ == "__main__":

@@ -75,11 +75,17 @@ scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
 scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
 scripts/bump_app_docker_image_version.sh       # Bump app Docker image version in Helm values + Terraform
 scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch
-scripts/check_app_docker_image_versions.py     # CI: validate added app_version values exist on Docker Hub
+scripts/check_app_docker_image_versions.py     # CI: added app_version values must exist on Docker Hub AND be built from app main
+scripts/watch_app_docker_image_versions.py     # Poll Docker Hub; open a bump PR for new tags built from app main (skips others)
+scripts/app_image_provenance.py <tag>...       # Shared helper / read-only CLI: is the image's revision label on app main?
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
 ```
+
+Only deploy app images built from automation-calculator `main`. Provenance is the image's `org.opencontainers.image.revision` label checked with GitHub `compare/main...<sha>` (`behind`/`identical` = on main). Missing labels and API errors fail closed. Set `GITHUB_TOKEN` or `GH_TOKEN` to avoid the 60 req/hour anonymous GitHub limit.
+
+Python scripts are standard library only (Python 3.12, `.python-version`). Tests and formatting: `pip install -r requirements-dev.txt`, then `pytest` and `black --check` on the touched scripts and `tests/` (CI job `test_python_scripts`).
 
 ## Key Conventions
 
