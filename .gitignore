@@ -30,3 +30,5 @@ override.tf.json
 
 # Jetbrains
 .idea
+# Local scratch space (downloads, rendered charts, PR body drafts)
+/tmp/
