@@ -11,6 +11,12 @@ version but Docker Hub's newest tag is different) and no PR exists yet for
 that version's bump branch, the bump runs immediately instead of waiting for
 a new tag to appear.
 
+Before any bump, the tag's `org.opencontainers.image.revision` must be on
+automation-calculator `main` (see app_image_provenance.py). Tags built from
+other branches, or whose provenance can't be verified, are logged and skipped
+and the watch continues. Set GITHUB_TOKEN or GH_TOKEN to avoid the anonymous
+GitHub API rate limit.
+
 Designed for local operator use. Standard library only.
 
 Assumes the caller is on the `main` branch with a clean working tree; the
@@ -29,20 +35,17 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-IMAGE_REPO = "automationcalculationsci/automation-calculator"
+from app_image_provenance import (
+    APP_MAIN_BRANCH,
+    IMAGE_REPO,
+    ProvenanceError,
+    check_provenance,
+)
+
 TAGS_URL = (
     f"https://hub.docker.com/v2/repositories/{IMAGE_REPO}/tags/"
     "?page_size=25&ordering=last_updated"
 )
-REGISTRY_AUTH_URL = (
-    f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
-)
-REGISTRY_BASE_URL = f"https://registry-1.docker.io/v2/{IMAGE_REPO}"
-MANIFEST_ACCEPT = ", ".join([
-    "application/vnd.docker.distribution.manifest.v2+json",
-    "application/vnd.oci.image.manifest.v1+json",
-])
-REVISION_LABEL = "org.opencontainers.image.revision"
 HTTP_TIMEOUT_SECONDS = 15
 POLL_INTERVAL_SECONDS = 60
 POLL_DURATION_SECONDS = 600
@@ -54,7 +57,8 @@ REPO_ROOT = SCRIPTS_DIR.parent
 BUMP_SCRIPT = SCRIPTS_DIR / "bump_app_docker_image_version_branch.sh"
 TFVARS_ENVS = ("development", "staging", "production")
 TFVARS_FILES = {
-    env: REPO_ROOT / f"terraform/env/{env}/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
+    env: REPO_ROOT
+    / f"terraform/env/{env}/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
     for env in TFVARS_ENVS
 }
 
@@ -63,31 +67,6 @@ def fetch_version_tags() -> list[dict]:
     with urllib.request.urlopen(TAGS_URL, timeout=HTTP_TIMEOUT_SECONDS) as response:
         data = json.load(response)
     return [t for t in data.get("results", []) if VERSION_RE.match(t["name"])]
-
-
-def fetch_short_commit_hash(tag: str) -> str:
-    """Fetch org.opencontainers.image.revision label from the image config.
-
-    Returns "" if the label is absent. The Docker Hub registry requires a bearer
-    token even for public repos, but it's anonymous and free.
-    """
-    with urllib.request.urlopen(REGISTRY_AUTH_URL, timeout=HTTP_TIMEOUT_SECONDS) as response:
-        token = json.load(response)["token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    manifest_req = urllib.request.Request(
-        f"{REGISTRY_BASE_URL}/manifests/{tag}",
-        headers={**headers, "Accept": MANIFEST_ACCEPT},
-    )
-    with urllib.request.urlopen(manifest_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
-        manifest = json.load(response)
-    config_digest = manifest["config"]["digest"]
-
-    blob_req = urllib.request.Request(f"{REGISTRY_BASE_URL}/blobs/{config_digest}", headers=headers)
-    with urllib.request.urlopen(blob_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
-        config = json.loads(response.read().decode("utf-8"), strict=False)
-    labels = config.get("config", {}).get("Labels") or {}
-    return labels.get(REVISION_LABEL, "")
 
 
 def read_tfvars_versions() -> dict[str, str]:
@@ -103,11 +82,17 @@ def find_bump_pr(version: str) -> dict | None:
     branch = f"bump-app-docker-image-version-{version}"
     result = subprocess.run(
         [
-            "gh", "pr", "list",
-            "--head", branch,
-            "--state", "all",
-            "--json", "url,state",
-            "--limit", "1",
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "all",
+            "--json",
+            "url,state",
+            "--limit",
+            "1",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -127,17 +112,26 @@ def run_bump(version: str, short_commit_hash: str) -> int:
     return result.returncode
 
 
-def resolve_hash_and_bump(version: str) -> int:
+def resolve_main_commit_hash(version: str) -> str | None:
+    """Return the image's revision sha if it is on app main, else None (skip).
+
+    Tags whose revision is off main, or can't be verified (missing label,
+    registry/GitHub error), are logged and skipped rather than bumped.
+    """
     try:
-        short_commit_hash = fetch_short_commit_hash(version)
-    except urllib.error.URLError as exc:
-        print(f"Failed to fetch revision label: {exc}; bumping with empty hash")
-        short_commit_hash = ""
-    if not short_commit_hash:
-        print(f"Image {version} has no {REVISION_LABEL} label; bumping with empty hash")
-    else:
-        print(f"Resolved short commit hash: {short_commit_hash}")
-    return run_bump(version, short_commit_hash)
+        provenance = check_provenance(version)
+    except ProvenanceError as exc:
+        print(f"Skipping {version}: provenance unverified ({exc})")
+        return None
+    compare = f"compare {APP_MAIN_BRANCH}...{provenance.sha}: {provenance.status}"
+    if not provenance.on_main:
+        print(
+            f"Skipping {version}: rev {provenance.sha} is not on app "
+            f"{APP_MAIN_BRANCH} ({compare})"
+        )
+        return None
+    print(f"Resolved commit hash: {provenance.sha} ({compare})")
+    return provenance.sha
 
 
 def main() -> int:
@@ -191,25 +185,35 @@ def main() -> int:
         print(f"Sync: all envs at {hub_newest} (matches Docker Hub newest)")
     elif len(deployed) == 1:
         (current,) = deployed
-        print(f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)")
+        print(
+            f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)"
+        )
         pending_version = hub_newest
     else:
-        print(f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}")
+        print(
+            f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}"
+        )
     print()
 
     if pending_version is not None:
         try:
             pr = find_bump_pr(pending_version)
         except (OSError, RuntimeError, json.JSONDecodeError) as exc:
-            print(f"Could not check for an existing bump PR: {exc}; watching for new tags instead")
+            print(
+                f"Could not check for an existing bump PR: {exc}; watching for new tags instead"
+            )
         else:
             if pr is None:
-                print(f"No PR found for pending bump to {pending_version}; bumping now")
-                return resolve_hash_and_bump(pending_version)
-            print(
-                f"PR already exists for bump to {pending_version}: "
-                f"{pr['url']} ({pr['state']}); watching for new tags"
-            )
+                print(f"No PR found for pending bump to {pending_version}; verifying")
+                commit_hash = resolve_main_commit_hash(pending_version)
+                if commit_hash is not None:
+                    return run_bump(pending_version, commit_hash)
+                print("Watching for new tags instead")
+            else:
+                print(
+                    f"PR already exists for bump to {pending_version}: "
+                    f"{pr['url']} ({pr['state']}); watching for new tags"
+                )
         print()
 
     deadline = time.monotonic() + args.duration
@@ -221,17 +225,25 @@ def main() -> int:
             print(f"Fetch failed: {exc}; retrying next interval")
             continue
         new_tags = [t for t in current if t["name"] not in baseline_names]
-        if new_tags:
-            target = max(new_tags, key=lambda t: t["last_updated"])
+        # Newest first; bump the first one built from app main. Skipped tags
+        # join the baseline so they aren't re-checked (and re-billed against
+        # the GitHub API rate limit) on every poll.
+        for target in sorted(new_tags, key=lambda t: t["last_updated"], reverse=True):
             print(
                 f"New tag detected: {target['name']} @ {target['last_updated']} "
                 f"({len(new_tags)} new tag(s) total)"
             )
-            return resolve_hash_and_bump(target["name"])
+            baseline_names.add(target["name"])
+            commit_hash = resolve_main_commit_hash(target["name"])
+            if commit_hash is not None:
+                return run_bump(target["name"], commit_hash)
         remaining = int(deadline - time.monotonic())
-        print(f"No new tags; {remaining}s remaining")
+        if new_tags:
+            print(f"No new tags built from app main; {remaining}s remaining")
+        else:
+            print(f"No new tags; {remaining}s remaining")
 
-    print("No new tags appeared within polling window")
+    print("No new tags built from app main appeared within polling window")
     return 0
 
 

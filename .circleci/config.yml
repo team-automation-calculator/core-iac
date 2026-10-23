@@ -173,10 +173,22 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Validate app Docker image versions exist on Docker Hub
+          # Checks each added app_version exists on Docker Hub and was built
+          # from automation-calculator main. Uses GITHUB_TOKEN/GH_TOKEN for the
+          # GitHub API if set as a project env var; anonymous otherwise.
+          name: Validate app Docker image versions exist and were built from app main
           command: |
             git fetch origin main
             python3 scripts/check_app_docker_image_versions.py --base origin/main
+
+  test_python_scripts:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run: pip install -r requirements-dev.txt
+      - run: black --check scripts/app_image_provenance.py scripts/check_app_docker_image_versions.py scripts/watch_app_docker_image_versions.py tests
+      - run: pytest
 
 workflows:
   validate:
@@ -198,6 +210,7 @@ workflows:
       - validate_networking_module
       - validate_route53_domain_module
       - validate_production_aws_route53_domains
+      - test_python_scripts
       - validate_app_docker_image_versions:
           filters:
             branches:

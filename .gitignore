@@ -33,3 +33,7 @@ override.tf.json
 
 # Local scratch space (downloads, rendered charts, PR body drafts)
 tmp/
+
+# Python
+__pycache__/
+.pytest_cache/
