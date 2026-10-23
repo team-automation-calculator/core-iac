@@ -102,7 +102,7 @@ Lock files (`.terraform.lock.hcl`) are committed in every module and env config 
 
 ## External-DNS Helm Registry
 
-External-DNS uses the Bitnami OCI registry (`oci://registry-1.docker.io/bitnamicharts`), not the legacy HTTP repo. Use `chart = "external-dns"` with `repository = "oci://registry-1.docker.io/bitnamicharts"` in any `helm_release` resource.
+External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`.
 
 ## Pull Requests
 
