@@ -81,11 +81,13 @@ How the script behaves:
 ### 1. Staging: pre-create the new TXT records (BEFORE merging the PR)
 
 ```bash
-eval "$(scripts/infra_eng_sso.py up --environment staging)"
-scripts/external_dns_txt_prefix_migration.py plan -e staging
+eval "$(scripts/infra_eng_sso.py up --environment staging)"   # configures + logs in the ac-ci-staging profile
+# plan defaults to the -ro profile; pass --profile to reuse the write
+# profile `up` just set up (the script ignores AWS_PROFILE)
+scripts/external_dns_txt_prefix_migration.py plan -e staging --profile ac-ci-staging
 scripts/external_dns_txt_prefix_migration.py create-new -e staging            # review the batch
 scripts/external_dns_txt_prefix_migration.py create-new -e staging --apply    # save the inverse batch
-scripts/external_dns_txt_prefix_migration.py plan -e staging                  # all 4 "present, value matches"
+scripts/external_dns_txt_prefix_migration.py plan -e staging --profile ac-ci-staging   # all 4 "present, value matches"
 ```
 
 The new records are harmless to the running instances, which have no prefix.
@@ -120,7 +122,7 @@ kubectl -n kube-system get deploy external-dns -o jsonpath='{.spec.template.spec
 #   expect --txt-prefix=%{record_type}-extdns.
 kubectl -n kube-system logs deploy/external-dns --since=10m
 #   expect "All records are already up to date" every sync; no errors and no repeated "Desired change"
-scripts/external_dns_txt_prefix_migration.py plan -e staging
+scripts/external_dns_txt_prefix_migration.py plan -e staging --profile ac-ci-staging
 #   expect all new records "present, value matches"
 ```
 
@@ -166,7 +168,7 @@ alone would freeze staging DNS.
 
 ### 5. Production: pre-create, then a follow-up PR
 
-Repeat step 1 with `-e production`, which creates 4 records. This includes
+Repeat step 1 with `-e production` (and `--profile ac-ci-prod` on `plan`), which creates 4 records. This includes
 `cname-extdns.automation-calculations.io`, the record the apex loop was
 missing. Then open a follow-up PR that sets
 `external_dns_txt_prefix = "%%{record_type}-extdns."` in
