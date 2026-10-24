@@ -25,6 +25,12 @@ variable "db_engine_version" {
   type        = string
 }
 
+variable "external_dns_txt_prefix" {
+  default     = ""
+  description = "external-dns TXT registry prefix; empty leaves it unset. Set only after pre-creating the new-format TXT records, see docs/external-dns-txt-prefix-migration.md."
+  type        = string
+}
+
 variable "github_oauth_app_id" {
   description = "The GitHub OAuth App ID for the automation-calculator app."
   type        = string
