@@ -12,3 +12,8 @@ Infrastructure as Code for all apps within this project, including the main one.
 6. Apply base layer from its workspace
 7. Apply cluster addons layer from its workspace
 8. Profit?
+
+# AWS CLI Access
+
+Human AWS access is IAM Identity Center (SSO) only — no IAM user access keys.
+See [docs/aws-sso-auth.md](docs/aws-sso-auth.md) for setup and the profile reference.

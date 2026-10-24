@@ -9,8 +9,14 @@ variable "max_session_duration" {
   type        = number
 }
 
+variable "read_only_trusted_principal_arns" {
+  default     = []
+  description = "IAM principal ARNs in this account allowed to assume the read-only CI role. When empty (the default), no principal can assume the role."
+  type        = list(string)
+}
+
 variable "trusted_principal_arns" {
   default     = []
-  description = "IAM principal ARNs (CI users/roles) allowed to assume the CI role. Defaults to the account root, which delegates access to any principal in the account that has sts:AssumeRole permission on this role."
+  description = "IAM principal ARNs (CI users/roles) in this account allowed to assume the CI role. When empty (the default), no principal can assume the role."
   type        = list(string)
 }

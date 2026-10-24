@@ -10,6 +10,24 @@ variable "aws_region" {
   type        = string
 }
 
+variable "ci_read_only_trusted_principal_arns" {
+  default     = []
+  description = "IAM principal ARNs allowed to assume the read-only CI Terraform role. When empty, no principal can assume it."
+  type        = list(string)
+}
+
+variable "ci_trusted_principal_arns" {
+  default     = []
+  description = "IAM principal ARNs (CI users/roles) allowed to assume the CI Terraform role. When empty, no principal can assume it."
+  type        = list(string)
+}
+
+variable "enable_sso_infra_eng" {
+  default     = false
+  description = "Create the IAM Identity Center InfraEng permission set and account assignment for this environment. Enable only after the Identity Center instance exists and the Google Workspace identity provider is connected."
+  type        = bool
+}
+
 variable "environment_name" {
   description = "The application production environment, i.e development/staging/production."
   type        = string
