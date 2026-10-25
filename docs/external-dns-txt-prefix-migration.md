@@ -141,15 +141,30 @@ Two things together give the evidence:
    `owner=default`. The `plan` output shows this. The script computes the old
    names with the same function, and they match the records external-dns
    actually wrote (`cname-www.staging.…` and so on), which validates the port.
-2. Optional active test, staging only. Make a no-traffic-impact drift on one
-   record and watch external-dns correct it. For example, UPSERT
+2. Active drift test, staging only. Make a no-traffic-impact drift on one
+   record and watch external-dns correct it: UPSERT
    `www.staging.automation-calculations.io` A, using the same alias target but
-   with `EvaluateTargetHealth: false`. An owning instance should log
-   `Desired change: UPSERT www.staging.automation-calculations.io A` within a
-   sync or two and set it back to `true`. If nothing happens, ownership is not
-   being read: roll back (step 2). This test is not verified in advance: if
-   external-dns turns out not to compare that property, pick another harmless
-   drift, or skip the test.
+   with `EvaluateTargetHealth: false`. An owning instance logs
+   `Desired change: UPSERT www.staging.automation-calculations.io A` on its
+   next sync, together with an UPSERT of the matching `cname-extdns.www.…` TXT
+   record, then `2 record(s) were successfully updated`, and the record is
+   back to `true`. The following syncs must return to "All records are already
+   up to date". If nothing happens within two syncs, ownership is not being
+   read: roll back (step 2).
+
+   **Verified on staging 2026-10-25** with the prefix live (chart 1.21.1, app
+   v0.21.0): drift applied at 16:31:37Z, the UPSERT logged at 16:32:11Z, the
+   record was `true` again at 16:32:22Z, and the next sync was quiet. The
+   drift takes effect within one sync, so there is no DNS impact: the alias
+   target never changes, only the health-evaluation flag on it.
+
+   ```bash
+   # drift.json: same Name/Type/AliasTarget as the live record, EvaluateTargetHealth false
+   aws route53 change-resource-record-sets --hosted-zone-id Z0212130UA03VYHTN72T \
+     --change-batch file://tmp/drift.json --profile ac-ci-staging
+   kubectl -n kube-system logs deploy/external-dns -f | grep -E 'Desired change|successfully updated'
+   # keep an undo.json with EvaluateTargetHealth true in case external-dns does not correct it
+   ```
 
 *Rollback:* same as step 2.
 
