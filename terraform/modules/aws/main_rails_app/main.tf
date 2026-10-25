@@ -87,15 +87,17 @@ resource "aws_db_instance" "automation_calculator_app" {
   apply_immediately           = true
   allow_major_version_upgrade = true
   auto_minor_version_upgrade  = true
+  backup_retention_period     = var.backup_retention_period
   db_name                     = "automation_calculator_app"
   db_subnet_group_name        = aws_db_subnet_group.db_access_subnet_group.name
   engine                      = "postgres"
   engine_version              = var.db_engine_version
+  final_snapshot_identifier   = var.skip_final_snapshot ? null : coalesce(var.final_snapshot_identifier, "automation-calculator-${var.environment_name}-final")
   instance_class              = var.db_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result
   port                        = var.db_port
-  skip_final_snapshot         = true
+  skip_final_snapshot         = var.skip_final_snapshot
   username                    = "automation_calculator_devops"
   vpc_security_group_ids = [
     aws_security_group.allow_db_access_from_eks.id,

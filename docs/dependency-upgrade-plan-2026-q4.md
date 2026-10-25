@@ -261,8 +261,10 @@ that window it is one-way.
 
 **5a: backups first (all envs).** Add `backup_retention_period` (default 7) to
 `main_rails_app` and set it; optionally `skip_final_snapshot = false` with a
-`final_snapshot_identifier`. This is a modify with no downtime. Once retention is non-zero RDS
-takes its own before/after snapshots during a major upgrade.
+`final_snapshot_identifier`. This is an in-place modify, but AWS documents a brief outage when retention moves
+between 0 and a non-zero value (the instance is taken offline while the first backup is created),
+so apply it in a quiet moment. Once retention is non-zero RDS takes its own before/after snapshots
+during a major upgrade.
 
 **5b: staging, then 5c: production.** `db_engine_version = "18.6"` in the env's
 cluster-addons-layer tfvars; `version_dates/rds_postgres_version_dates.json` already lists 18.
