@@ -26,8 +26,8 @@ terraform/
 helm/
   automation-calculator/        # App Helm chart
 scripts/                        # Bash helpers
-eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
-rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
+docs/                           # Plans, runbooks and migration notes
+version_dates/                  # Support timelines: EKS, RDS PostgreSQL, Terraform, aws and tfe providers
 .circleci/config.yml            # CI validation pipeline
 ```
 
@@ -95,17 +95,19 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 | Provider | Module constraint | Env config constraint |
 |----------|------------------|-----------------------|
 | AWS | `~> 6.0` | `~> 6.0` |
-| Helm | `~> 2.9` | `~> 2.9` |
-| Kubernetes | `~> 2.16` | `~> 2.16` |
-| TFE | — | `0.68.2` (pinned exactly in all tf_cloud configs) |
+| Helm | `~> 3.3` (`cluster-addons-layer`, `main_rails_app`) | `~> 3.3` (cluster-addons-layer configs) |
+| Kubernetes | `~> 3.4` (`cluster-addons-layer`) | `~> 3.4` (cluster-addons-layer configs) |
+| TFE | `~> 0.82` (`tf_cloud_workspaces`) | `~> 0.82` (all tf_cloud and cluster-addons-layer configs) |
 
-Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform). When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then commit the updated lock files alongside the `versions.tf` changes.
+Helm provider 3.x takes `set = [{ name = ..., value = ... }]` / `set_sensitive = [...]` list attributes and a `kubernetes = { ... }` attribute in the provider block, not the 2.x nested blocks. The Q4 2026 bumps are recorded in `docs/dependency-upgrade-plan-2026-q4.md`.
+
+Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform) and carry `h1:` hashes for three platforms: `linux_amd64` (TFC and CI), `darwin_arm64` and `darwin_amd64`. When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then regenerate the platform hashes in the same directory with `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=darwin_amd64` (a plain `init` on one machine records only that machine's platform), and commit the updated lock files alongside the `versions.tf` changes.
 
 ## External-DNS Helm Registry
 
-External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`.
+External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`. Since chart 1.22.0 `policy` has no default and is required; the module sets `policy = upsert-only` explicitly (anything else lets external-dns delete records).
 
-**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `set` block is rendered. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
+**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `txtPrefix` entry is added to the release's `set` list. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
 
 ## Scratch Files
 
