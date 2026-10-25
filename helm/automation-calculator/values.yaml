@@ -8,7 +8,7 @@ googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.9.6-872
+  tag: 0.9.6-893
 ingress:
   annotations:
     alb.ingress.kubernetes.io/backend-protocol: HTTP
@@ -20,12 +20,30 @@ ingress:
     alb.ingress.kubernetes.io/target-type: instance
   host: "development.automation-calculations.io"
   tls: []
+# Probes hit /health, which runs SELECT 1 against the DB. A cold pod (first DB
+# connection, db:create/db:migrate in the entrypoint) can take several seconds to
+# answer, so each probe allows 5s per attempt and the startupProbe gives the pod up
+# to 3 minutes to boot before liveness can restart it.
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
 logToStdout: true
 nameOverride: ""
 namespace: automation-calculator
 podAnnotations: {}
 podSecurityContext: {}
 railsEnv: production
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
 replicaCount: 1
 resources:
   limits:
@@ -51,4 +69,11 @@ service:
   port: 80
   targetPort: 3000
   type: NodePort
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  periodSeconds: 5
+  timeoutSeconds: 5
+  failureThreshold: 36
 tolerations: []
