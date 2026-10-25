@@ -15,6 +15,14 @@ variable "environment_name" {
   type        = string
 }
 
+# external-dns expands "%{record_type}" in the prefix, but "%{" starts a
+# Terraform template directive: in .tf/.tfvars write it as "%%{record_type}".
+variable "external_dns_txt_prefix" {
+  default     = ""
+  description = "external-dns --txt-prefix for its TXT ownership records. Empty leaves it unset (chart default). Changing it requires the Route 53 migration in docs/external-dns-txt-prefix-migration.md."
+  type        = string
+}
+
 variable "eks_cluster_api_endpoint" {
   description = "The api endpoint of the EKS cluster to install addons into."
   type        = string

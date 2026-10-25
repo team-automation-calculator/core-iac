@@ -18,6 +18,7 @@ module "cluster_addons" {
   eks_cluster_api_endpoint      = data.aws_eks_cluster.target_cluster.endpoint
   eks_cluster_cert_data         = base64decode(data.aws_eks_cluster.target_cluster.certificate_authority.0.data)
   eks_cluster_oidc_provider_arn = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_oidc_provider_arn
+  external_dns_txt_prefix       = var.external_dns_txt_prefix
   source                        = "../../../../../modules/aws/cluster-addons-layer"
   vpc_id                        = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
