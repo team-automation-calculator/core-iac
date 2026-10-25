@@ -79,6 +79,7 @@ scripts/check_app_docker_image_versions.py     # CI: validate added app_version 
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
+scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration (dry run unless --apply)
 ```
 
 ## Key Conventions
@@ -103,6 +104,8 @@ Lock files (`.terraform.lock.hcl`) are committed in every module and env config 
 ## External-DNS Helm Registry
 
 External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`.
+
+**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `set` block is rendered. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
 
 ## Scratch Files
 

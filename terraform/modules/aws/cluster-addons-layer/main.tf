@@ -127,6 +127,19 @@ resource "helm_release" "external-dns" {
     name  = "serviceAccount.name"
     value = "external-dns"
   }
+
+  # Only set txtPrefix when configured, so environments without it render
+  # exactly as before (no helm diff). Changing it orphans the existing TXT
+  # ownership records: pre-create the new-format records first, see
+  # docs/external-dns-txt-prefix-migration.md.
+  dynamic "set" {
+    for_each = var.external_dns_txt_prefix == "" ? [] : [var.external_dns_txt_prefix]
+    content {
+      name  = "txtPrefix"
+      type  = "string"
+      value = set.value
+    }
+  }
 }
 
 module "external_dns_irsa_role" {
