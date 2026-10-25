@@ -3,7 +3,7 @@
 Status: **plan merged in #350; implementation open as a stacked chain of draft PRs** (#352 to
 #364, each based on the one before it, plus the Phase 6 housekeeping PR on top): Phase 1 #352,
 Phase 2a #355, Phase 2b #356, Phase 2c #357, Phase 3a #358, Phase 3b #359, Phase 4 staging #360,
-Phase 4 production #361, Phase 5a #362, Phase 5b #363, Phase 5c #364, Phase 6 (this housekeeping PR). Corrections
+Phase 4 production #361, Phase 5a #362, Phase 5b #363, Phase 5c #364, Phase 6 #365. Corrections
 the implementation turned up are folded into the phase text below. Each phase is its own PR,
 following the pattern of the earlier bumps: one-line tfvars changes per environment, staging first,
 production after a soak, a release-note audit table in the PR body, and the matching
