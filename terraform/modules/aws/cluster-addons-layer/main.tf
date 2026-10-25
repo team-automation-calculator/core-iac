@@ -64,7 +64,8 @@ resource "helm_release" "aws_load_balancer_controller" {
   }
 
   # Watch discovery.k8s.io/v1 EndpointSlices instead of the v1 Endpoints API,
-  # which is deprecated as of Kubernetes 1.33. Defaults to false in 2.x.
+  # which is deprecated as of Kubernetes 1.33. 3.x defaults this to true; keep
+  # it explicit so the flag always renders and a default change can't flip it.
   set {
     name  = "enableEndpointSlices"
     value = "true"
@@ -77,9 +78,32 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = "false"
   }
 
+  # Chart 3.x defaults keepTLSSecret to false, which regenerates the webhook CA
+  # and serving cert on every helm upgrade. 1.x defaulted to true. Keep reusing
+  # the existing aws-load-balancer-tls secret so upgrades don't churn the
+  # webhook caBundle.
+  set {
+    name  = "keepTLSSecret"
+    value = "true"
+  }
+
+  # Controller 3.x defaults the Gateway API controllers on (2.x: off) and relies
+  # on CRD auto-detection to turn them back off. We only use Ingress and have no
+  # Gateway API CRDs installed; pin the gates off so the behavior is explicit.
+  set {
+    name  = "controllerConfig.featureGates.ALBGatewayAPI"
+    value = "false"
+  }
+
+  set {
+    name  = "controllerConfig.featureGates.NLBGatewayAPI"
+    value = "false"
+  }
+
   # Chart CRDs live in crds/, which helm upgrade never touches; apply them
-  # manually before upgrading (see the PR that bumped this from 1.4.6).
-  version = "1.17.1"
+  # manually before upgrading (see the PRs that bumped this from 1.4.6 and
+  # from 1.17.1).
+  version = "3.6.1"
 }
 
 resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
