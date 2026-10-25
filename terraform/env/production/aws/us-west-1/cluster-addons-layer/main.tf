@@ -28,6 +28,7 @@ module "main_rails_app" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   app_version                                   = var.app_version
   automation_calculator_app_host                = var.automation_calculator_app_host
+  backup_retention_period                       = var.backup_retention_period
   db_engine_version                             = var.db_engine_version
   db_security_group_ids                         = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
   db_subnet_group_ids                           = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
@@ -35,12 +36,14 @@ module "main_rails_app" {
   depends_on = [
     module.cluster_addons
   ]
-  environment_name        = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
-  github_oauth_app_id     = var.github_oauth_app_id
-  github_oauth_app_secret = var.github_oauth_app_secret
-  google_oauth_app_id     = var.google_oauth_app_id
-  google_oauth_app_secret = var.google_oauth_app_secret
-  short_commit_hash       = var.short_commit_hash
-  source                  = "../../../../../modules/aws/main_rails_app"
-  vpc_id                  = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
+  environment_name          = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
+  final_snapshot_identifier = var.final_snapshot_identifier
+  github_oauth_app_id       = var.github_oauth_app_id
+  github_oauth_app_secret   = var.github_oauth_app_secret
+  google_oauth_app_id       = var.google_oauth_app_id
+  google_oauth_app_secret   = var.google_oauth_app_secret
+  short_commit_hash         = var.short_commit_hash
+  skip_final_snapshot       = var.skip_final_snapshot
+  source                    = "../../../../../modules/aws/main_rails_app"
+  vpc_id                    = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

@@ -27,6 +27,12 @@ variable "automation_calculator_helm_release_local_path" {
   type        = string
 }
 
+variable "backup_retention_period" {
+  default     = 7
+  description = "Days to retain automated RDS backups (0 disables them, max 35). Must be non-zero before a major engine version upgrade so RDS takes its own pre- and post-upgrade snapshots. Changing between 0 and a non-zero value causes a brief outage (RDS takes the instance offline to create the first backup)."
+  type        = number
+}
+
 variable "db_engine_version" {
   default     = null
   description = "The PostgreSQL engine version for the RDS instance. If null, AWS uses its default."
@@ -61,6 +67,12 @@ variable "environment_name" {
   type        = string
 }
 
+variable "final_snapshot_identifier" {
+  default     = null
+  description = "Name of the final DB snapshot taken when the RDS instance is destroyed; only used when skip_final_snapshot is false. If null, automation-calculator-<environment_name>-final is used. Must start with a letter, contain only letters, numbers and hyphens, and not end with a hyphen or contain two consecutive hyphens. A destroy fails if a snapshot with this name already exists."
+  type        = string
+}
+
 variable "github_oauth_app_id" {
   description = "The GitHub OAuth App ID for the automation-calculator app."
   type        = string
@@ -85,6 +97,12 @@ variable "short_commit_hash" {
   default     = ""
   description = "The short git commit hash of the automation-calculator app version being deployed. Sourced from the image's org.opencontainers.image.revision label at bump time."
   type        = string
+}
+
+variable "skip_final_snapshot" {
+  default     = true
+  description = "Whether to skip the final DB snapshot when the RDS instance is destroyed. Defaults to true (the historical behaviour); set to false to take a final snapshot named by final_snapshot_identifier."
+  type        = bool
 }
 
 variable "route53_zone_name" {
