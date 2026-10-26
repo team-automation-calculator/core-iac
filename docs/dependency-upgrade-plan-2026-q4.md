@@ -1,6 +1,10 @@
 # Dependency upgrade plan, Q4 2026
 
-Status: **proposal** (draft PR). Nothing below is implemented yet. Each phase becomes its own PR,
+Status: **plan merged in #350; implementation open as a stacked chain of draft PRs** (#352 to
+#364, each based on the one before it, plus the Phase 6 housekeeping PR on top): Phase 1 #352,
+Phase 2a #355, Phase 2b #356, Phase 2c #357, Phase 3a #358, Phase 3b #359, Phase 4 staging #360,
+Phase 4 production #361, Phase 5a #362, Phase 5b #363, Phase 5c #364, Phase 6 #365. Corrections
+the implementation turned up are folded into the phase text below. Each phase is its own PR,
 following the pattern of the earlier bumps: one-line tfvars changes per environment, staging first,
 production after a soak, a release-note audit table in the PR body, and the matching
 `version_dates/` file updated in the same PR (see #310/#311 for EKS 1.36 and #324 for the ALB
@@ -64,7 +68,9 @@ chart changes to `helm/automation-calculator` beyond what a tool bump forces.
 | EKS default add-ons (vpc-cni, coredns, kube-proxy) | not managed (no EKS add-ons registered; `list-addons` is empty in both clusters) | whatever the 1.36 upgrade left | per-version recommended | updated by hand after each control-plane bump |
 
 Secondary providers (`random` 3.8.1, `tls` 4.2.1, `time` 0.13.1, `null` 3.2.4, `cloudinit` 2.3.7)
-ride along with the lock-file refresh in Phase 2 and need no review.
+ride along with the lock-file refresh in Phase 2 and need no review. The committed lock files
+carried a single `h1:` platform hash per provider (`darwin_arm64`, from local inits); the Phase 2a
+refresh records three (`linux_amd64`, `darwin_arm64`, `darwin_amd64`).
 
 ## Decisions
 
@@ -73,7 +79,7 @@ ride along with the lock-file refresh in Phase 2 and need no review.
 | Order | Tooling first (Terraform runtime, CI), then providers and modules, then add-on charts, then EKS 1.37, then RDS 18 | Each later phase is validated by the tooling of the earlier ones. Provider bumps are reversible; EKS is reversible for 7 days; RDS majors are not, so it goes last and gets a snapshot gate. |
 | Terraform target | 1.17.0 in both TFC and CI, not 1.16.x | 1.17.0 is the current stable line (2026-10-21). 1.12 to 1.17 upgrade guides list no configuration-affecting changes; the only notes are a container parallelism change (1.14) and `terraform test` variable blocks (1.13), neither used here. State written by 1.17 is still readable by 1.11 under the v1.0 compatibility promise, so TFC rollback is a tfvars revert. |
 | Helm CLI in CI | v4.3.1, with v3.22.1 as the fallback if `helm lint --strict` disagrees with the chart | Helm 4 is the maintained line (4.0 shipped 2025-11). Lint is the only CI use. The chart is `apiVersion: v2` with `apps/v1`, `v1` and `networking.k8s.io/v1` templates, which Helm 4 renders unchanged. |
-| Helm provider | 3.3.0 (`~> 3.3`), in its own PR, after aws/tfe/kubernetes | 3.0 changes `set {}` / `set_sensitive {}` blocks to `set = [{...}]` lists, which touches 16 `set`, 6 `set_sensitive` and one `dynamic "set"` block across two modules. Expect a zero-change plan; this is a config rewrite, not an infra change. 3.1.0+ required for `upgrade_install`, 3.0.2+ for the plan-inconsistency fixes. |
+| Helm provider | 3.3.0 (`~> 3.3`), in its own PR, after aws/tfe/kubernetes | 3.0 changes `set {}` / `set_sensitive {}` blocks to `set = [{...}]` lists, which touches 14 static `set`, one `dynamic "set"` and 6 `set_sensitive` entries (21 in total, counted in #357) across two modules. Expect a zero-change plan; this is a config rewrite, not an infra change. 3.1.0+ required for `upgrade_install`, 3.0.2+ for the plan-inconsistency fixes. |
 | Kubernetes provider | 3.4.0 (`~> 3.4`) | Only `_v1` resources are used (two `kubernetes_service_account_v1`, two `kubernetes_secret_v1`), so 3.0's deprecations do not apply. 3.3.0 and 3.4.0 reject null label/annotation values on Namespace and Role, neither of which we create. |
 | AWS provider | `~> 6.0` kept, lock files to 6.70.0 | No major. 6.70.0's one breaking change is a `aws_route53domains_delegation_signer_record` import ID, not used. Unblocks the EKS module. |
 | TFE provider | 0.82.0, replacing the exact `0.68.2` pin and the module's `<= 0.68.2` with `~> 0.82` | Nothing between 0.69.0 and 0.82.0 touches `tfe_workspace` (only `hyok_enabled` became read-only, which we do not set), `tfe_workspace_settings`, `tfe_run_trigger` or `d/tfe_outputs`. 0.69.0 moved to protocol 6 (Terraform >= 1.0, fine). |
@@ -119,7 +125,10 @@ Files: `terraform/env/<env>/tf_cloud/terraform.tfvars` (`tfe_workspace_tf_versio
 - CI: the PR's own CircleCI run is the test. `helm lint --strict` under 4.3.1 must stay green. If
   it reports something the chart cannot reasonably fix, pin `v3.22.1` instead and note why.
 - Also bump the orbs (`circleci/terraform`, `circleci/helm`) to their current majors in the same
-  PR if the pipeline still resolves; otherwise leave them.
+  PR if the pipeline still resolves; otherwise leave them. Outcome (#352): both orbs have `v4.0.0`
+  tags on GitHub but neither is published to the orb registry, so they went to the latest published
+  3.x, `circleci/terraform@3.7` and `circleci/helm@3.2`; the helm orb's 3.x line renamed its
+  commands to snake_case, so the step is now `helm/install_helm_client`.
 - Rollback: revert the PR. TFC workspaces can be set back to 1.11 because 1.12 to 1.17 do not
   change the state format.
 
@@ -131,10 +140,14 @@ Files: `terraform/env/<env>/tf_cloud/terraform.tfvars` (`tfe_workspace_tf_versio
   "pinned until aws >= 6.52" comment.
 - `terraform/modules/aws/cluster-addons-layer/main.tf`: IRSA module `~> 6.8`.
 - `terraform/modules/tf_cloud/tf_cloud_workspaces/versions.tf` and the three
-  `terraform/env/<env>/tf_cloud/versions.tf`: tfe `~> 0.82`.
+  `terraform/env/<env>/tf_cloud/versions.tf`: tfe `~> 0.82`. The three
+  `terraform/env/<env>/aws/us-west-1/cluster-addons-layer/versions.tf` carried the same exact
+  `0.68.2` pin (for `data.tfe_outputs`) and were moved to `~> 0.82` as well (#355).
 - Regenerate every lock file: `terraform init -upgrade` in each module directory,
   `terraform init -upgrade -backend=false` in each env directory (needs `TFE_TOKEN` only for the
-  normal init, see CLAUDE.md). Commit all lock files. Keep `registry.terraform.io` sources; the three
+  normal init, see CLAUDE.md), then `terraform providers lock -platform=linux_amd64
+  -platform=darwin_arm64 -platform=darwin_amd64` in each so the files carry all three platform
+  hashes instead of the single `darwin_arm64` hash they had. Commit all lock files. Keep `registry.terraform.io` sources; the three
   `tf_cloud` env lock files currently point at `registry.opentofu.org` and should be regenerated so
   they match the module.
 - `version_dates/aws_provider_version_dates.json` and `tfe_provider_version_dates.json`: add the
@@ -178,8 +191,12 @@ state schema and going back needs a TFC state restore.
 ### Phase 3: add-on charts (two PRs, all envs)
 
 **3a: metrics-server 3.8.3 to 3.14.0.** One-line version change. The 3.9 to 3.14 changelog is
-additive (addon-resizer option, PodSecurity labels, default resource requests of 100m/200Mi,
-PDB option, `hostUsers`, cert-manager hooks). The 3.14.0 ClusterRole is renamed from
+mostly additive (addon-resizer option, container `securityContext` hardening for PodSecurity
+`restricted`, default resource requests of 100m/200Mi, PDB `unhealthyPodEvictionPolicy`,
+`hostUsers`, cert-manager hooks), with two rendered changes that are not (#358): chart 3.10.0 moves
+the `metrics-server-auth-reader` RoleBinding from the release namespace to `kube-system` (the old
+binding in `default` was dangling anyway) and the secure port moves from 4443 to 10250 (the Service
+targets the named port, and the EKS node security group already allows 10250). The 3.14.0 ClusterRole is renamed from
 `metrics-server.name` to `metrics-server.fullname`, which with the default release name renders the
 same string. App 0.9.0 requires Kubernetes 1.34+, satisfied. Validate with `kubectl top nodes` and
 `kubectl get apiservice v1beta1.metrics.k8s.io` showing `Available=True`. Rollback:
@@ -203,8 +220,10 @@ Rollout, staging first:
 1. Render locally and diff: `helm template` 1.21.1 vs 1.23.0 with our values, confirm the only
    pod-spec differences are the image tag and the explicit `--policy=upsert-only`.
 2. Before merging, run the new controller in dry-run mode against staging: `helm upgrade` the
-   staging release to 1.23.0 by hand with the existing values plus `--set dryRun=true` (a
-   `helm template --dry-run` is not enough; what matters is the controller's own change log). The
+   staging release to 1.23.0 by hand with `--reuse-values --set policy=upsert-only --set
+   'extraArgs[1]=--dry-run'` (the chart has no `dryRun` value, so the controller flag goes through
+   `extraArgs`, and `policy` is required from 1.22.0; a `helm template --dry-run` is not enough;
+   what matters is the controller's own change log, see #359). The
    log must show only the `a-extdns.*` TXT UPSERTs and no DELETE or apex A UPSERT. The apex-loop
    symptom from the October incident (`cname-automation-calculations.io` falling outside the zone)
    must not reappear. Roll the manual release back to revision N before merging so Terraform's
@@ -219,8 +238,13 @@ Rollout, staging first:
    orphan-cleanup bug in 0.22 was only visible on records that lost their A twin).
 6. Production: fresh TFC run, same validation, `./go smoke prod`.
 7. After both envs are clean for a week, delete the legacy `cname-extdns.*` TXT records for alias
-   A names in a separate PR using the upstream cleanup script with `--dry-run` first, and record
-   the inverse batch in `tmp/` as was done for the prefix migration.
+   A names in a separate PR using the upstream cleanup script
+   (`scripts/aws-cleanup-legacy-txt-records.py --zone-id <zone> --record-match
+   external-dns/owner=default --alias-cname-cleanup`; it needs `boto3`). It has no `--dry-run`
+   flag: dry run is its default and `--run` executes. Run it once, after both environments are
+   upgraded, because the hosted zone is shared and a run before production's `a-extdns.*` twins
+   exist would only cover staging. Record the inverse batch in `tmp/` as was done for the prefix
+   migration.
 
 Rollback: `helm -n kube-system rollback external-dns <revision>` restores 0.21, which still owns
 through the `cname-extdns` records (they are never deleted by 0.22/0.23), so no DNS is lost.
@@ -236,12 +260,12 @@ Audit of the EKS 1.37 release notes against this repo:
 
 | 1.37 change | Impact here |
 |---|---|
-| `SELinuxMount` on by default: pods sharing a volume with different SELinux labels stay in `ContainerCreating` | None expected. No `seLinuxOptions` or shared volumes in the chart, and this repo installs no CSI driver; confirm with `kubectl get csidriver` in Phase 0. AL2023 nodes do not run SELinux enforcing. |
+| `SELinuxMount` on by default: pods sharing a volume with different SELinux labels stay in `ContainerCreating` | None expected. No `seLinuxOptions` or shared volumes in the chart, and this repo installs no CSI driver; confirm with `kubectl get csidriver` in Phase 0. AL2023 ships SELinux in permissive mode, which the kubelet still counts as enabled, so the safeguard is the absence of CSI volumes and shared volumes, not the SELinux mode (#360). |
 | EKS Auto Mode NodePool `consolidationPolicy` default | Not Auto Mode. |
 | DRA device taints GA, HPA configurable tolerance GA, HPA scale-to-zero beta | No DRA, no HPA. |
 | kubelet refuses deprecated cAdvisor flags; `container_cpu_load_average_10s` and `container_tasks_state` metrics removed; `eventRecordQPS: 0` now unlimited | EKS-optimized AMI with no custom kubelet args (`use_custom_launch_template = false`). CloudWatch alarms in cluster-addons-layer use ALB metrics, not cAdvisor. |
 | kubelet logs its full config at startup | Node logs readable only through the SSO roles. |
-| Metrics API | metrics-server 0.9.0 from Phase 3a is built against the 1.36 client libraries; 0.6.2 is from 2022 and three majors behind the compatibility matrix. Do Phase 3a first. |
+| Metrics API (`metrics.k8s.io` promoted from `v1beta1` to `v1` in 1.37, same schema) | metrics-server 0.9.0 from Phase 3a is built against the 1.36 client libraries and registers only `v1beta1.metrics.k8s.io`; kubectl 1.37's `top` tries `v1` and falls back to `v1beta1`, so it keeps working, and no HPA consumes the API (#360). 0.6.2 is from 2022 and three majors behind the compatibility matrix. Do Phase 3a first. |
 
 Add-on compatibility: ALB controller 3.6.1 (needs 1.22+), external-dns 0.23 and metrics-server
 0.9.0 are all current. The three default add-ons are not EKS-managed add-ons here, so after each
@@ -285,7 +309,7 @@ parameter group:
 | Change | Affects us? |
 |---|---|
 | 18: data checksums default on for `initdb` | RDS instances already have checksums; `pg_upgrade` in RDS handles it. |
-| 18: MD5 passwords deprecated (warning only) | The production instance dates from 2023 and its master password may still be MD5-hashed. Check with `SELECT rolpassword LIKE 'SCRAM%' FROM pg_authid WHERE rolname = current_user`; if false, `terraform apply -replace` of the `random_password` (or a manual `ALTER ROLE ... PASSWORD`) re-hashes it under `scram-sha-256` before the upgrade. Warning only on 18 either way. |
+| 18: MD5 passwords deprecated (warning only) | The production instance dates from 2023 and its master password may still be MD5-hashed. `pg_authid` is superuser-only on RDS, so check with `CREATE EXTENSION IF NOT EXISTS rds_tools; SELECT * FROM rds_tools.role_password_encryption_type();` (then `DROP EXTENSION rds_tools;` to keep `pg_extension` at `plpgsql` only). If it reports `md5`, re-hash in place with `ALTER ROLE <master user> WITH PASSWORD '<current password>'` (same password, new hash; Terraform state and the Helm secret are unchanged). Do not `terraform apply -replace` the `random_password`: that changes the password, rolls the app pods, and RDS applies master password changes asynchronously (#363). Warning only on 18 either way. |
 | 18: `VACUUM`/`ANALYZE` recurse into inheritance children by default | No inheritance/partitioned tables. |
 | 18: `COPY ... CSV` no longer treats `\.` as EOF; trigger role timing; FTS collation provider | No `COPY` in app code, no triggers, no full-text indexes (verify against `schema.rb`). |
 | 18: virtual generated columns are the new default | No generated columns in the schema (verify). |
@@ -293,7 +317,7 @@ parameter group:
 | 17: catalog/stat view renames (`pg_stat_statements`, `pg_stat_bgwriter`, collation columns) | Nothing in this repo queries them. |
 | RDS: `plrust` removed in 18, `postgis_topology` unavailable on 18.1/18.2 | Neither installed. |
 | RDS: instance class support | `db.t4g.micro` is orderable for postgres 18.6 in us-west-1 (checked). |
-| App: `pg` gem / ActiveRecord adapter | Check the `pg` gem and Rails versions in the app repo's Gemfile.lock against their PostgreSQL 18 support notes, and run the app's test suite against a local 18 image before the staging bump. |
+| App: `pg` gem / ActiveRecord adapter | The app is on Rails / Active Record 7.2.4 (not 7.1) with `pg` 1.7.0, which bundles the PostgreSQL 18.6 libpq; the 7.2.x changelogs carry no PostgreSQL version gate beyond 9.3 (#363). Still run the app's test suite against a local 18 image before the staging bump. |
 
 Rollout per env:
 1. Manual snapshot with a name that records the version, wait for `available`.
@@ -362,3 +386,5 @@ curl -fsS https://<host>/health
 - A second node or Multi-AZ RDS if the downtime windows in Phases 4 and 5 stop being acceptable.
 - A Renovate or Dependabot config for the lock files and chart versions so this document does not
   need to be rewritten in a year.
+- `scripts/launch_psql_pod.sh` pins `CLIENT_IMAGE=postgres:10.1-alpine`; bump it to an 18 client
+  so psql stops warning about the server version mismatch (found in #363).
