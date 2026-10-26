@@ -68,7 +68,7 @@ cluster is intentionally unprovisioned).
   `terraform/env/staging/aws/us-west-1/base-cluster-layer/main.tf`, or drop the ALB controller
   `replicaCount` to 1 (two replicas on one node buys nothing).
 - **Access.** `eval "$(scripts/infra_eng_sso.py up -e staging)"`. Install the `helm` CLI locally for
-  the render diffs in Phase 1 (CI uses Helm 3.10.2 through the CircleCI orb).
+  the render diffs in Phase 1 (CI uses Helm 4.3.1 through the CircleCI orb).
 - **Versions.** Pin the `argo-cd` and `argocd-apps` chart versions from
   `https://argoproj.github.io/argo-helm` at implementation time and record them here.
 
