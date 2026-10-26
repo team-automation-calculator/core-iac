@@ -1,6 +1,6 @@
 alarm_email                    = "steven.uray@automation-caluclations.net"
-app_version                    = "0.9.6-969"
+app_version                    = "0.9.6-970"
 automation_calculator_app_host = "development.automation-calculations.io"
 db_engine_version              = "16.13"
-short_commit_hash              = "0d017b1"
+short_commit_hash              = "2e659b6"
 tfe_base_layer_workspace_name  = "ac_app_development_base_cluster_layer"
