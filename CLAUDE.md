@@ -17,12 +17,16 @@ terraform/
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
       main_rails_app/               # Rails app Helm release module
       networking/                   # VPC/subnet resources
+    github/
+      org-ci-access/                # GitHub org membership + team for the CI machine user
   env/              # Per-environment configs (development, staging, production)
     <env>/
       tf_cloud/     # TFE workspace bootstrap (apply this first)
       aws/us-west-1/
         base-cluster-layer/
         cluster-addons-layer/
+    production/
+      github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
 helm/
   automation-calculator/        # App Helm chart
 scripts/                        # Bash helpers
@@ -98,6 +102,7 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 | Helm | `~> 2.9` | `~> 2.9` |
 | Kubernetes | `~> 2.16` | `~> 2.16` |
 | TFE | — | `0.68.2` (pinned exactly in all tf_cloud configs) |
+| GitHub | `~> 6.13` | `~> 6.13` |
 
 Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform). When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then commit the updated lock files alongside the `versions.tf` changes.
 
@@ -131,6 +136,8 @@ TFE_TOKEN                  # Terraform Cloud API token
 TF_VAR_GITHUB_TOKEN        # GitHub token (passed as TF variable)
 AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (see docs/aws-sso-auth.md)
 ```
+
+`GITHUB_TOKEN` for the `github` provider (`terraform/env/production/github/org`) is never set locally: it lives only as a sensitive environment variable on the `ac_app_production_github_org` TFC workspace. The GitHub CI machine user, its tokens, and the owner token that workspace uses are documented in `docs/github-ci-user.md`.
 
 ## AWS Authentication
 
