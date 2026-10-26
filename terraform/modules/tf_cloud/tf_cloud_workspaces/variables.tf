@@ -34,6 +34,12 @@ variable "enable_cluster_addons_run_trigger" {
   default     = true
 }
 
+variable "enable_github_org_workspace" {
+  description = "When true, creates a TFC workspace for the GitHub organization env config (CI machine user access)."
+  type        = bool
+  default     = false
+}
+
 variable "enable_route53_domains_workspace" {
   description = "When true, creates a TFC workspace for the route53-domains env config."
   type        = bool
@@ -42,6 +48,18 @@ variable "enable_route53_domains_workspace" {
 
 variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
+  type        = string
+}
+
+variable "github_org_module_directories" {
+  default     = ["terraform/modules/github/org-ci-access"]
+  description = "Module directories that trigger a run in the GitHub organization workspace."
+  type        = list(string)
+}
+
+variable "github_org_working_directory" {
+  default     = ""
+  description = "The path to the GitHub organization env config directory."
   type        = string
 }
 
