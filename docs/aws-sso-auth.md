@@ -101,11 +101,30 @@ aws sso login --profile infra-eng-staging   # one browser login covers all profi
 AWS_PROFILE=ac-ci-staging aws sts get-caller-identity   # verify the chain
 AWS_PROFILE=ac-ci-staging terraform plan                # terraform against an env
 AWS_PROFILE=ac-ci-staging scripts/update_kubeconfigs.sh # refresh kubeconfigs
-AWS_PROFILE=ac-ci-staging kubectl get nodes             # kubectl (read-write role only)
+AWS_PROFILE=ac-ci-staging-ro kubectl get pods -A        # kubectl reads (view policy)
+AWS_PROFILE=ac-ci-staging kubectl apply -f ...          # kubectl writes (cluster-admin policy)
 ```
 
 Prefer the `-ro` profiles for anything that only reads (plans, inspection,
-`update_kubeconfigs.sh`).
+`update_kubeconfigs.sh`, `kubectl get`/`logs`/`rollout status`).
+
+Both CI roles have EKS access entries on each environment's cluster
+(`terraform/env/<env>/aws/us-west-1/base-cluster-layer/main.tf`):
+`ac_ci_terraform_<env>` has `AmazonEKSClusterAdminPolicy`, and
+`ac_ci_terraform_<env>_read_only` has `AmazonEKSViewPolicy`, so `kubectl`
+works under the `-ro` profile for every read-only verb. A kubeconfig entry
+written by `aws eks update-kubeconfig` embeds the profile it was created
+with, so run it once per persona, with `--alias` to keep them apart:
+
+```bash
+aws eks update-kubeconfig --name ac_app_staging --region us-west-1 \
+  --profile ac-ci-staging-ro --alias ac_app_staging-ro
+```
+
+`scripts/infra_eng_sso.py up --environment <env> --read-only` sets up the
+read-only persona end to end (profiles, login, kubeconfig, context); note it
+writes the cluster's default kubeconfig entry rather than an alias, so it
+replaces whichever persona that entry held before.
 
 ## Troubleshooting
 

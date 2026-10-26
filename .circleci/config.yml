@@ -5,13 +5,13 @@
 version: 2.1
 
 orbs:
-  terraform: circleci/terraform@3.1
-  helm: circleci/helm@2.0.1
+  terraform: circleci/terraform@3.7
+  helm: circleci/helm@3.2
 
 executors:
   terraform:
     docker:
-      - image: hashicorp/terraform:1.15.2
+      - image: hashicorp/terraform:1.17.0
 
 jobs:
   lint_helm_chart:
@@ -19,8 +19,8 @@ jobs:
       - image: cimg/base:stable
     steps:
       - checkout
-      - helm/install-helm-client:
-          version: 'v3.10.2'
+      - helm/install_helm_client:
+          version: 'v4.3.1'
       - run: helm lint "helm/automation-calculator" --strict
 
   validate_development_tf_cloud_env:
