@@ -137,14 +137,17 @@ kubectl -n automation-calculator annotate secret automation-calculator-app-secre
 
 ### Phase 2: install ArgoCD on staging (Terraform)
 
+Runbook with the exact commands: `docs/argocd-phase-2-install.md`.
+
 - New module `terraform/modules/aws/argocd/` (`main.tf`, `variables.tf`, `versions.tf`, lock file)
   with `helm_release.argocd`: chart `argo-cd`, namespace `argocd`, `create_namespace = true`, pinned
   `version`, `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`. An automatic
   rollback of ArgoCD is not customer-facing and feeds the "values written on failed apply" state bug,
   so `atomic` stays off here.
-- Values: `dex.enabled=false`, `notifications.enabled=false`, `applicationSet.enabled=false`,
-  `redis-ha.enabled=false`, single replicas, `configs.params."server.insecure"=true`, and explicit
-  resource requests. Suggested starting point:
+- Values: `dex.enabled=false`, `notifications.enabled=false`, `applicationSet.replicas=0` (the
+  chart dropped `applicationSet.enabled` in 7.0 and always renders the controller; zero replicas
+  keeps it off the pod count), `redis-ha.enabled=false`, single replicas,
+  `configs.params."server.insecure"=true`, and explicit resource requests. Suggested starting point:
 
   | Component | Requests | Memory limit |
   |---|---|---|

@@ -3,6 +3,12 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "argocd_enabled" {
+  default     = false
+  description = "Set to true to install ArgoCD into this environment's cluster (docs/argocd-migration-plan.md, Phase 2)."
+  type        = bool
+}
+
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
