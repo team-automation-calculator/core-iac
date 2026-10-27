@@ -228,6 +228,9 @@ Runbook with the pre-checks, expected plans and rollback: `docs/argocd-phase-4-s
 
 ### Phase 5: the real Application on staging, adopted in place
 
+Runbook with the expected plan, the diff inspection, the first sync, the checks and the rollback:
+`docs/argocd-phase-5-adopt-application.md`.
+
 Add to the `argocd` module a `helm_release.argocd_apps` (chart `argocd-apps`,
 `depends_on = [helm_release.argocd]`) that creates:
 

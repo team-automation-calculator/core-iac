@@ -30,7 +30,14 @@ module "argocd" {
   depends_on = [
     module.cluster_addons
   ]
-  source = "../../../../../modules/aws/argocd"
+  # Phase 5: the Application's only Terraform-injected value. The reference
+  # orders this module after the ACM certificate, not after the whole
+  # main_rails_app module (its Helm release stays independent).
+  app_certificate_arn = module.main_rails_app.automation_calculator_app_certificate_arn
+  app_repo_url        = var.app_repo_url
+  environment_name    = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
+  manage_application  = var.argocd_manage_application
+  source              = "../../../../../modules/aws/argocd"
 }
 
 module "main_rails_app" {

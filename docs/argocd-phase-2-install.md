@@ -12,6 +12,9 @@ Nothing here changes the cluster except the TFC apply itself.
   ApplicationSet controller scaled to zero, single replicas, `server.insecure=true`, explicit
   resource requests and memory limits. No IRSA, no Ingress. The admin password comes in as a
   bcrypt hash from two TFC workspace variables (section 4), through `set_sensitive`.
+  (Since Phase 5 the module also has `helm_release.argocd_apps`, the app's AppProject and
+  Application, behind `manage_application`; see `docs/argocd-phase-5-adopt-application.md`. This
+  runbook describes the Phase 2 install alone.)
 - Each env's `cluster-addons-layer/main.tf` gains `module "argocd"` behind
   `var.argocd_enabled` (default `false`). Only staging's `terraform.tfvars` sets it to `true`.
 - The module is added to `cluster_addons_layer_module_directories` so a change under
@@ -147,7 +150,8 @@ Phase 8 repeats this section for the production workspace before enabling ArgoCD
 Set `argocd_enabled = false` in staging's `terraform.tfvars` through a PR. Terraform destroys the
 release and, with it, the `argocd` namespace. The chart keeps its CRDs on uninstall
 (`crds.keep: true`); they are harmless and will be reused by a reinstall. Nothing in the
-`automation-calculator` namespace is touched: ArgoCD has no Applications yet.
+`automation-calculator` namespace is touched: at this phase ArgoCD has no Applications yet, and
+the one Phase 5 adds carries no finalizer, so its deletion never cascades either.
 
 ## 6. Done when
 
