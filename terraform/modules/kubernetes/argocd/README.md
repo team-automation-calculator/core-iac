@@ -23,8 +23,10 @@ without the flag plans zero changes.
   the chart through `set_sensitive`. The plaintext lives only in the team password manager. When
   the variable is unset the chart generates a password into `argocd-initial-admin-secret` instead.
   Never compute the hash in HCL: `bcrypt()` salts differently on every run.
-- `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`: a failed install stays
-  on the cluster for inspection instead of rolling back.
+- `wait = true`, `atomic = true`, `cleanup_on_fail = false`, `timeout = 900`: a failed upgrade rolls
+  back to the previous working ArgoCD. The release was non-atomic for the Phase 2 and Phase 8
+  installs (an atomic first install is uninstalled on failure, and the likely failure was the
+  plan-time EKS token expiring mid-wait); Phase 9 turned it on once both clusters were installed.
 
 Validation and first login: `docs/argocd-phase-2-install.md`.
 

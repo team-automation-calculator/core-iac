@@ -7,8 +7,9 @@ Nothing here changes the cluster except the TFC apply itself.
 ## 1. What the PR changes
 
 - `terraform/modules/kubernetes/argocd/`: one `helm_release.argocd` of the `argo-cd` chart (version pinned
-  under Phase 0 "Versions" in the plan), namespace `argocd`, `wait = true`, `atomic = false`,
-  `cleanup_on_fail = false`, `timeout = 900`. Dex, notifications and Redis HA off, the
+  under Phase 0 "Versions" in the plan), namespace `argocd`, `wait = true`, `atomic = false`
+  (for the install; Phase 9 turns it on), `cleanup_on_fail = false`, `timeout = 900`. Dex,
+  notifications and Redis HA off, the
   ApplicationSet controller scaled to zero, single replicas, `server.insecure=true`, explicit
   resource requests and memory limits. No IRSA, no Ingress. The admin password comes in as a
   bcrypt hash from two TFC workspace variables (section 4), through `set_sensitive`.
