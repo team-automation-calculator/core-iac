@@ -7,3 +7,9 @@ shortCommitHash: "2e659b6"
 ingress:
   host: automation-calculations.io
   albName: ac-app-production
+# The Secret automation-calculator-app-secrets is a Terraform resource
+# (kubernetes_secret_v1 in terraform/modules/aws/main_rails_app) since ArgoCD
+# migration Phase 4. The chart must not render one here: a chart-rendered
+# Secret would fight Terraform for the object.
+secrets:
+  create: false

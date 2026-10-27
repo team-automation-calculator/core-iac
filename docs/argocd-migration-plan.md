@@ -201,14 +201,25 @@ not Terraform:
 
 ### Phase 4: Terraform owns the app namespace and Secret (all envs)
 
+Runbook with the pre-checks, expected plans and rollback: `docs/argocd-phase-4-secret-adoption.md`.
+
 - In `main_rails_app`, add `kubernetes_namespace_v1.automation_calculator` and
   `kubernetes_secret_v1.app_secrets` (name `automation-calculator-app-secrets`, `type = "Opaque"`,
   `data` = the six values built from the same expressions the `set_sensitive` blocks use today).
-  Add `kubernetes ~> 2.16` to the module's `versions.tf`.
-- Root-module `import` blocks in each env config, so the live objects are adopted rather than
-  recreated: id `automation-calculator` for the namespace and
-  `automation-calculator/automation-calculator-app-secrets` for the Secret.
-- Same PR: `secrets.create: false` in every `values-<env>.yaml`; delete the six `set_sensitive`
+  Add `kubernetes ~> 2.16` to the module's `versions.tf`. The namespace ignores label and
+  annotation changes (its metadata is not Terraform's) and carries `prevent_destroy` (deleting it
+  deletes the Ingress and the ALB). The Secret declares the labels and annotations Helm left on the
+  live object, including `meta.helm.sh/release-*`, so the import plans clean and a revert can
+  re-adopt it into the release.
+- Root-module `import` blocks in the staging and production env configs
+  (`imports_argocd_phase4.tf`), so the live objects are adopted rather than recreated: id
+  `automation-calculator` for the namespace and
+  `automation-calculator/automation-calculator-app-secrets` for the Secret. Development gets no
+  import blocks: its cluster is unprovisioned, so there is nothing to adopt and an `import` of a
+  missing object fails the plan; a future development apply creates both resources. The import
+  files are deleted in a follow-up PR once both environments have applied.
+- Same PR: `secrets.create: false` in every `values-<env>.yaml` (`values.yaml` keeps the default
+  `true` for standalone renders such as the Phase 3 canary); delete the six `set_sensitive`
   blocks. Helm leaves the Secret in place because of the `keep` policy, so there is no window
   without a Secret. The post-import plan is at most an in-place label update.
 - Validate per env: Secret data checksum unchanged, pods not restarted,
