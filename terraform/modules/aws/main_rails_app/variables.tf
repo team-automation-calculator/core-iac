@@ -64,6 +64,12 @@ variable "google_oauth_app_secret" {
   type        = string
 }
 
+variable "manage_helm_release" {
+  default     = true
+  description = "Manage the app's Helm release (helm_release.automation-calculator[0]) from Terraform. ArgoCD migration Phase 6: an env sets this to false only AFTER its workspace has run `terraform state rm` on the release, so that ArgoCD becomes the app's only controller without Terraform ever planning a destroy (prevent_destroy on the release fails the plan if the order is wrong). The namespace, Secret, RDS and ACM resources of this module are unaffected. Runbook: docs/argocd-phase-6-retire-staging-release.md."
+  type        = bool
+}
+
 variable "route53_zone_name" {
   default     = "automation-calculations.io"
   description = "The name of the Route53 zone to create the DNS records in."

@@ -35,9 +35,14 @@ module "argocd" {
   # main_rails_app module (its Helm release stays independent).
   app_certificate_arn = module.main_rails_app.automation_calculator_app_certificate_arn
   app_repo_url        = var.app_repo_url
-  environment_name    = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
-  manage_application  = var.argocd_manage_application
-  source              = "../../../../../modules/aws/argocd"
+  # Phase 6: automated sync only once this env's Helm release is out of
+  # Terraform state and its Helm history is gone (runbook order).
+  application_automated_sync = var.argocd_application_automated_sync
+  application_prune          = var.argocd_application_prune
+  application_self_heal      = var.argocd_application_self_heal
+  environment_name           = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
+  manage_application         = var.argocd_manage_application
+  source                     = "../../../../../modules/aws/argocd"
 }
 
 module "main_rails_app" {
@@ -55,6 +60,9 @@ module "main_rails_app" {
   github_oauth_app_secret = var.github_oauth_app_secret
   google_oauth_app_id     = var.google_oauth_app_id
   google_oauth_app_secret = var.google_oauth_app_secret
-  source                  = "../../../../../modules/aws/main_rails_app"
-  vpc_id                  = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
+  # Phase 6: false only after `terraform state rm` of the release in this
+  # workspace (docs/argocd-phase-6-retire-staging-release.md).
+  manage_helm_release = var.manage_app_helm_release
+  source              = "../../../../../modules/aws/main_rails_app"
+  vpc_id              = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

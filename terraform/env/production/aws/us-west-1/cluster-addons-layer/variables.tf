@@ -3,6 +3,24 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "argocd_application_automated_sync" {
+  default     = false
+  description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). Only after this env's workspace has forgotten the Helm release (manage_app_helm_release = false, applied) and its Helm history is deleted: until then two controllers would reconcile the same Deployment. Runbook: docs/argocd-phase-6-retire-staging-release.md."
+  type        = bool
+}
+
+variable "argocd_application_prune" {
+  default     = false
+  description = "syncPolicy.automated.prune on the app's ArgoCD Application. Read only with argocd_application_automated_sync. Safe once `argocd app resources` lists only the Service, Deployment and Ingress (the Terraform-managed Secret carries no ArgoCD tracking annotation)."
+  type        = bool
+}
+
+variable "argocd_application_self_heal" {
+  default     = false
+  description = "syncPolicy.automated.selfHeal on the app's ArgoCD Application. Read only with argocd_application_automated_sync."
+  type        = bool
+}
+
 variable "argocd_admin_password_bcrypt_hash" {
   default     = null
   description = "Sensitive TFC workspace variable: bcrypt hash of the ArgoCD admin password (docs/argocd-phase-2-install.md, section 4). Never set in terraform.tfvars."
@@ -76,6 +94,12 @@ variable "google_oauth_app_id" {
 variable "google_oauth_app_secret" {
   description = "The Google OAuth App Secret for the automation-calculator app."
   type        = string
+}
+
+variable "manage_app_helm_release" {
+  default     = true
+  description = "Manage the app's Helm release from this workspace (module.main_rails_app.helm_release.automation-calculator[0]). ArgoCD migration Phase 6: set to false only AFTER `terraform state rm` of that release in this workspace; flipping it first plans a destroy, which prevent_destroy on the release turns into a plan error. Runbook: docs/argocd-phase-6-retire-staging-release.md."
+  type        = bool
 }
 
 variable "project_tag" {
