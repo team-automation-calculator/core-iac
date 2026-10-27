@@ -45,7 +45,7 @@ cluster is intentionally unprovisioned).
 | Where the `Application` lives | Terraform, via a second `helm_release` of the `argocd-apps` chart, plus an `AppProject` | Avoids the `kubernetes_manifest` "CRD must exist at plan time" problem. Lets Terraform inject the ACM certificate ARN so it never lands in this public repo. |
 | Source of truth for the image tag | `helm/automation-calculator/values-<env>.yaml` in git, starting in Phase 1 | One source of truth from day one. Terraform reads the same file during the overlap, so there is no drift between the two controllers. A bump becomes one YAML key per env. |
 | App secrets | A Terraform-managed `kubernetes_secret_v1` with today's name and keys; the chart stops rendering its own Secret | Secrets stay out of git without a new operator. |
-| ArgoCD admin login | The chart-generated `argocd-initial-admin-secret`, rotated with `argocd account update-password` | Terraform's `bcrypt()` returns a different hash on every call, so a Terraform-managed password would make every run an ArgoCD upgrade. |
+| ArgoCD admin login | A bcrypt **hash** of the admin password held as a sensitive TFC workspace variable (`argocd_admin_password_bcrypt_hash` + `argocd_admin_password_mtime`), passed to the chart through `set_sensitive`; plaintext only in the password manager (`docs/argocd-phase-2-install.md`, section 4) | Rotation becomes an auditable TFC run and cannot be forgotten, and the chart never creates `argocd-initial-admin-secret`. The hash is computed once on a laptop, never with Terraform's `bcrypt()`, which salts differently on every call and would make every run an ArgoCD upgrade. The password is the second gate behind the cluster-admin SSO role, so this does not change who can reach ArgoCD. |
 | ArgoCD UI access | `kubectl port-forward` through the existing SSO to `ac_ci_terraform_<env>` chain (`docs/aws-sso-auth.md`); `server.insecure=true`; no Ingress, no Dex | No new attack surface, DNS or ALB. Revisit if the team grows. |
 | Production deploy gate | Production `Application` uses **manual** sync. The gate becomes `argocd app sync` after the bump PR merges. Staging gets automated sync with self-heal and prune once cut over. | Mirrors today's "production needs a human" TFC confirm. Can be flipped later. |
 | Per-env cutover mechanism | `terraform state rm` of the release in that env's TFC workspace, plus a `manage_helm_release` count toggle on the shared module | A Terraform `removed` block cannot be applied per env: `main_rails_app` is shared by all three addons workspaces, and `removed` requires deleting the resource block from the module. |
@@ -156,7 +156,10 @@ Runbook with the exact commands: `docs/argocd-phase-2-install.md`.
   | server | 50m / 64Mi | 256Mi |
   | redis | 10m / 32Mi | 128Mi |
 
-  No IRSA: the repo is public and ArgoCD makes no AWS calls. No admin password management.
+  No IRSA: the repo is public and ArgoCD makes no AWS calls. The admin password is a bcrypt hash
+  held as a sensitive TFC workspace variable and passed through `set_sensitive` (see the
+  "ArgoCD admin login" decision and `docs/argocd-phase-2-install.md`, section 4); set it before
+  enabling ArgoCD in an environment so the chart never creates `argocd-initial-admin-secret`.
 - Wire into each `terraform/env/<env>/aws/us-west-1/cluster-addons-layer/main.tf` as
   `module "argocd"` with `count = var.argocd_enabled ? 1 : 0` and
   `depends_on = [module.cluster_addons]`. `argocd_enabled` defaults to `false`; set it to `true` in
@@ -169,9 +172,9 @@ Validate:
 
 ```bash
 kubectl -n argocd get pods
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+kubectl -n argocd get secret argocd-initial-admin-secret   # NotFound: the password came from TFC
 kubectl -n argocd port-forward svc/argocd-server 8080:80
-argocd login localhost:8080 --username admin --plaintext
+argocd login localhost:8080 --username admin --plaintext   # password from the password manager
 argocd app list   # empty
 ```
 
