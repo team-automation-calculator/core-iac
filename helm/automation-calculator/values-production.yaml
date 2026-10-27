@@ -1,0 +1,9 @@
+# Per-environment values for production. Layered on top of values.yaml.
+# Source of truth for what is deployed: the bump scripts edit image.tag and
+# shortCommitHash here; Terraform (and later ArgoCD) reads this file.
+image:
+  tag: 0.9.6-970
+shortCommitHash: "2e659b6"
+ingress:
+  host: automation-calculations.io
+  albName: ac-app-production

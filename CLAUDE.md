@@ -68,18 +68,27 @@ terraform apply
 # Lint the chart (what CI runs — note the --strict flag)
 helm lint helm/automation-calculator/ --strict
 
-# Render templates locally
-helm template automation-calculator helm/automation-calculator/ --values helm/automation-calculator/values.yaml
+# Render templates locally for one environment. ingress.certificateArn and the
+# secrets.* values are `required` (Terraform injects them), so a render with only
+# values.yaml fails on purpose; pass placeholders or turn the Secret off.
+helm template automation-calculator helm/automation-calculator/ \
+  --values helm/automation-calculator/values-staging.yaml \
+  --set ingress.certificateArn=arn:aws:acm:us-west-1:000000000000:certificate/placeholder \
+  --set secrets.create=false
 ```
+
+**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`; secrets still come through `set_sensitive`. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB.
 
 ### Scripts
 ```bash
 scripts/infra_eng_sso.py                       # SSO login + kubectl setup: writes AWS profiles, runs aws sso login, updates kubeconfig
 scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
 scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
-scripts/bump_app_docker_image_version.sh       # Bump app Docker image version in Helm values + Terraform
-scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch
-scripts/check_app_docker_image_versions.py     # CI: validate added app_version values exist on Docker Hub
+scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHash in helm/automation-calculator/values.yaml and values-<env>.yaml (yq)
+scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens the PR
+scripts/watch_app_docker_image_versions.py     # Poll Docker Hub for a new app tag and run the branch script when one appears
+scripts/check_app_docker_image_versions.py     # CI: validate added image.tag values in the chart values files exist on Docker Hub
+scripts/argocd_phase1_render_diff.sh           # ArgoCD Phase 1 proof: diff the pre-refactor chart render (git ref) against the working tree per env
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
