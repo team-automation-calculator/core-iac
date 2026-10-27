@@ -189,7 +189,7 @@ What the states usually mean:
 | Symptom | Usual cause | Fix |
 |---|---|---|
 | `OutOfSync` for more than one poll, no operation running | ArgoCD cannot render or apply: `argocd app get` shows a `ComparisonError` or the operation message says so; repo-server log has the detail | Fix in git (a revert, or a chart fix PR). Never edit the live object. |
-| `Syncing` stuck, then `Failed` operation | Apply rejected (immutable selector, project permission) | The message names the resource; the fix is in git or the Terraform-managed AppProject/Application (`terraform/modules/aws/argocd`). |
+| `Syncing` stuck, then `Failed` operation | Apply rejected (immutable selector, project permission) | The message names the resource; the fix is in git or the Terraform-managed AppProject/Application (`terraform/modules/kubernetes/argocd`). |
 | Synced but `Progressing` for over 10 minutes, then `Degraded` | New pod never becomes Ready: image tag missing on Docker Hub (`ImagePullBackOff`), or `/health` failing (database, migration) | `describe pod` and logs say which. Old pod keeps serving (rolling update, `maxUnavailable` 25% of 1 rounds to 0). Revert (section 4). |
 | Synced, Healthy, but the site serves the old build | The pod carries the tag but `SHORT_COMMIT_HASH` is stale: the image was tagged from the wrong commit | Not a deploy problem; the verify script fails on the hash on purpose. Fix the image, bump again. |
 | Self-heal reverting something every few minutes | Someone edited a live object by hand | Stop editing; the desired state is `main`. The edit counts as manual intervention. |

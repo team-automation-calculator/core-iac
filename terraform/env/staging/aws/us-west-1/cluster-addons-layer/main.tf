@@ -41,7 +41,7 @@ module "argocd" {
   application_self_heal      = var.argocd_application_self_heal
   environment_name           = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
   manage_application         = var.argocd_manage_application
-  source                     = "../../../../../modules/aws/argocd"
+  source                     = "../../../../../modules/kubernetes/argocd"
 }
 
 module "main_rails_app" {

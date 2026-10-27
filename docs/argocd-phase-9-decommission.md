@@ -164,7 +164,7 @@ argocd app get automation-calculator                              # Synced, Heal
 
 In TFC, each cluster-addons workspace's settings now list
 `terraform/env/<env>/aws/us-west-1/cluster-addons-layer`, `terraform/modules/aws/cluster-addons-layer`,
-`terraform/modules/aws/main_rails_app` and `terraform/modules/aws/argocd` as trigger prefixes, and
+`terraform/modules/aws/main_rails_app` and `terraform/modules/kubernetes/argocd` as trigger prefixes, and
 not `helm/automation-calculator`.
 
 The proof that the decommission did what it set out to do is the **next bump PR**: when it merges,
