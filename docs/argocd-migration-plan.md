@@ -54,10 +54,14 @@ cluster is intentionally unprovisioned).
 
 ### Phase 0: preflight (staging)
 
+Runbook with the exact commands: `docs/argocd-phase-0-preflight.md`.
+
 - **Capacity.** Each cluster is one `t3.medium` (desired 1, max 2, no autoscaler;
   `terraform/modules/aws/base-cluster-layer/variables.tf`). The binding limit is **pod count**, not
   CPU or memory: a `t3.medium` allows 17 pods. Today's baseline is roughly 9 to 10 pods and ArgoCD
-  adds 4 (controller, repo-server, server, redis). Check before installing:
+  adds 4 (controller, repo-server, server, redis). Check before installing with
+  `scripts/argocd_preflight.sh` (read-only; exits non-zero when fewer than 4 pod slots would be
+  left after ArgoCD, or when the `helm` / `argocd` CLIs are missing). By hand:
 
   ```bash
   kubectl get node -o jsonpath='{.items[*].status.allocatable.pods}'
@@ -66,11 +70,20 @@ cluster is intentionally unprovisioned).
 
   If headroom is thin, either set staging `desired_size = 2` in
   `terraform/env/staging/aws/us-west-1/base-cluster-layer/main.tf`, or drop the ALB controller
-  `replicaCount` to 1 (two replicas on one node buys nothing).
-- **Access.** `eval "$(scripts/infra_eng_sso.py up -e staging)"`. Install the `helm` CLI locally for
-  the render diffs in Phase 1 (CI uses Helm 4.3.1 through the CircleCI orb).
-- **Versions.** Pin the `argo-cd` and `argocd-apps` chart versions from
-  `https://argoproj.github.io/argo-helm` at implementation time and record them here.
+  `replicaCount` to 1 (two replicas on one node buys nothing; the chart defaults to 2 and
+  `terraform/modules/aws/cluster-addons-layer/main.tf` does not set it today).
+- **Access.** `eval "$(scripts/infra_eng_sso.py up -e staging)"`. Install the `helm` and `argocd`
+  CLIs locally (`brew install helm argocd`): `helm` for the render diffs in Phase 1 (CI uses Helm
+  4.3.1 through the CircleCI orb), `argocd` for Phase 2 onwards.
+- **Versions.** Pinned on 2026-10-26 from `https://argoproj.github.io/argo-helm` (latest stable
+  entries in `index.yaml`, found with `scripts/argo_helm_chart_versions.py --fetch`):
+
+  | Chart | Version | appVersion | Consumed by |
+  |---|---|---|---|
+  | `argo-cd` | `10.11.6` | `v3.5.6` | Phase 2 (`helm_release.argocd`) |
+  | `argocd-apps` | `2.0.7` | n/a (CRD manifests only) | Phase 5 (`helm_release.argocd_apps`) |
+
+  Re-pin only deliberately, in an upgrade PR, by re-running the script and updating this table.
 
 ### Phase 1: chart refactor and single source of truth (all envs, byte-identical render)
 
