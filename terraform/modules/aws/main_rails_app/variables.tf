@@ -1,20 +1,3 @@
-variable "app_image_pull_policy" {
-  default     = "Always"
-  description = "The image pull policy for the automation-calculator app."
-  type        = string
-}
-
-variable "app_image_repo" {
-  default     = "automationcalculationsci/automation-calculator"
-  description = "The name of the docker image repo to pull the automation-calculator app image from."
-  type        = string
-}
-
-variable "app_version" {
-  description = "The version of the automation-calculator app to deploy."
-  type        = string
-}
-
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
@@ -78,12 +61,6 @@ variable "google_oauth_app_id" {
 
 variable "google_oauth_app_secret" {
   description = "The Google OAuth App Secret for the automation-calculator app."
-  type        = string
-}
-
-variable "short_commit_hash" {
-  default     = ""
-  description = "The short git commit hash of the automation-calculator app version being deployed. Sourced from the image's org.opencontainers.image.revision label at bump time."
   type        = string
 }
 

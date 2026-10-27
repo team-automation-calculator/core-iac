@@ -48,15 +48,14 @@ POLL_INTERVAL_SECONDS = 60
 POLL_DURATION_SECONDS = 600
 STARTUP_TAGS_TO_DISPLAY = 5
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-\d+$")
-APP_VERSION_RE = re.compile(r'^\s*app_version\s*=\s*"([^"]+)"', re.MULTILINE)
+# `image.tag` is the only `tag:` key in the per-env values files; bare or quoted.
+IMAGE_TAG_RE = re.compile(r'^\s+tag:\s*"?([^"\s#]+)"?', re.MULTILINE)
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
 BUMP_SCRIPT = SCRIPTS_DIR / "bump_app_docker_image_version_branch.sh"
-TFVARS_ENVS = ("development", "staging", "production")
-TFVARS_FILES = {
-    env: REPO_ROOT / f"terraform/env/{env}/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-    for env in TFVARS_ENVS
-}
+CHART_DIR = REPO_ROOT / "helm/automation-calculator"
+VALUES_ENVS = ("development", "staging", "production")
+VALUES_FILES = {env: CHART_DIR / f"values-{env}.yaml" for env in VALUES_ENVS}
 
 
 def fetch_version_tags() -> list[dict]:
@@ -90,10 +89,10 @@ def fetch_short_commit_hash(tag: str) -> str:
     return labels.get(REVISION_LABEL, "")
 
 
-def read_tfvars_versions() -> dict[str, str]:
+def read_values_versions() -> dict[str, str]:
     versions: dict[str, str] = {}
-    for env, path in TFVARS_FILES.items():
-        match = APP_VERSION_RE.search(path.read_text())
+    for env, path in VALUES_FILES.items():
+        match = IMAGE_TAG_RE.search(path.read_text())
         versions[env] = match.group(1) if match else "<not found>"
     return versions
 
@@ -176,13 +175,13 @@ def main() -> int:
         print("Docker Hub: no version tags found")
         hub_newest = None
 
-    tfvars_versions = read_tfvars_versions()
+    values_versions = read_values_versions()
     print()
-    print("Local tfvars (cluster-addons-layer):")
-    for env, version in tfvars_versions.items():
-        print(f"  {env:15s}  app_version = {version}")
+    print("Local Helm values (helm/automation-calculator/values-<env>.yaml):")
+    for env, version in values_versions.items():
+        print(f"  {env:15s}  image.tag = {version}")
 
-    deployed = set(tfvars_versions.values())
+    deployed = set(values_versions.values())
     pending_version: str | None = None
     print()
     if hub_newest is None:

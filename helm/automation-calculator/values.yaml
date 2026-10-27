@@ -1,6 +1,10 @@
 # Default values for automation-calculator.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+#
+# Per-environment overrides live in values-<env>.yaml (image.tag, shortCommitHash,
+# ingress.host, ingress.albName). Terraform injects ingress.certificateArn and the
+# secrets.* values at release time; they have no usable default here on purpose.
 
 affinity: {}
 fullnameOverride: automation-calculator
@@ -10,16 +14,12 @@ image:
   repository: automationcalculationsci/automation-calculator
   tag: 0.9.6-970
 ingress:
-  annotations:
-    alb.ingress.kubernetes.io/backend-protocol: HTTP
-    alb.ingress.kubernetes.io/certificate-arn: "insert-cert-arn-here"
-    alb.ingress.kubernetes.io/healthcheck-path: "/health"
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
-    alb.ingress.kubernetes.io/load-balancer-name: "automation-calculator-alb"
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: instance
+  # ALB name. Must never change for a live environment: the ALB controller replaces the ALB.
+  albName: automation-calculator-alb
+  # ACM certificate ARN for the host and its www. alias. Required when ingress.enabled.
+  certificateArn: ""
+  enabled: true
   host: "development.automation-calculations.io"
-  tls: []
 # Probes hit /health, which runs SELECT 1 against the DB. A cold pod (first DB
 # connection, db:create/db:migrate in the entrypoint) can take several seconds to
 # answer, so each probe allows 5s per attempt and the startupProbe gives the pod up
@@ -33,7 +33,6 @@ livenessProbe:
   failureThreshold: 3
 logToStdout: true
 nameOverride: ""
-namespace: automation-calculator
 podAnnotations: {}
 podSecurityContext: {}
 railsEnv: production
@@ -53,13 +52,16 @@ resources:
     cpu: 250m
     memory: 512Mi
 secrets:
-  databaseUrl: YOUR_DB_URL_HERE
-  githubOAuthAppId: YOUR_GITHUB_OAUTH_APP_ID_HERE
-  githubOAuthAppSecret: YOUR_GITHUB_OAUTH_APP_SECRET_HERE
-  googleOAuthAppId: YOUR_GOOGLE_OAUTH_APP_ID_HERE
-  googleOAuthAppSecret: YOUR_GOOGLE_OAUTH_APP_SECRET_HERE
+  # Render the Secret from the chart. Every value below is required when true;
+  # `helm template` with these empty defaults fails on purpose (helm lint does not).
+  create: true
+  databaseUrl: ""
+  githubOAuthAppId: ""
+  githubOAuthAppSecret: ""
+  googleOAuthAppId: ""
+  googleOAuthAppSecret: ""
   kubernetesSecretObjectName: automation-calculator-app-secrets
-  secretKeyBase: YOUR_SECRET_KEY_BASE_HERE
+  secretKeyBase: ""
 securityContext: {}
 shortCommitHash: ""
 service:
