@@ -31,11 +31,12 @@ module "argocd" {
   ]
   # Phase 5: the Application's only Terraform-injected value. The reference
   # orders this module after the ACM certificate, not after the whole
-  # main_rails_app module (its Helm release stays independent).
+  # main_rails_app module (RDS, the namespace and the Secret are unrelated).
   app_certificate_arn = module.main_rails_app.automation_calculator_app_certificate_arn
   app_repo_url        = var.app_repo_url
-  # Phase 6: automated sync only once this env's Helm release is out of
-  # Terraform state and its Helm history is gone (runbook order).
+  # Phase 6/8: automated sync was enabled on staging only once its Helm release
+  # had left Terraform (Phase 9 removed the release from the module for good);
+  # production leaves all three at their false defaults: manual sync.
   application_automated_sync = var.argocd_application_automated_sync
   application_prune          = var.argocd_application_prune
   application_self_heal      = var.argocd_application_self_heal
@@ -45,12 +46,11 @@ module "argocd" {
 }
 
 module "main_rails_app" {
-  automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
-  automation_calculator_app_host                = var.automation_calculator_app_host
-  db_engine_version                             = var.db_engine_version
-  db_security_group_ids                         = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
-  db_subnet_group_ids                           = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
-  db_port                                       = 5432
+  automation_calculator_app_host = var.automation_calculator_app_host
+  db_engine_version              = var.db_engine_version
+  db_security_group_ids          = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
+  db_subnet_group_ids            = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
+  db_port                        = 5432
   depends_on = [
     module.cluster_addons
   ]
@@ -59,9 +59,6 @@ module "main_rails_app" {
   github_oauth_app_secret = var.github_oauth_app_secret
   google_oauth_app_id     = var.google_oauth_app_id
   google_oauth_app_secret = var.google_oauth_app_secret
-  # Phase 6: false only after `terraform state rm` of the release in this
-  # workspace (docs/argocd-phase-6-retire-staging-release.md).
-  manage_helm_release = var.manage_app_helm_release
-  source              = "../../../../../modules/aws/main_rails_app"
-  vpc_id              = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
+  source                  = "../../../../../modules/aws/main_rails_app"
+  vpc_id                  = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

@@ -16,7 +16,7 @@ terraform/
       argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application, argocd_application_{automated_sync,prune,self_heal}; docs/argocd-migration-plan.md)
       base-cluster-layer/           # VPC, EKS cluster, IAM
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
-      main_rails_app/               # Rails app namespace, Secret, RDS, ACM; the Helm release behind manage_helm_release (off on staging since ArgoCD Phase 6 and on production since Phase 8)
+      main_rails_app/               # Rails app namespace, Secret, RDS, ACM. Not the app: its Helm release left Terraform in ArgoCD Phases 6/8 and was deleted from the module in Phase 9 (docs/argocd-phase-9-decommission.md)
       networking/                   # VPC/subnet resources
     github/
       org-ci-access/                # GitHub org membership + team for the CI machine user
@@ -43,7 +43,9 @@ rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
 Each environment must be applied in order:
 1. `terraform/env/<env>/tf_cloud/` — creates TFE workspaces
 2. `base-cluster-layer` — VPC, subnets, NAT gateway, EKS cluster, IAM IRSA roles
-3. `cluster-addons-layer` — Helm-deployed add-ons (ALB controller, external-dns, metrics-server)
+3. `cluster-addons-layer` — Helm-deployed add-ons (ALB controller, external-dns, metrics-server), ArgoCD with the app's `AppProject` and `Application` (`argocd_enabled = true`), and the app's namespace, Secret, RDS and ACM certificate (`main_rails_app`)
+
+The app itself is not a Terraform layer: ArgoCD deploys `helm/automation-calculator` from `main` (see "Deploying the app" below). Chart changes do not queue TFC runs; changes under `terraform/modules/aws/main_rails_app` still queue all three cluster-addons workspaces.
 
 ## Common Commands
 
@@ -72,7 +74,8 @@ terraform apply
 helm lint helm/automation-calculator/ --strict
 
 # Render templates locally for one environment. ingress.certificateArn is
-# `required` (Terraform injects it), so a render with only values.yaml fails on
+# `required` (the ArgoCD Application injects it as a Helm parameter from the
+# main_rails_app ACM output), so a render with only values.yaml fails on
 # purpose; pass a placeholder. values-<env>.yaml already turns the chart's
 # Secret off (Terraform manages the real one); a render with values.yaml alone
 # also needs --set secrets.create=false or placeholder secrets.* values.
@@ -81,9 +84,17 @@ helm template automation-calculator helm/automation-calculator/ \
   --set ingress.certificateArn=arn:aws:acm:us-west-1:000000000000:certificate/placeholder
 ```
 
-**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`. The app Secret (`automation-calculator-app-secrets`) and the `automation-calculator` namespace are Terraform resources in that module (`kubernetes_secret_v1.app_secrets`, `kubernetes_namespace_v1.automation_calculator`, adopted from Helm in ArgoCD migration Phase 4, `docs/argocd-phase-4-secret-adoption.md`); every `values-<env>.yaml` sets `secrets.create: false` so the chart never renders a Secret for a real environment. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB.
+**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. The ArgoCD Application (`terraform/modules/aws/argocd`) renders `values.yaml` plus `values-<env>.yaml` and injects `ingress.certificateArn` as a Helm parameter from the `main_rails_app` ACM certificate output; that ARN is the only chart value that comes from Terraform, and Terraform itself renders nothing of the chart since Phase 9. The app Secret (`automation-calculator-app-secrets`) and the `automation-calculator` namespace are Terraform resources in `main_rails_app` (`kubernetes_secret_v1.app_secrets`, `kubernetes_namespace_v1.automation_calculator`, adopted from Helm in ArgoCD migration Phase 4, `docs/argocd-phase-4-secret-adoption.md`); every `values-<env>.yaml` sets `secrets.create: false` so the chart never renders a Secret for a real environment. There is no `app_version` / `short_commit_hash` in `terraform.tfvars`; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB.
 
-**How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`).** Both live clusters deploy through ArgoCD: the `automation-calculator` Application (`terraform/modules/aws/argocd`) in each cluster tracks `main`, and neither TFC addons workspace manages the Helm release any more (`manage_app_helm_release = false` in both tfvars; the release was removed from each state, never destroyed, per `docs/argocd-phase-6-retire-staging-release.md` and `docs/argocd-phase-8-production.md`). **Staging** (Phase 6) has automated sync, prune and self-heal: a merged bump PR rolls out within ArgoCD's polling interval and a rollback is a git revert. **Production** (Phase 8) stays on **manual sync**: a production deploy is merge the bump PR, then `argocd app sync automation-calculator` through a port-forward on the production cluster (SSO to `ac_ci_terraform_production`, `docs/aws-sso-auth.md`; the exact steps and the rollback are in `docs/argocd-phase-8-production.md` section 8). Merging a bump PR no longer deploys to production by itself; the production TFC run it still queues plans 0 changes. Moving production to automated sync is a separate decision, not implied by any phase. **Never set `manage_app_helm_release = false` for an env before that env's workspace has run `terraform state rm` on the release**: the plan would be a `helm uninstall`, which deletes the Ingress and the ALB; `prevent_destroy` on the release makes such a plan fail, and the fix is the `state rm`, not removing the guard. Never run `helm uninstall automation-calculator` on any cluster.
+### Deploying the app
+
+**How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`, implemented).** Both live clusters deploy through ArgoCD only: the `automation-calculator` Application (`terraform/modules/aws/argocd`) in each cluster tracks `main`. Terraform has no Helm release for the app at all since Phase 9 (`docs/argocd-phase-9-decommission.md`): the release was removed from each TFC state in Phases 6 and 8, never destroyed, its Helm history was deleted, and the resource was then deleted from `main_rails_app`. A deploy is:
+
+1. Bump the image: `scripts/bump_app_docker_image_version_branch.sh <tag> <short_commit_hash>` (or the watcher) edits the chart values files, pushes a branch and opens the PR; CI checks the tag exists on Docker Hub.
+2. Merge the PR. It queues **no** TFC run (the chart directory is not a trigger prefix). **Staging** (Phase 6) has automated sync, prune and self-heal: the merge rolls out within ArgoCD's polling interval (3 minutes), and a rollback is a git revert.
+3. **Production** (Phase 8) stays on **manual sync**: SSO to `ac_ci_terraform_production` (`docs/aws-sso-auth.md`), port-forward `svc/argocd-server`, `argocd app diff automation-calculator`, then `argocd app sync automation-calculator`. The exact steps and the rollback (`argocd app rollback`, then the revert PR) are in `docs/argocd-phase-8-production.md` section 8. Moving production to automated sync is a separate decision, not implied by any phase.
+
+Never run `helm uninstall automation-calculator` or `helm install`/`helm upgrade` of the app on any cluster, and never add a `helm_release` for the app back to Terraform: the live objects still carry Helm's `meta.helm.sh/*` annotations, so a `helm install` would silently adopt them and two controllers would then reconcile the same Deployment. The only way back to a Terraform-managed release is the last-resort path in `docs/argocd-phase-9-decommission.md` section 6.
 
 ### Scripts
 ```bash
@@ -94,7 +105,7 @@ scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHas
 scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens the PR
 scripts/watch_app_docker_image_versions.py     # Poll Docker Hub for a new app tag and run the branch script when one appears
 scripts/check_app_docker_image_versions.py     # CI: validate added image.tag values in the chart values files exist on Docker Hub
-scripts/argocd_phase1_render_diff.sh           # ArgoCD Phase 1 proof: diff the pre-refactor chart render (git ref) against the working tree per env
+scripts/argocd_phase1_render_diff.sh           # ArgoCD Phase 1 proof (historical): diff the pre-refactor chart render against the working tree per env; reads the old Terraform values.yml and tfvars from a git ref, so it still runs after Phase 9 deleted values.yml
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
@@ -102,7 +113,7 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 scripts/argocd_canary_check.sh                 # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
-scripts/argocd_staging_verify.sh               # ArgoCD Phase 7/8: read-only check that a merged bump reached an env via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty); --env production, --expect-helm-release while Terraform still owns the release
+scripts/argocd_staging_verify.sh               # ArgoCD Phase 7/8: read-only check that a merged bump reached an env via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty); --env production; --expect-helm-release only existed for the Phase 8 window and is never right any more
 scripts/argocd_soak_log.py                     # ArgoCD Phase 7: add bump/rollback cycles to docs/argocd-staging-soak-log.md and evaluate the soak gate (status)
 ```
 

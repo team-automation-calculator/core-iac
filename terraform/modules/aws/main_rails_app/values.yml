@@ -1,2 +1,0 @@
-ingress:
-  certificateArn: ${cert_arn}
