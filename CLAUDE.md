@@ -84,6 +84,8 @@ scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alp
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
 scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration (dry run unless --apply)
+scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
+scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 ```
 
 ## Key Conventions
