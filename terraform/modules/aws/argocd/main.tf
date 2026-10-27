@@ -191,10 +191,14 @@ locals {
 resource "helm_release" "argocd_apps" {
   count = var.manage_application ? 1 : 0
 
-  # Same posture as the argo-cd release above: no automatic rollback, leave a
-  # failed release in place for inspection. The chart only renders two CRs,
-  # so `wait` returns as soon as they are accepted by the API server.
-  atomic          = false
+  # Unlike the argo-cd release above, this one is atomic: the chart only
+  # renders two CRs (AppProject, Application), `wait` returns as soon as the
+  # API server accepts them, and a rollback or uninstall on failure touches
+  # nothing but those two objects. The Application carries no
+  # resources-finalizer, so even an uninstall never cascades to the app's
+  # Deployment, Ingress or ALB. A failed first install (typically the
+  # AppProject rejected because the CRDs are not ready yet) is simply retried.
+  atomic          = true
   chart           = "argocd-apps"
   cleanup_on_fail = false
   name            = "argocd-apps"
