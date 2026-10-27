@@ -1,9 +1,10 @@
 locals {
   # Value names verified against the argo-cd 10.11.6 chart's values.yaml.
-  # No IRSA (the repo is public and ArgoCD makes no AWS calls), no admin
-  # password management (use the chart-generated argocd-initial-admin-secret),
-  # no Ingress (UI access is a kubectl port-forward; see
-  # docs/argocd-phase-2-install.md).
+  # No IRSA (the repo is public and ArgoCD makes no AWS calls), no Ingress (UI
+  # access is a kubectl port-forward; see docs/argocd-phase-2-install.md). The
+  # admin password is optionally set from a bcrypt hash held in TFC (see
+  # variables.tf and the set_sensitive blocks below); otherwise the chart
+  # generates one into argocd-initial-admin-secret.
   argocd_values = {
     # Components we do not use. The chart dropped `applicationSet.enabled` in
     # 7.0 (the controller is always rendered), so scale it to zero instead:
@@ -73,4 +74,25 @@ resource "helm_release" "argocd" {
   wait             = true
 
   values = [yamlencode(local.argocd_values)]
+
+  # Admin password as a pre-computed bcrypt hash, rendered by the chart into
+  # admin.password / admin.passwordMtime of the argocd-secret Secret. Passed
+  # through set_sensitive (not values) so plan output redacts it. Both blocks
+  # are absent when the hash is null, which leaves the chart's generated
+  # password behaviour untouched.
+  dynamic "set_sensitive" {
+    for_each = var.argocd_admin_password_bcrypt_hash == null ? [] : [1]
+    content {
+      name  = "configs.secret.argocdServerAdminPassword"
+      value = var.argocd_admin_password_bcrypt_hash
+    }
+  }
+
+  dynamic "set_sensitive" {
+    for_each = var.argocd_admin_password_mtime == null ? [] : [1]
+    content {
+      name  = "configs.secret.argocdServerAdminPasswordMtime"
+      value = var.argocd_admin_password_mtime
+    }
+  }
 }
