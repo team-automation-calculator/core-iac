@@ -65,7 +65,7 @@ def parse_index(text: str) -> dict[str, list[dict[str, str]]]:
 
         header = CHART_HEADER_RE.match(line)
         if header:
-            chart = header.group(1)
+            chart = str(header.group(1))
             entries.setdefault(chart, [])
             current = None
             continue
