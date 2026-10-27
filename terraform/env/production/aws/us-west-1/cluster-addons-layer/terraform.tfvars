@@ -1,4 +1,5 @@
 alarm_email                    = "steven.uray@automation-caluclations.net"
+argocd_enabled                 = true
 automation_calculator_app_host = "automation-calculations.io"
 db_engine_version              = "16.13"
 external_dns_txt_prefix        = "%%{record_type}-extdns."
