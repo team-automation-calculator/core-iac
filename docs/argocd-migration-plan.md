@@ -2,7 +2,7 @@
 
 Status: **implemented.** Each phase landed as its own PR: Phase 0 #377, Phase 1 #378, Phase 2
 #380, Phase 3 #381, Phase 4 #382, Phase 5 #383, Phase 6 #384, Phase 7 #385, Phase 8 #386,
-Phase 9 (this PR). The sections below are the plan as it was proposed, kept for the reasoning;
+Phase 9 #387. The sections below are the plan as it was proposed, kept for the reasoning;
 "today" in *Why* describes the pre-migration state, and each phase links its runbook with what
 was actually done. The current deploy flow is in `CLAUDE.md` ("Deploying the app").
 
