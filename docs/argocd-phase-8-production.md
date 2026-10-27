@@ -169,6 +169,13 @@ objects are in state and do not appear.
 
 ### 4.2 Merge and confirm
 
+Step 0, before merging anything: set the production admin password. Follow Phase 2 sections 4.1
+and 4.2 for `ac_app_production_cluster_addons_layer`: generate a **separate** password for
+production, store it in the password manager under the production ArgoCD entry, and set
+`argocd_admin_password_bcrypt_hash` (sensitive) and `argocd_admin_password_mtime` as Terraform
+variables on that workspace. Commit A's plan then carries the hash in `helm_release.argocd` (shown
+as `(sensitive value)`), and the chart never creates `argocd-initial-admin-secret` on production.
+
 Merge Commit A (section 1: with Commit B reverted off the branch, or as the PR's first merge).
 Watch the production run from the moment it starts planning:
 
@@ -196,8 +203,9 @@ kubectl -n argocd get cm argocd-cmd-params-cm -o jsonpath='{.data.server\.insecu
 scripts/argocd_preflight.sh                                     # headroom now reflects ArgoCD's four pods; must still exit 0
 ```
 
-First login and password rotation, exactly as Phase 2 section 4, against the production
-context. In one terminal:
+First login, exactly as Phase 2 section 4.3, against the production context. The password is
+the one generated for production in section 4.2 step 0 below and stored in the password manager.
+In one terminal:
 
 ```bash
 kubectl -n argocd port-forward svc/argocd-server 8080:80
@@ -206,12 +214,13 @@ kubectl -n argocd port-forward svc/argocd-server 8080:80
 In another:
 
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
-argocd login localhost:8080 --username admin --plaintext
-argocd account update-password
-kubectl -n argocd delete secret argocd-initial-admin-secret
+kubectl -n argocd get secret argocd-initial-admin-secret       # NotFound: the hash came from TFC
+argocd login localhost:8080 --username admin --plaintext        # password from the password manager
 argocd version                                                  # server v3.5.6
 ```
+
+If the Secret exists, the workspace variables were not set before Commit A applied; follow Phase 2
+section 4.5 (set the variables, queue a run, confirm promptly, then delete the bootstrap Secret).
 
 The `argocd` CLI keeps one context per server address. If the staging port-forward is also on
 8080, the CLI cannot tell them apart; use `8081:80` for production and
@@ -544,7 +553,9 @@ production plan.
 - `scripts/argocd_soak_log.py status` was PASS on the day the phase started, and the preflight
   exited 0 on production (with whatever headroom change it needed applied first).
 - Commit A applied on production with exactly 2 resources added; `kubectl -n argocd get pods`
-  shows the four pods; the admin password is rotated and `argocd-initial-admin-secret` deleted.
+  shows the four pods; the admin password hash and mtime were set on the production workspace
+  before the apply, the plaintext is in the password manager, and `argocd-initial-admin-secret`
+  does not exist.
 - The section 5.1 diff showed only the tracking annotation; the 5.3 diffs show only annotations
   and `managedFields`; Deployment `generation`, Secret `resourceVersion` and sha256 unchanged;
   same pods, same ALB hostname; `/health` 200; `argocd app history` shows ID 0 at the `main` SHA.
