@@ -50,7 +50,7 @@ the merge, not watched after.
   addons workspaces, so a change to it must still queue their runs. The plan's Phase 9 bullet
   listed both directories for removal when it assumed the module would be emptied of
   cluster-facing resources; it was not.
-- `terraform/modules/aws/argocd/main.tf`: `helm_release.argocd` becomes `atomic = true`. It was
+- `terraform/modules/kubernetes/argocd/main.tf`: `helm_release.argocd` becomes `atomic = true`. It was
   non-atomic for the Phase 2 and Phase 8 installs on purpose (an atomic first install is
   uninstalled on failure, and the likely failure was the plan-time EKS token expiring during the
   900-second wait, which a non-atomic retry repaired in place). With both clusters installed, a
@@ -175,7 +175,7 @@ argocd app get automation-calculator                              # Synced, Heal
 
 In TFC, each cluster-addons workspace's settings now list
 `terraform/env/<env>/aws/us-west-1/cluster-addons-layer`, `terraform/modules/aws/cluster-addons-layer`,
-`terraform/modules/aws/main_rails_app` and `terraform/modules/aws/argocd` as trigger prefixes, and
+`terraform/modules/aws/main_rails_app` and `terraform/modules/kubernetes/argocd` as trigger prefixes, and
 not `helm/automation-calculator`.
 
 The proof that the decommission did what it set out to do is the **next bump PR**: when it merges,
