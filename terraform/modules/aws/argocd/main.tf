@@ -74,3 +74,115 @@ resource "helm_release" "argocd" {
 
   values = [yamlencode(local.argocd_values)]
 }
+
+# ArgoCD migration Phase 5 (docs/argocd-migration-plan.md): the real
+# AppProject and Application for the app, created by a second release of the
+# argocd-apps chart (CR manifests only, no controller) so the ACM certificate
+# ARN is injected by Terraform and never enters this public repository.
+# Runbook: docs/argocd-phase-5-adopt-application.md.
+locals {
+  # The Application name is fixed, not a variable. It feeds
+  # spec.source.helm.releaseName below, which feeds app.kubernetes.io/instance
+  # in the Deployment's immutable spec.selector.matchLabels
+  # (helm/automation-calculator/templates/_helpers.tpl). Any other name makes
+  # the Deployment sync fail and rewrites the Service selector to match zero
+  # pods.
+  app_name = "automation-calculator"
+
+  # Value names verified against the argocd-apps 2.0.7 chart: top-level
+  # `projects` and `applications` maps keyed by object name; everything under
+  # an entry is passed through to the CR spec with toYaml.
+  argocd_apps_values = {
+    projects = {
+      (local.app_name) = {
+        namespace   = var.argocd_namespace
+        description = "The automation-calculator app in ${var.environment_name}. Source: this repository only; destination: the ${var.app_namespace} namespace of the local cluster only."
+        sourceRepos = [var.app_repo_url]
+        destinations = [{
+          server    = "https://kubernetes.default.svc"
+          namespace = var.app_namespace
+        }]
+        # Cluster-scoped kinds are allow-listed. The one entry exists for the
+        # Application's CreateNamespace=true: gitops-engine runs the namespace
+        # PreSync task through the project permission check like any other
+        # resource, and an empty whitelist fails the first sync with
+        # "resource :Namespace is not permitted" (Phase 3 finding,
+        # argocd/scratch/appproject.yaml). The name narrows it to the app
+        # namespace; the project cannot create any other namespace.
+        clusterResourceWhitelist = [{
+          group = ""
+          kind  = "Namespace"
+          name  = var.app_namespace
+        }]
+      }
+    }
+
+    applications = {
+      (local.app_name) = {
+        namespace = var.argocd_namespace
+        # Deliberately NO resources-finalizer.argocd.argoproj.io: with it,
+        # deleting the Application (a Terraform destroy, a helm_release
+        # replace, a rename) cascade-deletes the Ingress and therefore the
+        # ALB. Deleting this Application must leave every app object in place.
+        project = local.app_name
+        source = {
+          repoURL        = var.app_repo_url
+          targetRevision = var.app_target_revision
+          path           = var.app_chart_path
+          helm = {
+            releaseName = local.app_name
+            valueFiles = [
+              "values.yaml",
+              "values-${var.environment_name}.yaml",
+            ]
+            # Only what must not live in git. Everything else (image tag,
+            # host, ALB name, secrets.create=false) comes from the values
+            # files above, the same files Terraform's main_rails_app release
+            # reads, so the two controllers render the same manifests.
+            parameters = [{
+              name  = "ingress.certificateArn"
+              value = var.app_certificate_arn
+            }]
+          }
+        }
+        destination = {
+          server    = "https://kubernetes.default.svc"
+          namespace = var.app_namespace
+        }
+        # Manual sync by default (no `automated` block). While Terraform still
+        # manages the Helm release, two controllers must never reconcile the
+        # same Deployment; Phase 6 flips staging after `terraform state rm`.
+        syncPolicy = merge(
+          { syncOptions = ["CreateNamespace=true"] },
+          var.application_automated_sync ? {
+            automated = {
+              prune    = var.application_prune
+              selfHeal = var.application_self_heal
+            }
+          } : {}
+        )
+      }
+    }
+  }
+}
+
+resource "helm_release" "argocd_apps" {
+  count = var.manage_application ? 1 : 0
+
+  # Same posture as the argo-cd release above: no automatic rollback, leave a
+  # failed release in place for inspection. The chart only renders two CRs,
+  # so `wait` returns as soon as they are accepted by the API server.
+  atomic          = false
+  chart           = "argocd-apps"
+  cleanup_on_fail = false
+  name            = "argocd-apps"
+  namespace       = var.argocd_namespace
+  repository      = "https://argoproj.github.io/argo-helm"
+  version         = var.argocd_apps_chart_version
+  wait            = true
+
+  values = [yamlencode(local.argocd_apps_values)]
+
+  # The AppProject and Application CRDs come from the argo-cd release.
+  depends_on = [helm_release.argocd]
+}

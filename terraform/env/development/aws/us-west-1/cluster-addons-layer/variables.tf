@@ -9,6 +9,18 @@ variable "argocd_enabled" {
   type        = bool
 }
 
+variable "argocd_manage_application" {
+  default     = true
+  description = "With argocd_enabled, also create the app's ArgoCD AppProject and Application (docs/argocd-migration-plan.md, Phase 5). Set to false to roll the Application back while keeping ArgoCD installed; the Application carries no finalizer, so its deletion never touches the app's objects."
+  type        = bool
+}
+
+variable "app_repo_url" {
+  default     = "https://github.com/team-automation-calculator/core-iac.git"
+  description = "Git URL of this repository: the ArgoCD Application's source and the only source its AppProject allows (docs/argocd-migration-plan.md, Phase 5)."
+  type        = string
+}
+
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
