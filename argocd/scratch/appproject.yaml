@@ -1,0 +1,34 @@
+# ArgoCD migration Phase 3 (docs/argocd-phase-3-dry-run.md): the scratch
+# project for the ac-canary dry run on staging. Applied by hand with
+# kubectl, never by Terraform. Delete it when the dry run is over.
+#
+# The fence: anything in this project can only come from this repository and
+# can only land in the argocd-canary namespace of the local cluster. The real
+# automation-calculator namespace is unreachable from here.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: scratch
+  namespace: argocd
+spec:
+  description: Phase 3 dry run. Scratch copy of the app in argocd-canary only.
+  sourceRepos:
+    - https://github.com/team-automation-calculator/core-iac.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd-canary
+  # Cluster-scoped resources are allow-listed (namespaced ones are deny-listed,
+  # so the empty namespaceResourceBlacklist below allows every namespaced
+  # kind). The one entry here exists for the Application's
+  # CreateNamespace=true: gitops-engine appends the namespace as a PreSync
+  # task and runs it through the project's permission check with every other
+  # task, so without this entry the first sync fails with
+  # "resource :Namespace is not permitted in project scratch". The name
+  # pattern narrows it to the canary namespace; the project cannot create any
+  # other namespace. The created namespace carries no tracking metadata, so
+  # ArgoCD never adopts or deletes it (the runbook deletes it by hand).
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+      name: argocd-canary
+  namespaceResourceBlacklist: []
