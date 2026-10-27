@@ -131,6 +131,15 @@ jobs:
       - terraform/validate:
           path: ./terraform/modules/aws/cluster-addons-layer
 
+  validate_argocd_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/aws/argocd
+      - terraform/validate:
+          path: ./terraform/modules/aws/argocd
+
   validate_main_rails_app_module:
     executor: terraform
     steps:
@@ -212,6 +221,7 @@ workflows:
       - validate_production_tf_cloud_env
       - validate_production_aws_base_cluster_layer
       - validate_production_aws_cluster_addons_layer
+      - validate_argocd_module
       - validate_main_rails_app_module
       - validate_networking_module
       - validate_route53_domain_module

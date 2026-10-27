@@ -24,6 +24,16 @@ module "cluster_addons" {
   vpc_id                        = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
 
+module "argocd" {
+  argocd_admin_password_bcrypt_hash = var.argocd_admin_password_bcrypt_hash
+  argocd_admin_password_mtime       = var.argocd_admin_password_mtime
+  count                             = var.argocd_enabled ? 1 : 0
+  depends_on = [
+    module.cluster_addons
+  ]
+  source = "../../../../../modules/aws/argocd"
+}
+
 module "main_rails_app" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
   automation_calculator_app_host                = var.automation_calculator_app_host

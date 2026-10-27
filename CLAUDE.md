@@ -13,6 +13,7 @@ terraform/
   modules/
     tf_cloud/tf_cloud_workspaces/   # TFE workspace module
     aws/
+      argocd/                       # ArgoCD Helm release (per-env toggle argocd_enabled; docs/argocd-migration-plan.md)
       base-cluster-layer/           # VPC, EKS cluster, IAM
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
       main_rails_app/               # Rails app Helm release module
