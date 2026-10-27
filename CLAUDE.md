@@ -30,6 +30,8 @@ terraform/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
 helm/
   automation-calculator/        # App Helm chart
+argocd/
+  scratch/                      # Phase 3 dry-run AppProject + Application, applied by hand (docs/argocd-phase-3-dry-run.md)
 scripts/                        # Bash helpers
 eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
 rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
@@ -96,6 +98,7 @@ scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (d
 scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration (dry run unless --apply)
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
+scripts/argocd_canary_check.sh                 # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
 ```
 
 ## Key Conventions
