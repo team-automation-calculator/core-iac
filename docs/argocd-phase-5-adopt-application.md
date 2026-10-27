@@ -15,7 +15,9 @@ around that (no finalizer, no prune, no `helm uninstall`, `--cascade=false` on a
 - `terraform/modules/aws/argocd/`: a second release, `helm_release.argocd_apps`, of the
   `argocd-apps` chart (version pinned under Phase 0 "Versions" in the plan; CR manifests only, no
   controller), namespace `argocd`, `depends_on = [helm_release.argocd]`, `wait = true`,
-  `atomic = false`, `cleanup_on_fail = false`, behind `manage_application` (default `true`). Its
+  `atomic = true` (unlike the argo-cd release: it only renders two CRs, and the Application has
+  no finalizer, so a rollback or uninstall on failure can never reach the app's Deployment,
+  Ingress or ALB), `cleanup_on_fail = false`, behind `manage_application` (default `true`). Its
   values render:
   - `AppProject` `automation-calculator`: source repos limited to this repository, destinations
     limited to namespace `automation-calculator` on the local cluster, cluster-scoped kinds limited
