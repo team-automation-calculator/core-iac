@@ -50,6 +50,12 @@ the merge, not watched after.
   addons workspaces, so a change to it must still queue their runs. The plan's Phase 9 bullet
   listed both directories for removal when it assumed the module would be emptied of
   cluster-facing resources; it was not.
+- `terraform/modules/aws/argocd/main.tf`: `helm_release.argocd` becomes `atomic = true`. It was
+  non-atomic for the Phase 2 and Phase 8 installs on purpose (an atomic first install is
+  uninstalled on failure, and the likely failure was the plan-time EKS token expiring during the
+  900-second wait, which a non-atomic retry repaired in place). With both clusters installed, a
+  failed upgrade should roll back to the working ArgoCD instead. This is the one change in the PR
+  that is not a no-op on the clusters: see section 3.
 - Documentation: `CLAUDE.md` (layout, apply order, how a deploy works, scripts), `README.md`
   (setup steps), the plan's status line and Phase 9 section, and this runbook.
 - `.circleci/config.yml` is unchanged: `helm lint` still guards the chart ArgoCD deploys,
@@ -115,10 +121,14 @@ the PR branch checkout, with `TFE_TOKEN` set (speculative remote runs; nothing i
 
 ```bash
 cd terraform/env/staging/aws/us-west-1/cluster-addons-layer
-terraform plan | tee ../../../../../../tmp/phase9-staging.txt          # No changes.
+terraform plan | tee ../../../../../../tmp/phase9-staging.txt          # 1 to change: helm_release.argocd atomic only
 cd ../../../../../production/aws/us-west-1/cluster-addons-layer
-terraform plan | tee ../../../../../../tmp/phase9-production.txt       # No changes.
+terraform plan | tee ../../../../../../tmp/phase9-production.txt       # 1 to change: helm_release.argocd atomic only
 ```
+
+The only acceptable change in either plan is `atomic: false => true` on
+`module.argocd[0].helm_release.argocd`. Anything touching `module.main_rails_app` means a
+precondition in 2.1 or 2.2 is not actually met: stop.
 
 The speculative runs TFC attaches to the PR show the same. **Stop and do not merge** if either
 plan shows:
@@ -137,8 +147,8 @@ confirm) and that their last applied runs planned 0 changes.
 
 | Workspace | Expected plan for the merge |
 |---|---|
-| `ac_app_staging_cluster_addons_layer` | **No changes.** Planned and finished; auto-apply has nothing to do. |
-| `ac_app_production_cluster_addons_layer` | **No changes.** Planned and finished; nothing to confirm. |
+| `ac_app_staging_cluster_addons_layer` | **1 to change**, in place: `module.argocd[0].helm_release.argocd`, `atomic: false => true` and nothing else. Auto-applies: the provider runs a `helm upgrade` with the same chart and values, which records a new Helm revision and changes no objects (no pod restarts; `argocd app get` stays Synced/Healthy). The release deletion itself plans nothing: the resource left state in Phase 6. |
+| `ac_app_production_cluster_addons_layer` | **1 to change**, in place: the same `atomic` flip. **Confirm promptly**: the apply is a `helm upgrade` against EKS with the plan-time token, so a stale plan fails with the credentials error. Nothing from the release deletion: it left state in Phase 8. |
 | `ac_app_development_cluster_addons_layer` | No cluster: fails at `data.aws_eks_cluster` as it did before this PR. |
 | each env's `tf_cloud` workspace | **1 to change**, in place: `module.tf_cloud_workspaces.tfe_workspace.cluster_addons_tfe_workspace`, `trigger_prefixes` loses `helm/automation-calculator`. Nothing else: no replacement, no change to the base-cluster workspace or the run trigger. |
 
@@ -150,9 +160,10 @@ value, which is why both files change.)
 
 ## 4. Merge
 
-With section 2 green: merge. There is no ordering constraint and no window: the addons runs plan
-0 changes and finish on their own, and the `tf_cloud` applies touch workspace settings only.
-Confirm the three `tf_cloud` runs when they come up.
+With section 2 green: merge. There is no ordering constraint and no window on the app side: the
+only addons change is the `atomic` flip on the ArgoCD release (section 3), and the `tf_cloud`
+applies touch workspace settings only. Staging auto-applies. Confirm the production addons run
+the moment it is planned, then the three `tf_cloud` runs when they come up.
 
 ## 5. After the merge
 
@@ -180,7 +191,8 @@ Nothing on either cluster changes in this phase, so there is nothing to roll bac
 a bad deploy is a git revert of the bump (synced by ArgoCD) or, on production,
 `argocd app rollback` (Phase 8 section 8).
 
-**Reverting this PR is safe and plans 0 changes** on both addons workspaces: the revert brings the
+**Reverting this PR is safe and plans nothing beyond `atomic: true => false`** on both addons
+workspaces (that flip is an in-place `helm upgrade` with unchanged values): the revert brings the
 resource block back with `count = var.manage_helm_release ? 1 : 0` *and* brings back
 `manage_app_helm_release = false` in both tfvars, so the count is 0 and the state still has no
 release. The import files come back as no-ops (the objects are in state) and the chart directory
@@ -227,9 +239,11 @@ without `--cascade=false`; adding a `helm_release` for the app back to the modul
 
 - Section 2 held on both envs before the merge (keep the `tmp/phase9-*.txt` plan transcripts
   until the merge is done; they hold no secrets).
-- The merge planned **No changes** on both `ac_app_staging_cluster_addons_layer` and
-  `ac_app_production_cluster_addons_layer`; the three `tf_cloud` runs applied one in-place change
-  each and the workspaces' trigger prefixes no longer list `helm/automation-calculator`.
+- The merge planned exactly **1 to change** (the `atomic` flip on `module.argocd[0].helm_release.argocd`,
+  nothing to add or destroy) on both `ac_app_staging_cluster_addons_layer` and
+  `ac_app_production_cluster_addons_layer`, and both applied; `helm -n argocd history argocd` shows
+  one new revision per cluster with no pod restarts. The three `tf_cloud` runs applied one in-place
+  change each and the workspaces' trigger prefixes no longer list `helm/automation-calculator`.
 - `helm -n automation-calculator list` is empty and `argocd app get automation-calculator` is
   Synced and Healthy on both clusters, same pods as before the merge.
 - The next merged bump PR queued no cluster-addons run.

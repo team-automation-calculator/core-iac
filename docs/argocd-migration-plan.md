@@ -145,9 +145,12 @@ Runbook with the exact commands: `docs/argocd-phase-2-install.md`.
 
 - New module `terraform/modules/aws/argocd/` (`main.tf`, `variables.tf`, `versions.tf`, lock file)
   with `helm_release.argocd`: chart `argo-cd`, namespace `argocd`, `create_namespace = true`, pinned
-  `version`, `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`. An automatic
-  rollback of ArgoCD is not customer-facing and feeds the "values written on failed apply" state bug,
-  so `atomic` stays off here.
+  `version`, `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`. `atomic`
+  stays off **for the installs** (Phases 2 and 8): an atomic first install is uninstalled on
+  failure, and the realistic failure is the plan-time EKS token expiring during the wait, which a
+  non-atomic retry repairs in place. Phase 9 flips it to `true` once both clusters are installed,
+  so later upgrades roll back to the working ArgoCD. The `argocd-apps` release (Phase 5) is atomic
+  from the start: two CRs, no finalizer, nothing to lose.
 - Values: `dex.enabled=false`, `notifications.enabled=false`, `applicationSet.replicas=0` (the
   chart dropped `applicationSet.enabled` in 7.0 and always renders the controller; zero replicas
   keeps it off the pod count), `redis-ha.enabled=false`, single replicas,

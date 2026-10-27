@@ -58,11 +58,15 @@ locals {
 }
 
 resource "helm_release" "argocd" {
-  # No automatic rollback: an ArgoCD install failure is not customer-facing,
-  # and a rolled-back release still writes the new values into Terraform state
-  # (every later plan shows 0 changes while the cluster is untouched). Leave
-  # the failed release in place so it can be inspected and retried.
-  atomic           = false
+  # Atomic since ArgoCD migration Phase 9, once both clusters were installed:
+  # a failed upgrade (chart bump, values change, password rotation) rolls back
+  # to the previous working ArgoCD instead of leaving a half-upgraded release.
+  # It was deliberately non-atomic during the Phase 2 and Phase 8 installs,
+  # because `--atomic` uninstalls a failed *first* install, and the realistic
+  # failure there was the plan-time EKS token expiring during the 900s wait;
+  # a non-atomic retry repaired the install in place. ArgoCD is not
+  # customer-facing, so a rollback here never touches the app.
+  atomic           = true
   chart            = "argo-cd"
   cleanup_on_fail  = false
   create_namespace = true
