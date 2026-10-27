@@ -13,10 +13,10 @@ terraform/
   modules/
     tf_cloud/tf_cloud_workspaces/   # TFE workspace module
     aws/
-      argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application; docs/argocd-migration-plan.md)
+      argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application, argocd_application_{automated_sync,prune,self_heal}; docs/argocd-migration-plan.md)
       base-cluster-layer/           # VPC, EKS cluster, IAM
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
-      main_rails_app/               # Rails app Helm release module
+      main_rails_app/               # Rails app namespace, Secret, RDS, ACM; the Helm release behind manage_helm_release (off on staging since ArgoCD Phase 6)
       networking/                   # VPC/subnet resources
     github/
       org-ci-access/                # GitHub org membership + team for the CI machine user
@@ -82,6 +82,8 @@ helm template automation-calculator helm/automation-calculator/ \
 ```
 
 **Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`. The app Secret (`automation-calculator-app-secrets`) and the `automation-calculator` namespace are Terraform resources in that module (`kubernetes_secret_v1.app_secrets`, `kubernetes_namespace_v1.automation_calculator`, adopted from Helm in ArgoCD migration Phase 4, `docs/argocd-phase-4-secret-adoption.md`); every `values-<env>.yaml` sets `secrets.create: false` so the chart never renders a Secret for a real environment. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB.
+
+**How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`).** Staging deploys through ArgoCD since Phase 6: the `automation-calculator` Application (`terraform/modules/aws/argocd`) tracks `main` with automated sync, prune and self-heal, so a merged bump PR rolls out within ArgoCD's polling interval and a rollback is a git revert; the staging TFC workspace no longer manages the Helm release (`manage_app_helm_release = false` in its tfvars; the release was removed from its state, never destroyed, per `docs/argocd-phase-6-retire-staging-release.md`). Production still deploys through the Terraform `helm_release` in the `ac_app_production_cluster_addons_layer` workspace (merge the bump PR, confirm the run) until Phase 8. **Never set `manage_app_helm_release = false` for an env before that env's workspace has run `terraform state rm` on the release**: the plan would be a `helm uninstall`, which deletes the Ingress and the ALB; `prevent_destroy` on the release makes such a plan fail, and the fix is the `state rm`, not removing the guard. Never run `helm uninstall automation-calculator` on any cluster.
 
 ### Scripts
 ```bash

@@ -261,20 +261,37 @@ must never reconcile the same Deployment.
 
 ### Phase 6: retire the Terraform release on staging only
 
+Runbook with the state-address reasoning, the expected plan per step and the rollback:
+`docs/argocd-phase-6-retire-staging-release.md`.
+
 - Add `manage_helm_release` (default `true`) to `main_rails_app` and `count` on the `helm_release`.
+  The instance address becomes `helm_release.automation-calculator[0]`; a `moved` block in the
+  module records the move (Phase 9 deletes it with the resource). The release also gets
+  `prevent_destroy`, so flipping the toggle before the `state rm` fails the plan instead of
+  running `helm uninstall`. Each env's `cluster-addons-layer` gets `manage_app_helm_release` and
+  the three `argocd_application_{automated_sync,prune,self_heal}` variables (defaults false).
 - Runbook, run back to back within minutes, with no other merges in the window (staging
   auto-applies):
   1. From `terraform/env/staging/aws/us-west-1/cluster-addons-layer` with `TFE_TOKEN` set:
      `terraform init`, then
-     `terraform state rm module.main_rails_app.helm_release.automation-calculator`.
-  2. Merge the PR that sets `manage_helm_release = false` in staging's `terraform.tfvars`. Staging
-     plans 0 changes; production plans 0 changes. Preview both with local speculative
-     `terraform plan` runs before merging.
+     `terraform state rm module.main_rails_app.helm_release.automation-calculator` (un-indexed:
+     the state was last written by a configuration without `count`; Phase 8 on production will
+     `state rm` the indexed `[0]` address because production applies this PR's move).
+  2. Merge the PR that sets `manage_app_helm_release = false` in staging's `terraform.tfvars`.
+     Staging plans 0 changes; production plans the state move only (`0 to add, 0 to change, 0 to
+     destroy`, but the run **needs a confirm** to record the move). Preview both with local
+     speculative `terraform plan` runs before merging: staging errors with `Instance cannot be
+     destroyed` until the `state rm` is done, and must not be merged while it does.
   3. Delete the Helm history only:
      `kubectl -n automation-calculator delete secret -l owner=helm,name=automation-calculator`.
-     **Never run `helm uninstall`**: it deletes the Ingress, which deletes the ALB.
-- Flip the staging Application to `syncPolicy.automated: { prune: true, selfHeal: true }`. Prune is
-  safe because the Terraform-managed Secret carries no ArgoCD tracking annotation.
+     **Never run `helm uninstall`**: it deletes the Ingress, which deletes the ALB. The history
+     stays until after the merge on purpose: while it exists, a stray run in the `state rm` window
+     fails on `cannot re-use a name` instead of re-adopting the release.
+- Flip the staging Application to `syncPolicy.automated: { prune: true, selfHeal: true }` through
+  `argocd_application_automated_sync = true`, `argocd_application_prune = true`,
+  `argocd_application_self_heal = true` in staging's tfvars, as its own merge after step 3 (a
+  separate commit on the Phase 6 branch). Prune is safe because the Terraform-managed Secret
+  carries no ArgoCD tracking annotation; the runbook lists what to check before enabling it.
 - Rollback after this point is a git revert PR (ArgoCD syncs it) or a manual
   `helm upgrade --install`.
 

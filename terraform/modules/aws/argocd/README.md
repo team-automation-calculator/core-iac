@@ -63,7 +63,7 @@ Adoption, diff inspection, first sync and rollback: `docs/argocd-phase-5-adopt-a
 | `app_target_revision` | `main` | Git revision the Application tracks. |
 | `app_chart_path` | `helm/automation-calculator` | Chart path inside the repository. |
 | `app_namespace` | `automation-calculator` | Destination namespace; must match Terraform's release and Secret. |
-| `application_automated_sync` | `false` | Render `syncPolicy.automated`. Phase 6 and later only. |
+| `application_automated_sync` | `false` | Render `syncPolicy.automated`. Phase 6 and later only, after that env's Terraform release is out of state and its Helm history deleted (`docs/argocd-phase-6-retire-staging-release.md`). The env configs expose it as `argocd_application_automated_sync`. |
 | `application_prune` | `false` | `automated.prune`; read only when automated sync is on. |
 | `application_self_heal` | `false` | `automated.selfHeal`; read only when automated sync is on. |
 

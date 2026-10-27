@@ -92,7 +92,23 @@ resource "kubernetes_secret_v1" "app_secrets" {
   }
 }
 
+# ArgoCD migration Phase 6 (docs/argocd-migration-plan.md): the release is
+# behind manage_helm_release so each env can hand the app over to ArgoCD on
+# its own schedule (staging in Phase 6, production in Phase 8) while the
+# module stays shared. Adding `count` changes the instance address from
+# helm_release.automation-calculator to helm_release.automation-calculator[0];
+# the `moved` block below records that so an env that keeps the release
+# (count = 1) plans a state move and nothing else.
+#
+# Setting manage_helm_release = false is NOT how an env stops managing the
+# release: with the instance still in state, count = 0 plans a destroy, which
+# is `helm uninstall`, which deletes the Ingress and the ALB. The env's
+# workspace must `terraform state rm` the release first, then flip the
+# variable; prevent_destroy below turns the wrong order into a plan error.
+# Runbook: docs/argocd-phase-6-retire-staging-release.md.
 resource "helm_release" "automation-calculator" {
+  count = var.manage_helm_release ? 1 : 0
+
   atomic    = true
   name      = "automation-calculator"
   namespace = "automation-calculator"
@@ -121,6 +137,25 @@ resource "helm_release" "automation-calculator" {
       cert_arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
     })
   ]
+
+  lifecycle {
+    # Destroying the release is `helm uninstall`: it deletes the Ingress and
+    # therefore the ALB (the top risk in docs/argocd-migration-plan.md). Any
+    # plan that would destroy it, in particular a count of 0 while the
+    # instance is still in state (manage_helm_release flipped before the
+    # `terraform state rm`), must fail instead. Like the namespace guard
+    # above, this only holds while the resource block exists; Phase 9 removes
+    # the block only after every env has forgotten the release.
+    prevent_destroy = true
+  }
+}
+
+# Phase 6: the instance address gained an index when `count` was added.
+# Terraform would propose this move by itself; the block makes it explicit and
+# deterministic. Phase 9 deletes it together with the resource.
+moved {
+  from = helm_release.automation-calculator
+  to   = helm_release.automation-calculator[0]
 }
 
 resource "aws_security_group" "allow_db_access_from_eks" {
