@@ -84,15 +84,27 @@ argocd version                                             # server v3.5.6
 
 The UI is `http://localhost:8080` while the port-forward runs.
 
-Rotate the generated password now and delete the bootstrap Secret, as the ArgoCD docs recommend:
+Rotate the generated password now and delete the bootstrap Secret, as the ArgoCD docs recommend.
+Do this in the same session as the first login, before anyone else is given the generated value:
 
 ```bash
-argocd account update-password
+argocd account update-password        # prompts for the current (generated) and the new password
 kubectl -n argocd delete secret argocd-initial-admin-secret
+kubectl -n argocd get secret argocd-initial-admin-secret   # must return NotFound
+argocd logout localhost:8080 && argocd login localhost:8080 --username admin --plaintext   # new password works
 ```
 
+Store the new password in the team password manager under the environment's ArgoCD entry.
+Never put it in git, a `terraform.tfvars`, or a TFC variable: nothing in this repo reads it, and
+the port-forward path already requires the cluster-admin SSO role, so the password is the second
+gate, not the first (see the "ArgoCD admin login" and "ArgoCD UI access" rows in the plan's
+Decisions table). If the password is lost, reset it by patching `admin.password` in the
+`argocd-secret` Secret with a bcrypt hash (ArgoCD FAQ, "I forgot the admin password"); no
+Terraform change is involved.
+
 Terraform does not manage the password (a `bcrypt()` hash changes on every run), so this rotation
-never shows up as drift.
+never shows up as drift. Repeat this section on each cluster where ArgoCD is installed (Phase 8
+does it for production).
 
 ## 5. Rollback
 
@@ -106,4 +118,6 @@ release and, with it, the `argocd` namespace. The chart keeps its CRDs on uninst
 - Staging TFC run applied with exactly 1 resource added; development and production planned 0.
 - `kubectl -n argocd get pods` shows the four pods Running.
 - `argocd login` succeeds through the port-forward and `argocd app list` is empty.
+- The admin password is rotated, stored in the password manager, and
+  `argocd-initial-admin-secret` no longer exists in the `argocd` namespace.
 - `scripts/argocd_preflight.sh` still exits 0 on staging (headroom for the Phase 3 canary pods).
