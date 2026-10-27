@@ -170,6 +170,8 @@ AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (se
 
 `GITHUB_TOKEN` for the `github` provider (`terraform/env/production/github/org`) is never set locally: it lives only as a sensitive environment variable on the `ac_app_production_github_org` TFC workspace. The GitHub CI machine user, its tokens, and the owner token that workspace uses are documented in `docs/github-ci-user.md`.
 
+The ArgoCD admin password is likewise never set locally and never written to a `terraform.tfvars`: each `ac_app_<env>_cluster_addons_layer` workspace holds `argocd_admin_password_bcrypt_hash` (sensitive Terraform variable, a bcrypt hash generated once with `argocd account bcrypt`) and `argocd_admin_password_mtime`. The plaintext lives only in the team password manager. Rotation is a variable update plus a run, never `argocd account update-password` (`docs/argocd-phase-2-install.md`, section 4).
+
 ## AWS Authentication
 
 Human AWS access is **IAM Identity Center (SSO) only — no IAM user access keys**. Never set `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` locally and never create IAM users or access keys for human access. Authenticate with `aws sso login` and select a role with `AWS_PROFILE` (profiles chain SSO → `ac_ci_terraform_<env>`). Setup and profile reference: `docs/aws-sso-auth.md`.
