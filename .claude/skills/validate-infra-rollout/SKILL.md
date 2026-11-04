@@ -97,7 +97,7 @@ staging's diff matches the expectation.
   with them (`ac_app_<env>-ro`); the script defaults to those. See
   `docs/aws-sso-auth.md`. Never run the SSO login yourself or switch the
   user's current context. Two limits seen in practice:
-  - until PR #409 (`ac-ci-read-only-helm-releases` ClusterRole) is applied
+  - until PR #413 (`ac-ci-read-only-helm-releases` ClusterRole) is applied
     to an environment's cluster-addons workspace, its `_read_only` role
     cannot read Helm release Secrets, so `helm list` / `helm get manifest`
     there need the read-write `ac-ci-<env>` role via a separate context.

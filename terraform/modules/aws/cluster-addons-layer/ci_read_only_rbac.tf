@@ -9,7 +9,7 @@
 #   * secrets, get/list — Helm 3 stores release state in Secrets of type
 #     `helm.sh/release.v1`, so without this `helm list` / `helm get manifest`
 #     fail with "secrets is forbidden" under the read-only role (identically
-#     on every environment, see PR #409). RBAC cannot filter by Secret type
+#     on every environment, see PR #413). RBAC cannot filter by Secret type
 #     or label, so this is read on every Secret in the cluster, including
 #     the app's RDS credentials. Accepted because the sensitive Secrets live
 #     in the same namespaces as the Helm releases (automation-calculator,
