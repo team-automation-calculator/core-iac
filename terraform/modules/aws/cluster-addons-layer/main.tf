@@ -147,6 +147,30 @@ resource "helm_release" "external-dns" {
         name  = "serviceAccount.name"
         value = "external-dns"
       },
+      # Resource requests/limits for the single external-dns replica. Observed
+      # usage with one public hosted zone is ~1m CPU / ~15Mi (staging, 9 days
+      # uptime, 0 restarts), so these leave several times headroom for the
+      # startup Route 53 listing and sync bursts. No CPU limit: CFS throttling
+      # only slows reconciliation, and the request already reserves capacity.
+      # Memory limit gives the kubelet a bound to OOM-kill a leak instead of
+      # letting it pressure kube-system node memory. The chart schema types
+      # these as strings, so type is pinned to keep "20m"/"64Mi" from being
+      # coerced.
+      {
+        name  = "resources.requests.cpu"
+        type  = "string"
+        value = "20m"
+      },
+      {
+        name  = "resources.requests.memory"
+        type  = "string"
+        value = "64Mi"
+      },
+      {
+        name  = "resources.limits.memory"
+        type  = "string"
+        value = "128Mi"
+      },
     ],
     var.external_dns_txt_prefix == "" ? [] : [
       {
