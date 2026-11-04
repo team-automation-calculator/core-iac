@@ -28,6 +28,11 @@ variable "environment_name" {
   type        = string
 }
 
+variable "kube_proxy_addon_version" {
+  description = "Version of the kube-proxy EKS managed add-on, e.g. v1.36.0-eksbuild.58. Pin the defaultVersion that `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <cluster_version>` reports for the region, and bump it together with cluster_version."
+  type        = string
+}
+
 variable "node_group_instance_types" {
   default     = ["t3.medium"]
   description = "The AWS EC2 instance types to use to create worker nodes with"
