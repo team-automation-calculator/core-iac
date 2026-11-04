@@ -3,7 +3,7 @@ locals {
   # No IRSA (the repo is public and ArgoCD makes no AWS calls), no Ingress (UI
   # access is a kubectl port-forward; see docs/argocd-phase-2-install.md). The
   # admin password is optionally set from a bcrypt hash held in TFC (see
-  # variables.tf and the set_sensitive blocks below); otherwise the chart
+  # variables.tf and the set_sensitive entries below); otherwise the chart
   # generates one into argocd-initial-admin-secret.
   argocd_values = {
     # Components we do not use. The chart dropped `applicationSet.enabled` in
@@ -77,24 +77,24 @@ resource "helm_release" "argocd" {
 
   # Admin password as a pre-computed bcrypt hash, rendered by the chart into
   # admin.password / admin.passwordMtime of the argocd-secret Secret. Passed
-  # through set_sensitive (not values) so plan output redacts it. Both blocks
+  # through set_sensitive (not values) so plan output redacts it. Both entries
   # are absent when the hash is null, which leaves the chart's generated
-  # password behaviour untouched.
-  dynamic "set_sensitive" {
-    for_each = var.argocd_admin_password_bcrypt_hash == null ? [] : [1]
-    content {
-      name  = "configs.secret.argocdServerAdminPassword"
-      value = var.argocd_admin_password_bcrypt_hash
-    }
-  }
-
-  dynamic "set_sensitive" {
-    for_each = var.argocd_admin_password_mtime == null ? [] : [1]
-    content {
-      name  = "configs.secret.argocdServerAdminPasswordMtime"
-      value = var.argocd_admin_password_mtime
-    }
-  }
+  # password behaviour untouched. (helm provider 3 syntax: set_sensitive is a
+  # list attribute, not repeated blocks.)
+  set_sensitive = concat(
+    var.argocd_admin_password_bcrypt_hash == null ? [] : [
+      {
+        name  = "configs.secret.argocdServerAdminPassword"
+        value = var.argocd_admin_password_bcrypt_hash
+      }
+    ],
+    var.argocd_admin_password_mtime == null ? [] : [
+      {
+        name  = "configs.secret.argocdServerAdminPasswordMtime"
+        value = var.argocd_admin_password_mtime
+      }
+    ],
+  )
 }
 
 # ArgoCD migration Phase 5 (docs/argocd-migration-plan.md): the real
