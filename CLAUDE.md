@@ -86,6 +86,7 @@ scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (d
 scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration, plus delete-legacy-cname for the post-0.23 cname-extdns cleanup (dry run unless --apply)
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
+scripts/watch_addon_rollout.sh                 # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
 ```
 
 ## Key Conventions
