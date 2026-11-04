@@ -38,67 +38,60 @@ resource "helm_release" "aws_load_balancer_controller" {
   namespace  = "kube-system"
   repository = "https://aws.github.io/eks-charts"
 
-  set {
-    name  = "clusterName"
-    value = var.eks_cluster_name
-  }
-
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = kubernetes_service_account_v1.aws_load_balancer_controller_service_account.metadata[0].name
-  }
-
-  set {
-    name  = "vpcId"
-    value = var.vpc_id
-  }
-
-  set {
-    name  = "image.repository"
-    value = "public.ecr.aws/eks/aws-load-balancer-controller"
-  }
-
-  # Watch discovery.k8s.io/v1 EndpointSlices instead of the v1 Endpoints API,
-  # which is deprecated as of Kubernetes 1.33. 3.x defaults this to true; keep
-  # it explicit so the flag always renders and a default change can't flip it.
-  set {
-    name  = "enableEndpointSlices"
-    value = "true"
-  }
-
-  # Chart 1.5.0+ defaults this to true, which makes the controller claim every
-  # new Service of type LoadBalancer. Keep the pre-upgrade behavior.
-  set {
-    name  = "enableServiceMutatorWebhook"
-    value = "false"
-  }
-
-  # Chart 3.x defaults keepTLSSecret to false, which regenerates the webhook CA
-  # and serving cert on every helm upgrade. 1.x defaulted to true. Keep reusing
-  # the existing aws-load-balancer-tls secret so upgrades don't churn the
-  # webhook caBundle.
-  set {
-    name  = "keepTLSSecret"
-    value = "true"
-  }
-
-  # Controller 3.x defaults the Gateway API controllers on (2.x: off) and relies
-  # on CRD auto-detection to turn them back off. We only use Ingress and have no
-  # Gateway API CRDs installed; pin the gates off so the behavior is explicit.
-  set {
-    name  = "controllerConfig.featureGates.ALBGatewayAPI"
-    value = "false"
-  }
-
-  set {
-    name  = "controllerConfig.featureGates.NLBGatewayAPI"
-    value = "false"
-  }
+  set = [
+    {
+      name  = "clusterName"
+      value = var.eks_cluster_name
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "false"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = kubernetes_service_account_v1.aws_load_balancer_controller_service_account.metadata[0].name
+    },
+    {
+      name  = "vpcId"
+      value = var.vpc_id
+    },
+    {
+      name  = "image.repository"
+      value = "public.ecr.aws/eks/aws-load-balancer-controller"
+    },
+    # Watch discovery.k8s.io/v1 EndpointSlices instead of the v1 Endpoints API,
+    # which is deprecated as of Kubernetes 1.33. 3.x defaults this to true; keep
+    # it explicit so the flag always renders and a default change can't flip it.
+    {
+      name  = "enableEndpointSlices"
+      value = "true"
+    },
+    # Chart 1.5.0+ defaults this to true, which makes the controller claim every
+    # new Service of type LoadBalancer. Keep the pre-upgrade behavior.
+    {
+      name  = "enableServiceMutatorWebhook"
+      value = "false"
+    },
+    # Chart 3.x defaults keepTLSSecret to false, which regenerates the webhook CA
+    # and serving cert on every helm upgrade. 1.x defaulted to true. Keep reusing
+    # the existing aws-load-balancer-tls secret so upgrades don't churn the
+    # webhook caBundle.
+    {
+      name  = "keepTLSSecret"
+      value = "true"
+    },
+    # Controller 3.x defaults the Gateway API controllers on (2.x: off) and relies
+    # on CRD auto-detection to turn them back off. We only use Ingress and have no
+    # Gateway API CRDs installed; pin the gates off so the behavior is explicit.
+    {
+      name  = "controllerConfig.featureGates.ALBGatewayAPI"
+      value = "false"
+    },
+    {
+      name  = "controllerConfig.featureGates.NLBGatewayAPI"
+      value = "false"
+    },
+  ]
 
   # Chart CRDs live in crds/, which helm upgrade never touches; apply them
   # manually before upgrading (see the PRs that bumped this from 1.4.6 and
@@ -129,41 +122,40 @@ resource "helm_release" "external-dns" {
   version    = "1.21.1"
   namespace  = "kube-system"
 
-  set {
-    name  = "provider.name"
-    value = "aws"
-  }
-
-  set {
-    name  = "extraArgs[0]"
-    value = "--aws-zone-type=public"
-  }
-
-  # Chart defaults (policy=upsert-only, txt registry, owner id "default")
-  # match the previous Bitnami deployment, so existing Route 53 TXT
-  # ownership records stay valid across the migration.
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = "external-dns"
-  }
-
-  # Only set txtPrefix when configured, so environments without it render
-  # exactly as before (no helm diff). Changing it orphans the existing TXT
-  # ownership records: pre-create the new-format records first, see
-  # docs/external-dns-txt-prefix-migration.md.
-  dynamic "set" {
-    for_each = var.external_dns_txt_prefix == "" ? [] : [var.external_dns_txt_prefix]
-    content {
-      name  = "txtPrefix"
-      type  = "string"
-      value = set.value
-    }
-  }
+  # The trailing conditional element only adds txtPrefix when configured, so
+  # environments without it render exactly as before (no helm diff). Changing
+  # it orphans the existing TXT ownership records: pre-create the new-format
+  # records first, see docs/external-dns-txt-prefix-migration.md.
+  set = concat(
+    [
+      {
+        name  = "provider.name"
+        value = "aws"
+      },
+      {
+        name  = "extraArgs[0]"
+        value = "--aws-zone-type=public"
+      },
+      # Chart defaults (policy=upsert-only, txt registry, owner id "default")
+      # match the previous Bitnami deployment, so existing Route 53 TXT
+      # ownership records stay valid across the migration.
+      {
+        name  = "serviceAccount.create"
+        value = "false"
+      },
+      {
+        name  = "serviceAccount.name"
+        value = "external-dns"
+      },
+    ],
+    var.external_dns_txt_prefix == "" ? [] : [
+      {
+        name  = "txtPrefix"
+        type  = "string"
+        value = var.external_dns_txt_prefix
+      }
+    ],
+  )
 }
 
 module "external_dns_irsa_role" {
