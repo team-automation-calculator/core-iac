@@ -26,7 +26,6 @@ module "cluster_addons" {
 
 module "main_rails_app" {
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
-  app_version                                   = var.app_version
   automation_calculator_app_host                = var.automation_calculator_app_host
   db_engine_version                             = var.db_engine_version
   db_security_group_ids                         = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
@@ -40,7 +39,6 @@ module "main_rails_app" {
   github_oauth_app_secret = var.github_oauth_app_secret
   google_oauth_app_id     = var.google_oauth_app_id
   google_oauth_app_secret = var.google_oauth_app_secret
-  short_commit_hash       = var.short_commit_hash
   source                  = "../../../../../modules/aws/main_rails_app"
   vpc_id                  = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }

@@ -1,19 +1,39 @@
+{{- if .Values.ingress.enabled }}
 {{- $fullName := include "automation-calculator.fullname" . -}}
 {{- $svcPort := .Values.service.port -}}
+{{- $host := .Values.ingress.host -}}
+{{- $certArn := required "ingress.certificateArn is required (Terraform passes the ACM certificate ARN)" .Values.ingress.certificateArn -}}
 apiVersion: networking.k8s.io/v1
 
 kind: Ingress
 metadata:
   name: {{ $fullName }}
   annotations:
-    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- /*
+    Keys are in the alphabetical order toYaml used before these annotations were
+    built from scalars, so the rendered Ingress stays byte-identical. The
+    redirect-www action keeps its trailing newline (literal block scalar): the
+    live annotation value ends in "\n" and a change here would diff the Ingress.
+    scheme, target-type and load-balancer-name must never change: the ALB
+    controller replaces the ALB or target group when they do.
+    */}}
+    alb.ingress.kubernetes.io/actions.redirect-www: |
+      {"type":"redirect","redirectConfig":{"host":"{{ $host }}","path":"/","port":"443","protocol":"HTTPS","query":"","statusCode":"HTTP_301"}}
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/certificate-arn: {{ $certArn }}
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
+    alb.ingress.kubernetes.io/load-balancer-name: {{ .Values.ingress.albName }}
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/target-type: instance
   labels:
     {{- include "automation-calculator.labels" . | nindent 4 }}
 
 spec:
   ingressClassName: alb
   rules:
-    - host: {{ .Values.ingress.host }}
+    - host: {{ $host }}
       http:
         paths:
           - pathType: ImplementationSpecific
@@ -23,7 +43,7 @@ spec:
                 name: {{ $fullName }}
                 port:
                   number: {{$svcPort }}
-    - host: "www.{{ .Values.ingress.host }}"
+    - host: "www.{{ $host }}"
       http:
         paths:
           - pathType: Prefix
@@ -33,3 +53,4 @@ spec:
                 name: redirect-www
                 port:
                   name: use-annotation
+{{- end }}

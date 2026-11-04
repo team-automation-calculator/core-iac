@@ -10,15 +10,14 @@ resource "helm_release" "automation-calculator" {
   create_namespace = true
   version          = "0.1.0"
 
+  # Image tag, short commit hash, host and ALB name come from the chart's
+  # values-<env>.yaml in git (single source of truth, shared with ArgoCD later).
+  # Terraform only injects what must not live in this public repo: the ACM
+  # certificate ARN and, below, the secrets.
   values = [
+    file("${var.automation_calculator_helm_release_local_path}/values-${var.environment_name}.yaml"),
     templatefile("${path.module}/values.yml", {
-      app_image_pull_policy          = var.app_image_pull_policy
-      app_image_repo                 = var.app_image_repo
-      app_version                    = var.app_version
-      automation_calculator_app_host = var.automation_calculator_app_host
-      alb_name                       = "ac-app-${var.environment_name}"
-      cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
-      short_commit_hash              = var.short_commit_hash
+      cert_arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
     })
   ]
 

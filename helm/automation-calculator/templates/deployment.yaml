@@ -4,7 +4,6 @@ metadata:
   name: {{ include "automation-calculator.fullname" . }}
   labels:
     {{- include "automation-calculator.labels" . | nindent 4 }}
-  namespace: 
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
