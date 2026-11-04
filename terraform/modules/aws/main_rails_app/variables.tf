@@ -1,3 +1,9 @@
+variable "addons_dependency" {
+  default     = []
+  description = "Values the app Helm release must be installed after, e.g. the add-on Helm release names output by cluster-addons-layer. Used only for ordering via terraform_data.cluster_addons; the values are never read."
+  type        = list(string)
+}
+
 variable "app_image_pull_policy" {
   default     = "Always"
   description = "The image pull policy for the automation-calculator app."
