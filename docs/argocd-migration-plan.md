@@ -317,13 +317,27 @@ Runbook with the exact commands, the failure triage and the definition of "manua
 
 ### Phase 8: production
 
-- Set `argocd_enabled = true` in production's `terraform.tfvars` (fresh TFC run, confirm promptly).
-  The same `argocd_apps` release creates the production `AppProject` and `Application`, with
-  `syncPolicy` manual.
+Runbook with the soak-gate check, the production preflight, the expected plan per merge, the
+state address and the rollback at each step: `docs/argocd-phase-8-production.md`. One branch,
+two commits, landed as **separate merges** in this order (each a fresh, promptly confirmed
+production run); the second is reverted off the branch and re-landed as a follow-up PR if the
+first has to merge alone, as Phase 6 did with the automated-sync flip.
+
+- Gate: `scripts/argocd_soak_log.py status` prints PASS, and the Phase 0 preflight passes on
+  production (`scripts/argocd_preflight.sh`). The ALB `replicaCount` reduction was never applied
+  (staging had the headroom), so production may first need it or `desired_size = 2` in its own PR.
+- Commit A: set `argocd_enabled = true` in production's `terraform.tfvars` (2 to add in
+  `module.argocd[0]`; confirm promptly). The same `argocd_apps` release creates the production
+  `AppProject` and `Application`, with `syncPolicy` manual: the module defaults
+  (`argocd_manage_application` true, the three `argocd_application_*` variables false) do it, and
+  production's tfvars set none of them.
 - Repeat the Phase 5 checks: diff shows only tracking metadata, `argocd app sync`, no rollout,
-  Ingress untouched.
-- Run the Phase 6 runbook against the production workspace (`state rm`, then
-  `manage_helm_release = false` in production tfvars).
+  Ingress untouched. `scripts/argocd_staging_verify.sh --env production` (the name is historical)
+  with `--expect-helm-release` while Terraform still owns the release.
+- Commit B: run the Phase 6 runbook against the production workspace, with the **indexed**
+  address, `terraform state rm 'module.main_rails_app.helm_release.automation-calculator[0]'`
+  (production applied the Phase 6 move), then `manage_app_helm_release = false` in production
+  tfvars (plans 0 changes), then delete the Helm history.
 - Production stays on manual sync. A production deploy is now: merge the bump PR, then
   `argocd app sync automation-calculator` through a port-forward. Decide separately whether to move
   production to automated sync, which would make PR review the only gate.
