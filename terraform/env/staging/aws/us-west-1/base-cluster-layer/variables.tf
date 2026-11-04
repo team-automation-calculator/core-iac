@@ -38,6 +38,12 @@ variable "kubernetes_cluster_version" {
   type        = string
 }
 
+variable "node_group_instance_types" {
+  default     = ["t3.medium"]
+  description = "The AWS EC2 instance types to use to create worker nodes with"
+  type        = list(string)
+}
+
 variable "project_tag" {
   default     = "automation_calculator"
   description = "Tag for describing the name of the project, i.e automation-calculator"
