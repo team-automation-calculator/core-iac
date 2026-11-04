@@ -22,35 +22,32 @@ resource "helm_release" "automation-calculator" {
     })
   ]
 
-  set_sensitive {
-    name  = "secrets.databaseUrl"
-    value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
-  }
-
-  set_sensitive {
-    name  = "secrets.githubOAuthAppId"
-    value = var.github_oauth_app_id
-  }
-
-  set_sensitive {
-    name  = "secrets.githubOAuthAppSecret"
-    value = var.github_oauth_app_secret
-  }
-
-  set_sensitive {
-    name  = "secrets.googleOAuthAppId"
-    value = var.google_oauth_app_id
-  }
-
-  set_sensitive {
-    name  = "secrets.googleOAuthAppSecret"
-    value = var.google_oauth_app_secret
-  }
-
-  set_sensitive {
-    name  = "secrets.secretKeyBase"
-    value = random_password.rails_app_secret_key_base.result
-  }
+  set_sensitive = [
+    {
+      name  = "secrets.databaseUrl"
+      value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
+    },
+    {
+      name  = "secrets.githubOAuthAppId"
+      value = var.github_oauth_app_id
+    },
+    {
+      name  = "secrets.githubOAuthAppSecret"
+      value = var.github_oauth_app_secret
+    },
+    {
+      name  = "secrets.googleOAuthAppId"
+      value = var.google_oauth_app_id
+    },
+    {
+      name  = "secrets.googleOAuthAppSecret"
+      value = var.google_oauth_app_secret
+    },
+    {
+      name  = "secrets.secretKeyBase"
+      value = random_password.rails_app_secret_key_base.result
+    },
+  ]
 }
 
 resource "aws_security_group" "allow_db_access_from_eks" {
