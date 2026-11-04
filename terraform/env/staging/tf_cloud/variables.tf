@@ -46,5 +46,5 @@ variable "TF_VAR_GITHUB_TOKEN" {
 variable "tfe_workspace_tf_version" {
   description = "Allows for version pinning of tfe workspaces that have been created, because otherwise TF Cloud just chooses the latest one."
   type        = string
-  default     = "1.3.7"
+  default     = "1.17"
 }
