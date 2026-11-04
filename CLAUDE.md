@@ -71,16 +71,17 @@ terraform apply
 # Lint the chart (what CI runs — note the --strict flag)
 helm lint helm/automation-calculator/ --strict
 
-# Render templates locally for one environment. ingress.certificateArn and the
-# secrets.* values are `required` (Terraform injects them), so a render with only
-# values.yaml fails on purpose; pass placeholders or turn the Secret off.
+# Render templates locally for one environment. ingress.certificateArn is
+# `required` (Terraform injects it), so a render with only values.yaml fails on
+# purpose; pass a placeholder. values-<env>.yaml already turns the chart's
+# Secret off (Terraform manages the real one); a render with values.yaml alone
+# also needs --set secrets.create=false or placeholder secrets.* values.
 helm template automation-calculator helm/automation-calculator/ \
   --values helm/automation-calculator/values-staging.yaml \
-  --set ingress.certificateArn=arn:aws:acm:us-west-1:000000000000:certificate/placeholder \
-  --set secrets.create=false
+  --set ingress.certificateArn=arn:aws:acm:us-west-1:000000000000:certificate/placeholder
 ```
 
-**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`; secrets still come through `set_sensitive`. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB.
+**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`. The app Secret (`automation-calculator-app-secrets`) and the `automation-calculator` namespace are Terraform resources in that module (`kubernetes_secret_v1.app_secrets`, `kubernetes_namespace_v1.automation_calculator`, adopted from Helm in ArgoCD migration Phase 4, `docs/argocd-phase-4-secret-adoption.md`); every `values-<env>.yaml` sets `secrets.create: false` so the chart never renders a Secret for a real environment. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB.
 
 ### Scripts
 ```bash
