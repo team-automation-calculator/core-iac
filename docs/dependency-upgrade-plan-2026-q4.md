@@ -193,7 +193,7 @@ new `policy = "upsert-only"` entry (required from 1.22.0; the comment that says 
 |---|---|
 | `policy` has no default and is required | Yes. Set `upsert-only` explicitly, matching today's effective value. Anything else risks deletes. |
 | Default annotation prefix is now `external-dns.kubernetes.io/`, no fallback | No. The app chart sets no external-dns annotations; hostnames come from Ingress rules. |
-| AWS A ALIAS ownership TXT uses the `a-` prefix instead of `cname-` | **Yes.** Our prefix is `%{record_type}-extdns.`, so today's owner records are `cname-extdns.<host>` and `aaaa-extdns.<host>`. 0.22.0 still reads the `cname-` record, UPSERTs a new `a-extdns.<host>` TXT on the first sync, and leaves the old one with a warning. Ownership is preserved. The old records are removed later with the upstream `scripts/aws-cleanup-legacy-txt-records.py --alias-cname-cleanup`, which only deletes a `cname-` record whose `a-` twin exists. |
+| AWS A ALIAS ownership TXT uses the `a-` prefix instead of `cname-` | **Yes.** Our prefix is `%{record_type}-extdns.`, so today's owner records are `cname-extdns.<host>` and `aaaa-extdns.<host>`. 0.22.0 still reads the `cname-` record, UPSERTs a new `a-extdns.<host>` TXT on the first sync, and leaves the old one with a warning. Ownership is preserved. The old records are removed later with `scripts/external_dns_txt_prefix_migration.py delete-legacy-cname`, which (like the upstream `aws-cleanup-legacy-txt-records.py --alias-cname-cleanup`) only deletes a `cname-` record whose `a-` twin exists. |
 | TXT registry deletes by stored value (0.23.0) | Behavioral; no config. |
 | `crd` registry namespace flag (0.23.0) | No. We use the `txt` registry. |
 | Removed providers (Gandi, Akamai, Plural, Transip), Pi-hole v5, Gateway/Ambassador API moves | No. |
@@ -219,8 +219,10 @@ Rollout, staging first:
    orphan-cleanup bug in 0.22 was only visible on records that lost their A twin).
 6. Production: fresh TFC run, same validation, `./go smoke prod`.
 7. After both envs are clean for a week, delete the legacy `cname-extdns.*` TXT records for alias
-   A names in a separate PR using the upstream cleanup script with `--dry-run` first, and record
-   the inverse batch in `tmp/` as was done for the prefix migration.
+   A names with `scripts/external_dns_txt_prefix_migration.py delete-legacy-cname` (dry run first,
+   then `--apply`; step 7 of `docs/external-dns-txt-prefix-migration.md`), and record the inverse
+   batch in `tmp/` as was done for the prefix migration. Note that this removes the 0.21 rollback
+   path below.
 
 Rollback: `helm -n kube-system rollback external-dns <revision>` restores 0.21, which still owns
 through the `cname-extdns` records (they are never deleted by 0.22/0.23), so no DNS is lost.
