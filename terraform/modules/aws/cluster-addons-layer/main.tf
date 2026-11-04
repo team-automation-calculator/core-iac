@@ -119,7 +119,7 @@ resource "helm_release" "external-dns" {
   name       = "external-dns"
   repository = "https://kubernetes-sigs.github.io/external-dns/"
   chart      = "external-dns"
-  version    = "1.21.1"
+  version    = "1.23.0"
   namespace  = "kube-system"
 
   # The trailing conditional element only adds txtPrefix when configured, so
@@ -136,9 +136,16 @@ resource "helm_release" "external-dns" {
         name  = "extraArgs[0]"
         value = "--aws-zone-type=public"
       },
-      # Chart defaults (policy=upsert-only, txt registry, owner id "default")
-      # match the previous Bitnami deployment, so existing Route 53 TXT
-      # ownership records stay valid across the migration.
+      # policy has no chart default since 1.22.0 (the schema requires it).
+      # upsert-only is what the chart used to default to and what the previous
+      # Bitnami deployment ran; anything else lets external-dns delete records.
+      {
+        name  = "policy"
+        value = "upsert-only"
+      },
+      # Chart defaults for the rest (txt registry, owner id "default") match
+      # the previous Bitnami deployment, so existing Route 53 TXT ownership
+      # records stay valid across the migration.
       {
         name  = "serviceAccount.create"
         value = "false"
