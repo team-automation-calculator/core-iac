@@ -29,7 +29,7 @@ terraform/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
 helm/
   automation-calculator/        # App Helm chart
-plans/                          # Investigation and migration proposals (e.g. TFC to Spacelift)
+plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
 scripts/                        # Bash helpers
 eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
 rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
