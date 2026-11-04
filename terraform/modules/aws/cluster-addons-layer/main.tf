@@ -91,6 +91,28 @@ resource "helm_release" "aws_load_balancer_controller" {
       name  = "controllerConfig.featureGates.NLBGatewayAPI"
       value = "false"
     },
+    # Resource requests/limits for the controller container (chart default is
+    # resources: {}, i.e. BestEffort with no scheduling guarantee). Observed on
+    # staging after 9 days: 1-2m CPU and 24-29Mi memory per replica (2 replicas,
+    # one t3.medium node). Requests sit ~4x above idle so the pods get scheduling
+    # weight and Burstable QoS without over-reserving: 2 x 50m / 128Mi is ~5% of
+    # the node's CPU and ~8% of its memory. The memory limit is ~9x idle so a
+    # cache growth bug is contained before it starves the node, but reconciling
+    # a few dozen Ingresses/target groups stays well under it. No CPU limit on
+    # purpose: CFS throttling slows reconciles and webhook responses (which
+    # block Ingress/Pod admission) with no benefit on a mostly idle node.
+    {
+      name  = "resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "128Mi"
+    },
+    {
+      name  = "resources.limits.memory"
+      value = "256Mi"
+    },
   ]
 
   # Chart CRDs live in crds/, which helm upgrade never touches; apply them
