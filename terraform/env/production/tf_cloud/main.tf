@@ -11,8 +11,10 @@ module "tf_cloud_workspaces" {
   base_cluster_layer_working_directory   = var.base_cluster_layer_working_directory
   cluster_addons_layer_working_directory = var.cluster_addons_layer_working_directory
   enable_cluster_addons_run_trigger      = var.enable_cluster_addons_run_trigger
+  enable_github_org_workspace            = var.enable_github_org_workspace
   enable_route53_domains_workspace       = var.enable_route53_domains_workspace
   environment_name                       = var.environment_name
+  github_org_working_directory           = var.github_org_working_directory
   route53_domains_working_directory      = var.route53_domains_working_directory
   source                                 = "../../../modules/tf_cloud/tf_cloud_workspaces"
   tf_cloud_organization_name             = var.tf_cloud_organization_name
