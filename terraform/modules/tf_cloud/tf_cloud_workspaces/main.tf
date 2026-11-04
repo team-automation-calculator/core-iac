@@ -38,6 +38,21 @@ resource "tfe_workspace" "route53_domains_tfe_workspace" {
   working_directory = var.route53_domains_working_directory
 }
 
+resource "tfe_workspace" "github_org_tfe_workspace" {
+  count             = var.enable_github_org_workspace ? 1 : 0
+  name              = "ac_app_${var.environment_name}_github_org"
+  organization      = var.tf_cloud_organization_name
+  auto_apply        = var.auto_apply
+  tag_names         = local.shared_workspace_tags
+  terraform_version = var.tfe_workspace_tf_version
+  trigger_prefixes  = concat([var.github_org_working_directory], var.github_org_module_directories)
+  vcs_repo {
+    identifier     = var.tf_cloud_workspace_vcs_repo_identifier
+    oauth_token_id = var.tfe_oauth_client_token_id
+  }
+  working_directory = var.github_org_working_directory
+}
+
 resource "tfe_workspace" "cluster_addons_tfe_workspace" {
   name              = "ac_app_${var.environment_name}_cluster_addons_layer"
   organization      = var.tf_cloud_organization_name
