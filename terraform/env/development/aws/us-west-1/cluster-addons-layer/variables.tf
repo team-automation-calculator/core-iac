@@ -20,6 +20,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "backup_retention_period" {
+  default     = 7
+  description = "Days to retain automated RDS backups. Must be non-zero before a major engine version upgrade; changing between 0 and a non-zero value causes a brief outage."
+  type        = number
+}
+
 variable "db_engine_version" {
   description = "The PostgreSQL engine version for the RDS instance."
   type        = string
@@ -28,6 +34,12 @@ variable "db_engine_version" {
 variable "external_dns_txt_prefix" {
   default     = ""
   description = "external-dns TXT registry prefix; empty leaves it unset. Set only after pre-creating the new-format TXT records, see docs/external-dns-txt-prefix-migration.md."
+  type        = string
+}
+
+variable "final_snapshot_identifier" {
+  default     = null
+  description = "Name of the final RDS snapshot taken on destroy when skip_final_snapshot is false; null derives automation-calculator-<environment_name>-final."
   type        = string
 }
 
@@ -55,6 +67,12 @@ variable "short_commit_hash" {
   default     = ""
   description = "The short git commit hash of the automation-calculator app version being deployed."
   type        = string
+}
+
+variable "skip_final_snapshot" {
+  default     = true
+  description = "Whether to skip the final RDS snapshot on destroy. Set to false to take one named by final_snapshot_identifier."
+  type        = bool
 }
 
 variable "project_tag" {
