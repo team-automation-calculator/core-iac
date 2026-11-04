@@ -112,7 +112,13 @@ Both CI roles have EKS access entries on each environment's cluster
 (`terraform/env/<env>/aws/us-west-1/base-cluster-layer/main.tf`):
 `ac_ci_terraform_<env>` has `AmazonEKSClusterAdminPolicy`, and
 `ac_ci_terraform_<env>_read_only` has `AmazonEKSViewPolicy`, so `kubectl`
-works under the `-ro` profile for every read-only verb. A kubeconfig entry
+works under the `-ro` profile for read-only verbs on namespaced resources.
+The view policy excludes cluster-scoped resources; the read-only entry is
+also placed in the `ac-ci-read-only` Kubernetes group, which
+`cluster-addons-layer` binds to a ClusterRole that can only read `nodes`
+(so `kubectl get nodes` and `scripts/argocd_preflight.sh` work). Other
+cluster-scoped reads, such as `kubectl get namespaces`, still need the
+full profile. A kubeconfig entry
 written by `aws eks update-kubeconfig` embeds the profile it was created
 with, so run it once per persona, with `--alias` to keep them apart:
 
