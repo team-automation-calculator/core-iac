@@ -21,7 +21,7 @@ variable "aws_region" {
 }
 
 variable "backup_retention_period" {
-  default     = 7
+  default     = 0
   description = "Days to retain automated RDS backups. Must be non-zero before a major engine version upgrade; changing between 0 and a non-zero value causes a brief outage."
   type        = number
 }
