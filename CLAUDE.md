@@ -29,6 +29,7 @@ terraform/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
 helm/
   automation-calculator/        # App Helm chart
+plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
 scripts/                        # Bash helpers
 eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
 rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
@@ -87,6 +88,7 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 scripts/watch_addon_rollout.sh                 # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
+scripts/tfc_workspace_inventory.py             # Spacelift migration Phase 0: read-only TFC workspace inventory (resource counts, triggers, variable names) for plans/tfc-to-spacelift-migration.md
 ```
 
 ## Key Conventions
