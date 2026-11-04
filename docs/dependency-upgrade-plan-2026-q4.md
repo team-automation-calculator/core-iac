@@ -264,7 +264,7 @@ updates in the same apply. Then update vpc-cni and CoreDNS by hand, `kubectl get
 within 7 days of the upgrade, so the "one-way" note from the 1.36 PRs no longer applies; outside
 that window it is one-way.
 
-### Phase 5: RDS 16.13 to 18.6 (backup PR, then staging PR, then production PR)
+### Phase 5: RDS 16.13 to 18.6 (backup PRs for staging then production, then the staging and production upgrade PRs)
 
 **5a: backups first (all envs).** Add `backup_retention_period` (default 7) to
 `main_rails_app` and set it; set `skip_final_snapshot = false` in staging and production (development
