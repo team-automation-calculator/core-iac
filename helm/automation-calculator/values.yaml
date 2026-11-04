@@ -12,7 +12,7 @@ googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.9.6-970
+  tag: 0.9.6-980
 ingress:
   # ALB name. Must never change for a live environment: the ALB controller replaces the ALB.
   albName: automation-calculator-alb
