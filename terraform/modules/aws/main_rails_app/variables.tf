@@ -4,12 +4,6 @@ variable "automation_calculator_app_host" {
   type        = string
 }
 
-variable "automation_calculator_helm_release_local_path" {
-  default     = "helm-charts/automation-calculator"
-  description = "The local path to the helm chart for the automation-calculator app."
-  type        = string
-}
-
 variable "db_engine_version" {
   default     = null
   description = "The PostgreSQL engine version for the RDS instance. If null, AWS uses its default."
@@ -62,12 +56,6 @@ variable "google_oauth_app_id" {
 variable "google_oauth_app_secret" {
   description = "The Google OAuth App Secret for the automation-calculator app."
   type        = string
-}
-
-variable "manage_helm_release" {
-  default     = true
-  description = "Manage the app's Helm release (helm_release.automation-calculator[0]) from Terraform. ArgoCD migration Phase 6: an env sets this to false only AFTER its workspace has run `terraform state rm` on the release, so that ArgoCD becomes the app's only controller without Terraform ever planning a destroy (prevent_destroy on the release fails the plan if the order is wrong). The namespace, Secret, RDS and ACM resources of this module are unaffected. Runbook: docs/argocd-phase-6-retire-staging-release.md."
-  type        = bool
 }
 
 variable "route53_zone_name" {

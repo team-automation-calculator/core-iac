@@ -5,11 +5,20 @@ set -euo pipefail
 # ArgoCD migration Phase 1 proof: render the app chart as it was before the
 # refactor (from a git ref, with the values Terraform used to build from
 # terraform.tfvars + values.yml) and as it is in the working tree (chart
-# values-<env>.yaml + the certificate ARN Terraform still injects), then diff
-# the two renders per environment. Read-only: no cluster access.
+# values-<env>.yaml + the certificate ARN injected as a parameter, by
+# Terraform's release until Phase 9 and by the ArgoCD Application since), then
+# diff the two renders per environment. Read-only: no cluster access.
+#
+# Historical since Phase 1 landed, kept because it still runs: everything on
+# the "old" side comes from BASE_REF through `git show`, so Phase 9 deleting
+# terraform/modules/aws/main_rails_app/values.yml from the working tree does
+# not affect it. Expect the diff to have grown since Phase 4: every
+# values-<env>.yaml sets secrets.create=false, so the new render has no
+# Secret (the placeholders below only reach the old chart).
 #
 # Usage: scripts/argocd_phase1_render_diff.sh [BASE_REF]
-#   BASE_REF defaults to origin/argocd-phase-0 (the chart before Phase 1).
+#   BASE_REF defaults to origin/argocd-phase-0 (the chart before Phase 1);
+#   pass the merge commit of PR #377 once that branch is gone.
 # Output lands in tmp/argocd-phase1-render/ (gitignored). Exit code is 0 when
 # every env rendered; the diffs are printed and saved for review.
 

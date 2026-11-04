@@ -3,15 +3,18 @@ locals {
 }
 
 # ArgoCD migration Phase 4 (docs/argocd-migration-plan.md): Terraform owns the
-# app namespace and the app Secret. The chart no longer renders the Secret
-# (secrets.create is false in every values-<env>.yaml), so ArgoCD can deploy
-# the app from git alone later without a secret value ever entering the repo.
+# app namespace and the app Secret. The chart does not render the Secret
+# (secrets.create is false in every values-<env>.yaml), so ArgoCD deploys the
+# app from git alone without a secret value ever entering the repo.
 #
-# Both objects already exist on the live clusters: Helm created the namespace
-# through create_namespace and rendered the Secret until this phase. Each env's
-# cluster-addons-layer adopts them with `import` blocks
-# (imports_argocd_phase4.tf) instead of recreating them. Runbook with the
-# expected plan and checks: docs/argocd-phase-4-secret-adoption.md.
+# Both objects were created by Helm on the live clusters (create_namespace and
+# the chart's templates/secret.yaml) and adopted into each env's state with
+# `import` blocks in Phase 4 (runbook: docs/argocd-phase-4-secret-adoption.md;
+# the import files were deleted in Phase 9 once both envs had applied them).
+# Since Phase 9 this module manages only these two objects, RDS and ACM: the
+# app's Helm release left Terraform in Phases 6 (staging) and 8 (production)
+# and the ArgoCD Application in terraform/modules/aws/argocd deploys the chart
+# (docs/argocd-phase-9-decommission.md).
 resource "kubernetes_namespace_v1" "automation_calculator" {
   metadata {
     name = "automation-calculator"
@@ -42,8 +45,12 @@ resource "kubernetes_secret_v1" "app_secrets" {
     namespace = kubernetes_namespace_v1.automation_calculator.metadata[0].name
 
     # Everything below mirrors what Helm left on the live Secret, so that the
-    # import produces a clean plan (no metadata update on production). None of
-    # it is functional once Terraform owns the object; Phase 9 may drop it.
+    # Phase 4 import produced a clean plan. None of it is functional now that
+    # Terraform owns the object. It is kept on purpose: the Helm metadata is
+    # what would let a manual `helm upgrade --install` re-adopt the Secret if
+    # the app ever had to go back to a Helm release (the rollback of last
+    # resort in docs/argocd-phase-9-decommission.md), and dropping it would be
+    # a metadata update on both live Secrets for no gain.
     annotations = {
       # Rendered by the chart since Phase 1 and applied by hand per its
       # runbook. It is also what made Helm leave the Secret in place when this
@@ -63,8 +70,10 @@ resource "kubernetes_secret_v1" "app_secrets" {
     # app.kubernetes.io/instance is the one to watch: ArgoCD's *label* tracking
     # method treats any object carrying `app.kubernetes.io/instance: <Application
     # name>` as part of that Application and would prune it. ArgoCD 3.x, which
-    # Phase 2 installs, tracks by annotation, so the label is inert; Phase 6
-    # confirms that with `argocd app resources` before enabling prune.
+    # Phase 2 installed, tracks by annotation, so the label is inert; Phase 6
+    # confirmed that with `argocd app resources` before enabling prune on
+    # staging. Never switch application.resourceTrackingMethod to "label"
+    # while this label is here.
     labels = {
       "app.kubernetes.io/instance"   = "automation-calculator"
       "app.kubernetes.io/managed-by" = "Helm"
@@ -76,11 +85,12 @@ resource "kubernetes_secret_v1" "app_secrets" {
 
   type = "Opaque"
 
-  # The six keys the chart's templates/secret.yaml rendered until this phase
+  # The six keys the chart's templates/secret.yaml rendered until Phase 4
   # (as stringData; the API server stores them as data, which is what this
-  # attribute reads back), built from the same expressions the release's
-  # set_sensitive blocks used. The Deployment reads them through secretKeyRef
-  # at pod start, so a changed value here takes effect on the next rollout,
+  # attribute reads back), built from the same expressions the retired Helm
+  # release's set_sensitive blocks used. The Deployment reads them through
+  # secretKeyRef at pod start, so a changed value here takes effect on the
+  # next rollout (an ArgoCD sync of a bump PR, or `kubectl rollout restart`),
   # not on apply.
   data = {
     databaseUrl          = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
@@ -92,71 +102,14 @@ resource "kubernetes_secret_v1" "app_secrets" {
   }
 }
 
-# ArgoCD migration Phase 6 (docs/argocd-migration-plan.md): the release is
-# behind manage_helm_release so each env can hand the app over to ArgoCD on
-# its own schedule (staging in Phase 6, production in Phase 8) while the
-# module stays shared. Adding `count` changes the instance address from
-# helm_release.automation-calculator to helm_release.automation-calculator[0];
-# the `moved` block below records that so an env that keeps the release
-# (count = 1) plans a state move and nothing else.
-#
-# Setting manage_helm_release = false is NOT how an env stops managing the
-# release: with the instance still in state, count = 0 plans a destroy, which
-# is `helm uninstall`, which deletes the Ingress and the ALB. The env's
-# workspace must `terraform state rm` the release first, then flip the
-# variable; prevent_destroy below turns the wrong order into a plan error.
-# Runbook: docs/argocd-phase-6-retire-staging-release.md.
-resource "helm_release" "automation-calculator" {
-  count = var.manage_helm_release ? 1 : 0
-
-  atomic    = true
-  name      = "automation-calculator"
-  namespace = "automation-calculator"
-  chart     = var.automation_calculator_helm_release_local_path
-  # A no-op since Phase 4: the namespace is the Terraform resource above and
-  # the release depends on it. Left in place so this phase's release diff is
-  # only the removed set_sensitive blocks; Phase 9 deletes the release.
-  create_namespace = true
-  version          = "0.1.0"
-
-  # On a fresh environment the namespace and the Secret must exist before the
-  # chart's Deployment references the Secret through secretKeyRef.
-  depends_on = [
-    kubernetes_namespace_v1.automation_calculator,
-    kubernetes_secret_v1.app_secrets,
-  ]
-
-  # Image tag, short commit hash, host and ALB name come from the chart's
-  # values-<env>.yaml in git (single source of truth, shared with ArgoCD later).
-  # Terraform only injects what must not live in this public repo: the ACM
-  # certificate ARN. The secrets are a Terraform-managed Secret (above), not
-  # chart values, since Phase 4.
-  values = [
-    file("${var.automation_calculator_helm_release_local_path}/values-${var.environment_name}.yaml"),
-    templatefile("${path.module}/values.yml", {
-      cert_arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
-    })
-  ]
-
-  lifecycle {
-    # Destroying the release is `helm uninstall`: it deletes the Ingress and
-    # therefore the ALB (the top risk in docs/argocd-migration-plan.md). Any
-    # plan that would destroy it, in particular a count of 0 while the
-    # instance is still in state (manage_helm_release flipped before the
-    # `terraform state rm`), must fail instead. Like the namespace guard
-    # above, this only holds while the resource block exists; Phase 9 removes
-    # the block only after every env has forgotten the release.
-    prevent_destroy = true
-  }
-}
-
-# Phase 6: the instance address gained an index when `count` was added.
-# Terraform would propose this move by itself; the block makes it explicit and
-# deterministic. Phase 9 deletes it together with the resource.
-moved {
-  from = helm_release.automation-calculator
-  to   = helm_release.automation-calculator[0]
-}
+# The app's Helm release (helm_release.automation-calculator) lived here until
+# ArgoCD migration Phase 9. It was never destroyed: each env's workspace ran
+# `terraform state rm` on it (staging in Phase 6, production in Phase 8) and
+# its Helm history was deleted, so the Service, Deployment and Ingress kept
+# running and are reconciled by the ArgoCD Application since. Do not add a
+# helm_release for the app back here: a `helm install` against the live
+# objects would either fail or make two controllers fight over the Deployment
+# (docs/argocd-phase-9-decommission.md explains the rollback of last resort).
 
 resource "aws_security_group" "allow_db_access_from_eks" {
   name        = "allow_db_access_from_eks"

@@ -5,7 +5,7 @@ variable "alarm_email" {
 
 variable "argocd_application_automated_sync" {
   default     = false
-  description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). Only after this env's workspace has forgotten the Helm release (manage_app_helm_release = false, applied) and its Helm history is deleted: until then two controllers would reconcile the same Deployment. Runbook: docs/argocd-phase-6-retire-staging-release.md."
+  description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). True on staging since Phase 6; false (manual sync, `argocd app sync` after the bump PR merges) on production by decision, see docs/argocd-phase-8-production.md section 8. Terraform has not managed the app's Helm release since Phase 9, so ArgoCD is the only controller of the Deployment either way."
   type        = bool
 }
 
@@ -95,12 +95,6 @@ variable "google_oauth_app_id" {
 variable "google_oauth_app_secret" {
   description = "The Google OAuth App Secret for the automation-calculator app."
   type        = string
-}
-
-variable "manage_app_helm_release" {
-  default     = true
-  description = "Manage the app's Helm release from this workspace (module.main_rails_app.helm_release.automation-calculator[0]). ArgoCD migration Phase 6: set to false only AFTER `terraform state rm` of that release in this workspace; flipping it first plans a destroy, which prevent_destroy on the release turns into a plan error. Runbook: docs/argocd-phase-6-retire-staging-release.md."
-  type        = bool
 }
 
 variable "project_tag" {
