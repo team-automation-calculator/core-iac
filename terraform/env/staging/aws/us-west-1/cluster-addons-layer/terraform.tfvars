@@ -5,4 +5,5 @@ backup_retention_period        = 7
 db_engine_version              = "16.13"
 external_dns_txt_prefix        = "%%{record_type}-extdns."
 short_commit_hash              = "547f98d"
+skip_final_snapshot            = false
 tfe_base_layer_workspace_name  = "ac_app_staging_base_cluster_layer"

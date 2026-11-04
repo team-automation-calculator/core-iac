@@ -260,7 +260,8 @@ that window it is one-way.
 ### Phase 5: RDS 16.13 to 18.6 (backup PR, then staging PR, then production PR)
 
 **5a: backups first (all envs).** Add `backup_retention_period` (default 7) to
-`main_rails_app` and set it; optionally `skip_final_snapshot = false` with a
+`main_rails_app` and set it; set `skip_final_snapshot = false` in staging and production (development
+keeps `true` because it is torn down and rebuilt), with the module deriving
 `final_snapshot_identifier`. This is an in-place modify, but AWS documents a brief outage when retention moves
 between 0 and a non-zero value (the instance is taken offline while the first backup is created),
 so apply it in a quiet moment. Once retention is non-zero RDS takes its own before/after snapshots
