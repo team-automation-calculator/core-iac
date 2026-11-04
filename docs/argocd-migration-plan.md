@@ -180,16 +180,24 @@ argocd app list   # empty
 
 ### Phase 3: dry run on a scratch copy (staging)
 
+Runbook with the exact commands: `docs/argocd-phase-3-dry-run.md`. Manifests: `argocd/scratch/`.
+
 Learn the tool on something that cannot touch the ALB or the real database. Through the UI or CLI,
 not Terraform:
 
-- `AppProject` `scratch`, destinations limited to namespace `argocd-canary`.
+- `AppProject` `scratch`, source limited to this repo, destinations limited to namespace
+  `argocd-canary`, `clusterResourceWhitelist` holding only the `argocd-canary` `Namespace` (the
+  `CreateNamespace=true` PreSync task goes through the project permission check like any other
+  resource).
 - `Application` `ac-canary`: same repo and path, `fullnameOverride=ac-canary`,
-  `ingress.enabled=false`, `secrets.create=true` with dummy values, **with** the
-  `resources-finalizer.argocd.argoproj.io` finalizer so delete cleans up.
+  `ingress.enabled=false`, `secrets.create=true` with dummy values into a Secret of its own name
+  (`ac-canary-app-secrets`), manual sync, **with** the `resources-finalizer.argocd.argoproj.io`
+  finalizer so delete cleans up.
 - Exercise: sync; bump `image.tag` on a branch and point `targetRevision` at it; `argocd app rollback`
-  (with auto-sync off); prune; delete.
-- Confirm the real namespace's Secret and Deployment are untouched throughout.
+  (with auto-sync off); prune; delete. ArgoCD does not track the auto-created namespace, so the
+  runbook deletes `argocd-canary` by hand afterwards.
+- Confirm the real namespace's Secret and Deployment are untouched throughout
+  (`scripts/argocd_canary_check.sh`, read-only, before and after every step).
 
 ### Phase 4: Terraform owns the app namespace and Secret (all envs)
 
