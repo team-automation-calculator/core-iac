@@ -50,6 +50,7 @@ module "eks_cluster" {
   source                    = "../../../../../modules/aws/base-cluster-layer"
   subnet_ids                = module.networking_layer.private_eks_subnet_ids
   cluster_version           = var.kubernetes_cluster_version
+  kube_proxy_addon_version  = var.kube_proxy_addon_version
   vpc_id                    = module.networking_layer.vpc.id
   ami_type                  = var.ami_type
   node_group_instance_types = var.node_group_instance_types
