@@ -45,7 +45,7 @@ cluster is intentionally unprovisioned).
 | Decision | Choice | Why |
 |---|---|---|
 | Topology | One ArgoCD per cluster, installed by that env's cluster-addons layer | Clusters are already isolated per env. Hub-and-spoke would need cross-cluster credentials and a control cluster we do not have. |
-| Who installs ArgoCD | Terraform `helm_release` in a new module `terraform/modules/aws/argocd`, mirroring the external-dns pattern in `terraform/modules/aws/cluster-addons-layer/main.tf` | ArgoCD is platform, not app. Terraform already bootstraps every other add-on. |
+| Who installs ArgoCD | Terraform `helm_release` in a new module `terraform/modules/kubernetes/argocd`, mirroring the external-dns pattern in `terraform/modules/aws/cluster-addons-layer/main.tf` | ArgoCD is platform, not app. Terraform already bootstraps every other add-on. |
 | Where the `Application` lives | Terraform, via a second `helm_release` of the `argocd-apps` chart, plus an `AppProject` | Avoids the `kubernetes_manifest` "CRD must exist at plan time" problem. Lets Terraform inject the ACM certificate ARN so it never lands in this public repo. |
 | Source of truth for the image tag | `helm/automation-calculator/values-<env>.yaml` in git, starting in Phase 1 | One source of truth from day one. Terraform reads the same file during the overlap, so there is no drift between the two controllers. A bump becomes one YAML key per env. |
 | App secrets | A Terraform-managed `kubernetes_secret_v1` with today's name and keys; the chart stops rendering its own Secret | Secrets stay out of git without a new operator. |
@@ -143,7 +143,7 @@ kubectl -n automation-calculator annotate secret automation-calculator-app-secre
 
 Runbook with the exact commands: `docs/argocd-phase-2-install.md`.
 
-- New module `terraform/modules/aws/argocd/` (`main.tf`, `variables.tf`, `versions.tf`, lock file)
+- New module `terraform/modules/kubernetes/argocd/` (`main.tf`, `variables.tf`, `versions.tf`, lock file)
   with `helm_release.argocd`: chart `argo-cd`, namespace `argocd`, `create_namespace = true`, pinned
   `version`, `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`. `atomic`
   stays off **for the installs** (Phases 2 and 8): an atomic first install is uninstalled on

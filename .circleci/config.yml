@@ -136,9 +136,9 @@ jobs:
     steps:
       - checkout
       - terraform/fmt:
-          path: ./terraform/modules/aws/argocd
+          path: ./terraform/modules/kubernetes/argocd
       - terraform/validate:
-          path: ./terraform/modules/aws/argocd
+          path: ./terraform/modules/kubernetes/argocd
 
   validate_main_rails_app_module:
     executor: terraform
