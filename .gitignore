@@ -33,3 +33,7 @@ override.tf.json
 
 # Local scratch space (downloads, rendered charts, PR body drafts)
 tmp/
+
+# Claude Code: local worktrees and per-machine settings
+.claude/worktrees/
+.claude/settings.local.json

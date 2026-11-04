@@ -3,6 +3,11 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "ci_read_only_kubernetes_group" {
+  description = "Kubernetes group the read-only CI role is mapped to by its EKS access entry; granted cluster-scoped read on nodes"
+  type        = string
+}
+
 variable "cloudwatch_alarms_enabled" {
   description = "Set to true to create the CloudWatch alarms and SNS alerting resources. Requires the app ALB to exist, so must be false on initial bootstrap."
   type        = bool
