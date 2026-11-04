@@ -300,14 +300,20 @@ Runbook with the state-address reasoning, the expected plan per step and the rol
 
 ### Phase 7: prove and soak the new path on staging
 
+Runbook with the exact commands, the failure triage and the definition of "manual intervention":
+`docs/argocd-phase-7-staging-soak.md`. Cycles are recorded in `docs/argocd-staging-soak-log.md`.
+
 - Run a real bump through the updated script, merge, and watch ArgoCD sync (polling default is
   3 minutes). Verify `https://staging.automation-calculations.io/health`, the `SHORT_COMMIT_HASH`
-  env var on the new pod, and `argocd app history automation-calculator`. Confirm the staging TFC
-  workspace planned 0 changes for that merge.
+  env var on the new pod, and `argocd app history automation-calculator`
+  (`scripts/argocd_staging_verify.sh`, read-only, checks all of that against `values-staging.yaml`
+  and that `helm list` is still empty). Confirm the staging TFC workspace planned 0 changes for
+  that merge.
 - Test the real rollback path: a revert PR, synced by ArgoCD. (`argocd app rollback` is refused
   while automated sync is on.)
 - Soak gate before production: at least three bump cycles and at least one week without manual
-  intervention.
+  intervention. `scripts/argocd_soak_log.py add` records each cycle and
+  `scripts/argocd_soak_log.py status` evaluates the gate and writes the result into the log.
 
 ### Phase 8: production
 

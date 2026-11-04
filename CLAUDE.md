@@ -102,6 +102,8 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 scripts/argocd_canary_check.sh                 # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
+scripts/argocd_staging_verify.sh               # ArgoCD Phase 7: read-only check that a merged bump reached staging via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty)
+scripts/argocd_soak_log.py                     # ArgoCD Phase 7: add bump/rollback cycles to docs/argocd-staging-soak-log.md and evaluate the soak gate (status)
 ```
 
 ## Key Conventions
