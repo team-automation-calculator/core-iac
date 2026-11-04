@@ -167,6 +167,24 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/aws/us-east-1/route53-domains
 
+  validate_org_ci_access_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/github/org-ci-access
+      - terraform/validate:
+          path: ./terraform/modules/github/org-ci-access
+
+  validate_production_github_org:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/github/org
+      - terraform/validate:
+          path: ./terraform/env/production/github/org
+
   validate_app_docker_image_versions:
     docker:
       - image: cimg/base:stable
@@ -198,6 +216,8 @@ workflows:
       - validate_networking_module
       - validate_route53_domain_module
       - validate_production_aws_route53_domains
+      - validate_org_ci_access_module
+      - validate_production_github_org
       - validate_app_docker_image_versions:
           filters:
             branches:

@@ -8,6 +8,11 @@ output "ci_read_only_iam_role_arn" {
   value       = module.ci_iam_role.read_only_role_arn
 }
 
+output "ci_read_only_kubernetes_group" {
+  description = "The Kubernetes group the read-only CI role is mapped to by its EKS access entry"
+  value       = local.ci_read_only_kubernetes_group
+}
+
 output "eks_cluster_name" {
   description = "The name of the EKS cluster"
   value       = module.eks_cluster.eks_cluster_name
