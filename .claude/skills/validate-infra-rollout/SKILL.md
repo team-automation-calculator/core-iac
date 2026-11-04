@@ -97,11 +97,18 @@ staging's diff matches the expectation.
   with them (`ac_app_<env>-ro`); the script defaults to those. See
   `docs/aws-sso-auth.md`. Never run the SSO login yourself or switch the
   user's current context. Two limits seen in practice:
-  - the production `_read_only` role cannot read Helm release Secrets, so
-    `helm list` / `helm get manifest` on production need the read-write
-    `ac-ci-prod` role via a separate context. Ask before using it; a
-    production snapshot without the Helm checks is acceptable and the
-    diff still covers pods, Route 53, ACM and `/health`;
+  - until PR #409 (`ac-ci-read-only-helm-releases` ClusterRole) is applied
+    to an environment's cluster-addons workspace, its `_read_only` role
+    cannot read Helm release Secrets, so `helm list` / `helm get manifest`
+    there need the read-write `ac-ci-<env>` role via a separate context.
+    Ask before using it; a snapshot without the Helm checks is acceptable
+    and the diff still covers pods, Route 53, ACM and `/health`. This was
+    never a staging-vs-production difference: the staging checks only
+    "worked" because the `ac_app_staging-ro` context embedded the
+    read-write profile. `env_snapshot.py` now refuses a context whose
+    `kubectl auth whoami` identity is not a `_read_only` role; recreate the
+    context with `aws eks update-kubeconfig ... --profile ac-ci-<env>-ro
+    --alias ac_app_<env>-ro` (see `docs/aws-sso-auth.md`);
   - the permission mode may deny production reads outright. Report
     "production not inspected" and stop there; do not work around it.
 

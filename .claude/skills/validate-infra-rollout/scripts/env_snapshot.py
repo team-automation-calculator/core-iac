@@ -54,6 +54,20 @@ def pick_context(candidates: list[str]) -> str:
     return ""
 
 
+def kube_identity(ctx: str, env: dict) -> str:
+    """Return the username the API server sees for this context ("" if the call fails).
+
+    A kubeconfig context embeds the AWS profile it was created with, so the alias
+    `ac_app_<env>-ro` proves nothing: it has been seen pointing at the read-write
+    role. The identity is what matters.
+    """
+    try:
+        data = json.loads(run(["kubectl", "auth", "whoami", "-o", "json", "--context", ctx], env))
+    except (subprocess.CalledProcessError, ValueError):
+        return ""
+    return data.get("status", {}).get("userInfo", {}).get("username", "")
+
+
 def take(args: argparse.Namespace) -> int:
     import os
 
@@ -65,6 +79,18 @@ def take(args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, AWS_PROFILE=profile)
     errors: list[str] = []
+
+    identity = kube_identity(ctx, env) if ctx else ""
+    if ctx and "_read_only/" not in identity:
+        print(
+            f"error: kubectl context {ctx} authenticates as {identity or 'unknown'}, not a "
+            f"_read_only role; it embeds the wrong AWS profile. Recreate it with\n"
+            f"  aws eks update-kubeconfig --name ac_app_{args.env} --region {REGION} "
+            f"--profile {cfg['profile']} --alias ac_app_{args.env}-ro\n"
+            f"or pass --context for a context that uses {cfg['profile']}.",
+            file=sys.stderr,
+        )
+        return 2
 
     def step(name: str, fn) -> None:
         try:
@@ -82,6 +108,7 @@ def take(args: argparse.Namespace) -> int:
         "host": host,
         "profile": profile,
         "context": ctx,
+        "identity": identity,
         "taken_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     (out / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")

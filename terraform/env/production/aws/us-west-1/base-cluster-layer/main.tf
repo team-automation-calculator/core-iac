@@ -19,7 +19,8 @@ locals {
   ]
 
   # Kubernetes group the read-only CI role is mapped to by its EKS access
-  # entry; cluster-addons-layer grants it cluster-scoped read on nodes.
+  # entry; cluster-addons-layer grants it cluster-scoped read on nodes and
+  # get/list on Secrets (Helm release state).
   ci_read_only_kubernetes_group = "ac-ci-read-only"
 }
 
@@ -65,8 +66,8 @@ module "eks_cluster" {
   # needed. The read-only role gets the view policy, matching its
   # plan-and-inspect-only IAM permissions. The view policy covers only
   # namespaced resources, so the entry also joins a Kubernetes group that
-  # cluster-addons-layer binds to a nodes-only read ClusterRole (needed by
-  # scripts/argocd_preflight.sh).
+  # cluster-addons-layer binds to read-only ClusterRoles for nodes (needed by
+  # scripts/argocd_preflight.sh) and Secrets (Helm release state).
   access_entries = {
     ci_terraform = {
       principal_arn = module.ci_iam_role.role_arn
