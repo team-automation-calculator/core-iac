@@ -17,12 +17,16 @@ terraform/
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
       main_rails_app/               # Rails app Helm release module
       networking/                   # VPC/subnet resources
+    github/
+      org-ci-access/                # GitHub org membership + team for the CI machine user
   env/              # Per-environment configs (development, staging, production)
     <env>/
       tf_cloud/     # TFE workspace bootstrap (apply this first)
       aws/us-west-1/
         base-cluster-layer/
         cluster-addons-layer/
+    production/
+      github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
 helm/
   automation-calculator/        # App Helm chart
 scripts/                        # Bash helpers
@@ -80,6 +84,8 @@ scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alp
 scripts/install_tf.sh                          # Install a specific Terraform version
 scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
 scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration (dry run unless --apply)
+scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
+scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 ```
 
 ## Key Conventions
@@ -98,6 +104,7 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 | Helm | `~> 3.3` (`cluster-addons-layer`, `main_rails_app`) | `~> 3.3` (cluster-addons-layer configs) |
 | Kubernetes | `~> 3.4` (`cluster-addons-layer`) | `~> 3.4` (cluster-addons-layer configs) |
 | TFE | `~> 0.82` (`tf_cloud_workspaces`) | `~> 0.82` (all tf_cloud and cluster-addons-layer configs) |
+| GitHub | `~> 6.13` | `~> 6.13` |
 
 Helm provider 3.x takes `set = [{ name = ..., value = ... }]` / `set_sensitive = [...]` list attributes and a `kubernetes = { ... }` attribute in the provider block, not the 2.x nested blocks. The Q4 2026 bumps are recorded in `docs/dependency-upgrade-plan-2026-q4.md`.
 
@@ -133,6 +140,8 @@ TFE_TOKEN                  # Terraform Cloud API token
 TF_VAR_GITHUB_TOKEN        # GitHub token (passed as TF variable)
 AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (see docs/aws-sso-auth.md)
 ```
+
+`GITHUB_TOKEN` for the `github` provider (`terraform/env/production/github/org`) is never set locally: it lives only as a sensitive environment variable on the `ac_app_production_github_org` TFC workspace. The GitHub CI machine user, its tokens, and the owner token that workspace uses are documented in `docs/github-ci-user.md`.
 
 ## AWS Authentication
 
