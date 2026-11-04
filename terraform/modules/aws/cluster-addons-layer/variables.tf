@@ -4,7 +4,7 @@ variable "alarm_email" {
 }
 
 variable "ci_read_only_kubernetes_group" {
-  description = "Kubernetes group the read-only CI role is mapped to by its EKS access entry; granted cluster-scoped read on nodes and get/list on Secrets (Helm release state)"
+  description = "Kubernetes group the read-only CI role is mapped to by its EKS access entry; granted cluster-scoped read on nodes"
   type        = string
 }
 
