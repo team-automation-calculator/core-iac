@@ -88,6 +88,8 @@ scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 scripts/tfc_workspace_inventory.py             # Spacelift migration Phase 0: read-only TFC workspace inventory (resource counts, triggers, variable names) for plans/tfc-to-spacelift-migration.md
+scripts/rds_utilization_summary.py             # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
+scripts/rds_price_list_extract.py              # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
 ```
 
 ## Key Conventions
