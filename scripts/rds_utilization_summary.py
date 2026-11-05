@@ -101,7 +101,7 @@ def metric(region, instance_id, name, start, end, period):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--region", default="us-west-1")
     parser.add_argument("--days", type=int, default=14)
     parser.add_argument("--period", type=int, default=3600)
@@ -117,11 +117,13 @@ def main():
             f"== {instance_id}: {klass}, {storage} {alloc} GiB, multi_az={multi_az}, "
             f"backup_retention={retention}, postgres {engine}"
         )
-        print(f"{'metric':26} {'unit':12} {'avg':>12} {'max':>12} {'min':>12} {'pts':>5}")
+        print(
+            f"{'metric':26} {'unit':12} {'avg':>12} {'max':>12} {'min':>12} {'pts':>5}"
+        )
         for name, unit, divisor in METRICS:
             stats, err = metric(args.region, instance_id, name, start, end, args.period)
-            if err:
-                print(f"{name:26} {unit:12} {err}")
+            if err or stats is None:
+                print(f"{name:26} {unit:12} {err or 'no data'}")
                 continue
             avg, mx, mn, n = stats
             print(

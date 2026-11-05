@@ -48,7 +48,7 @@ COLUMNS = [
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("csv_path")
     parser.add_argument("--term", help="OnDemand or Reserved")
     parser.add_argument("--family", help="Product Family, e.g. 'Database Instance'")
@@ -56,7 +56,9 @@ def main():
     parser.add_argument("--instance-type", help="e.g. db.t4g.micro")
     parser.add_argument("--deployment", help="Single-AZ or Multi-AZ")
     parser.add_argument("--volume-type", help="e.g. 'General Purpose-GP3'")
-    parser.add_argument("--grep", help="regex over usageType, PriceDescription, Product Family")
+    parser.add_argument(
+        "--grep", help="regex over usageType, PriceDescription, Product Family"
+    )
     args = parser.parse_args()
 
     pattern = re.compile(args.grep, re.IGNORECASE) if args.grep else None
