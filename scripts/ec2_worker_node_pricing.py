@@ -100,7 +100,9 @@ def vantage_rows(data, region, types):
 
 def print_summary(rows, types, hours):
     print(f"On-demand, Linux, shared tenancy, {hours} h/month")
-    print(f"{'type':12} {'vcpu':>4} {'mem GiB':>8} {'gen':>7} {'$/h':>8} {'$/mo':>7} {'$/yr':>7} {'spot avg':>9} {'interrupt':>10}")
+    print(
+        f"{'type':12} {'vcpu':>4} {'mem GiB':>8} {'gen':>7} {'$/h':>8} {'$/mo':>7} {'$/yr':>7} {'spot avg':>9} {'interrupt':>10}"
+    )
     for itype in types:
         r = rows.get(itype)
         if not r:
@@ -114,7 +116,9 @@ def print_summary(rows, types, hours):
 
 def print_commitments(rows, types, hours):
     print()
-    print("Commitment pricing: effective $/h, $/month, total cost over the term, and % saved vs on-demand")
+    print(
+        "Commitment pricing: effective $/h, $/month, total cost over the term, and % saved vs on-demand"
+    )
     for itype in types:
         r = rows.get(itype)
         if not r:
@@ -129,13 +133,17 @@ def print_commitments(rows, types, hours):
             years = 3 if key.startswith("yrTerm3") else 1
             total = rate * hours * 12 * years
             pct = (1 - rate / od) * 100
-            print(f"  {label:24} {rate:8.4f} $/h  {rate*hours:7.2f} $/mo  {total:8.2f} $/{years}y  -{pct:4.1f}%")
+            print(
+                f"  {label:24} {rate:8.4f} $/h  {rate*hours:7.2f} $/mo  {total:8.2f} $/{years}y  -{pct:4.1f}%"
+            )
 
 
 def print_sp_crosscheck(sp_data, region, types):
     prefix = {"us-west-1": "USW1"}.get(region)
     if not prefix:
-        print(f"no usage-type prefix known for {region}; skipping Savings Plans cross-check")
+        print(
+            f"no usage-type prefix known for {region}; skipping Savings Plans cross-check"
+        )
         return
     wanted = {f"{prefix}-BoxUsage:{t}": t for t in types}
     print()
@@ -152,9 +160,14 @@ def print_sp_crosscheck(sp_data, region, types):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--vantage", required=True, help="path to instances.vantage.sh instances.json")
-    parser.add_argument("--savings-plans", help="path to the AWS Savings Plans price list for the region")
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser.add_argument(
+        "--vantage", required=True, help="path to instances.vantage.sh instances.json"
+    )
+    parser.add_argument(
+        "--savings-plans",
+        help="path to the AWS Savings Plans price list for the region",
+    )
     parser.add_argument("--region", default="us-west-1")
     parser.add_argument("--hours", type=float, default=730.0)
     parser.add_argument("--types", default=",".join(DEFAULT_TYPES))

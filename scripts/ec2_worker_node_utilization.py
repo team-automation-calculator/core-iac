@@ -61,7 +61,7 @@ def percentile(values, pct):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--asg", required=True, help="Auto Scaling group name")
     parser.add_argument("--days", type=int, default=14)
     parser.add_argument("--region", default="us-west-1")
@@ -85,7 +85,13 @@ def main():
         args.region, "CPUUtilization", args.asg, start, end, day, ["Average", "Maximum"]
     )
     balance_daily = get_stats(
-        args.region, "CPUCreditBalance", args.asg, start, end, day, ["Minimum", "Average"]
+        args.region,
+        "CPUCreditBalance",
+        args.asg,
+        start,
+        end,
+        day,
+        ["Minimum", "Average"],
     )
     usage_daily = get_stats(
         args.region, "CPUCreditUsage", args.asg, start, end, day, ["Sum"]
@@ -94,7 +100,13 @@ def main():
         args.region, "CPUSurplusCreditsCharged", args.asg, start, end, day, ["Sum"]
     )
     cpu_hourly = get_stats(
-        args.region, "CPUUtilization", args.asg, start, end, hour, ["Average", "Maximum"]
+        args.region,
+        "CPUUtilization",
+        args.asg,
+        start,
+        end,
+        hour,
+        ["Average", "Maximum"],
     )
 
     def by_day(points):
@@ -105,9 +117,13 @@ def main():
     sur = by_day(surplus_daily)
 
     print(f"ASG: {args.asg}")
-    print(f"Window: {start:%Y-%m-%d} to {end:%Y-%m-%d} UTC ({args.days} days), region {args.region}")
+    print(
+        f"Window: {start:%Y-%m-%d} to {end:%Y-%m-%d} UTC ({args.days} days), region {args.region}"
+    )
     print()
-    print("day         cpu_avg%  cpu_max%  credit_bal_min  credit_bal_avg  credits_used  surplus_charged")
+    print(
+        "day         cpu_avg%  cpu_max%  credit_bal_min  credit_bal_avg  credits_used  surplus_charged"
+    )
     for p in cpu_daily:
         key = p["Timestamp"][:10]
         b = bal.get(key, {})
@@ -133,10 +149,14 @@ def main():
             f"p99 {percentile(hourly_max, 99):.2f}%  max {max(hourly_max):.2f}%"
         )
         hours_over_20 = sum(1 for v in hourly_avg if v > 20)
-        print(f"hours with average CPU above the 20% t-medium baseline: {hours_over_20}")
+        print(
+            f"hours with average CPU above the 20% t-medium baseline: {hours_over_20}"
+        )
     total_used = sum(p["Sum"] for p in usage_daily)
     total_surplus = sum(p["Sum"] for p in surplus_daily)
-    print(f"credits used over window: {total_used:.1f}; surplus credits charged: {total_surplus:.1f}")
+    print(
+        f"credits used over window: {total_used:.1f}; surplus credits charged: {total_surplus:.1f}"
+    )
     return 0
 
 
