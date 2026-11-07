@@ -49,7 +49,13 @@ argocd app history automation-calculator                      # note the latest 
 - A new app image exists on Docker Hub to bump to (`scripts/watch_app_docker_image_versions.py`
   prints the newest tags and whether a bump is pending). A cycle needs a real new image; never
   bump to a tag that is not on Docker Hub (CI's `validate_app_docker_image_versions` rejects it
-  anyway).
+  anyway). Both clusters run arm64 `t4g.medium` nodes (#409, #410), so the tag must also carry a
+  `linux/arm64` manifest; CI does not check that. App builds since `0.9.6-990` are multi-arch;
+  every older tag is amd64-only and CrashLoops with `exec format error`:
+
+  ```bash
+  docker manifest inspect automationcalculationsci/automation-calculator:<tag> | grep -c '"architecture": "arm64"'   # must be 1
+  ```
 - Know what a bump PR does to the **other** workspaces while Phase 8 is pending: the bump script
   edits all four values files, so `ac_app_production_cluster_addons_layer` still plans **1 to
   change** (its Helm release, as today) and waits for a confirm. That is the normal production
@@ -127,7 +133,8 @@ git push -u origin revert-bump-<tag>
 gh pr create --title "Revert app image bump to <tag>" --body "Phase 7 rollback test: ArgoCD syncs the revert."
 ```
 
-CI passes (the previous tag still exists on Docker Hub). Merge, note `mergedAt`, wait for the poll
+CI passes (the previous tag still exists on Docker Hub). The previous tag must have an arm64
+manifest too (section 2); reverting to anything older than `0.9.6-990` takes staging down. Merge, note `mergedAt`, wait for the poll
 as in section 3 step 3, then verify against the reverted `main`:
 
 ```bash

@@ -145,6 +145,10 @@ would **set** shows, and before the first sync that is the tracking annotation.
   replaced (section 7) before anything else.
 - Any line on the Ingress annotations (`alb.ingress.kubernetes.io/*`): the ALB would be modified
   or replaced. `load-balancer-name`, `scheme` and `target-type` especially.
+- Any Ingress other than `automation-calculator/automation-calculator` (a different name or
+  namespace): the ALB controller would build a new stack and target group, and the unhealthy-hosts
+  alarm (#425) finds its target group by the tag
+  `ingress.k8s.aws/stack=automation-calculator/automation-calculator`.
 
 The UI shows the same thing: Application tile, "App Diff", "Compact diff" on. Three resources,
 each with the one annotation line.
