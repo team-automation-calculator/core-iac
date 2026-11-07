@@ -2,12 +2,25 @@ locals {
   www_redirect_name = "www.${var.automation_calculator_app_host}"
 }
 
+# Ordering handle for the Helm release only. A depends_on inside a module
+# cannot name resources outside it, so the caller passes the add-on Helm
+# release names in through var.addons_dependency and the release waits on this
+# resource instead. Do not express this as a module-level depends_on in the
+# caller: that defers data.aws_route53_zone to apply time whenever the add-ons
+# have pending changes, zone_id becomes unknown, and the ACM validation records
+# (zone_id is force-new) are planned for replacement on every add-ons change.
+# The RDS, ACM and Route 53 resources here do not need the add-ons at all.
+resource "terraform_data" "cluster_addons" {
+  input = var.addons_dependency
+}
+
 resource "helm_release" "automation-calculator" {
   atomic           = true
   name             = "automation-calculator"
   namespace        = "automation-calculator"
   chart            = var.automation_calculator_helm_release_local_path
   create_namespace = true
+  depends_on       = [terraform_data.cluster_addons]
   version          = "0.1.0"
 
   # Image tag, short commit hash, host and ALB name come from the chart's
@@ -86,15 +99,17 @@ resource "aws_db_instance" "automation_calculator_app" {
   apply_immediately           = true
   allow_major_version_upgrade = true
   auto_minor_version_upgrade  = true
+  backup_retention_period     = var.backup_retention_period
   db_name                     = "automation_calculator_app"
   db_subnet_group_name        = aws_db_subnet_group.db_access_subnet_group.name
   engine                      = "postgres"
   engine_version              = var.db_engine_version
+  final_snapshot_identifier   = var.skip_final_snapshot ? null : coalesce(var.final_snapshot_identifier, "automation-calculator-${var.environment_name}-final")
   instance_class              = var.db_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result
   port                        = var.db_port
-  skip_final_snapshot         = true
+  skip_final_snapshot         = var.skip_final_snapshot
   username                    = "automation_calculator_devops"
   vpc_security_group_ids = [
     aws_security_group.allow_db_access_from_eks.id,
