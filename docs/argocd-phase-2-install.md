@@ -6,7 +6,7 @@ Nothing here changes the cluster except the TFC apply itself.
 
 ## 1. What the PR changes
 
-- `terraform/modules/aws/argocd/`: one `helm_release.argocd` of the `argo-cd` chart (version pinned
+- `terraform/modules/kubernetes/argocd/`: one `helm_release.argocd` of the `argo-cd` chart (version pinned
   under Phase 0 "Versions" in the plan), namespace `argocd`, `wait = true`, `atomic = false`
   (for the install; Phase 9 turns it on), `cleanup_on_fail = false`, `timeout = 900`. Dex,
   notifications and Redis HA off, the
@@ -19,7 +19,7 @@ Nothing here changes the cluster except the TFC apply itself.
 - Each env's `cluster-addons-layer/main.tf` gains `module "argocd"` behind
   `var.argocd_enabled` (default `false`). Only staging's `terraform.tfvars` sets it to `true`.
 - The module is added to `cluster_addons_layer_module_directories` so a change under
-  `terraform/modules/aws/argocd` queues a cluster-addons run, and to `.circleci/config.yml` for
+  `terraform/modules/kubernetes/argocd` queues a cluster-addons run, and to `.circleci/config.yml` for
   fmt and validate.
 
 ## 2. Expected TFC plans
