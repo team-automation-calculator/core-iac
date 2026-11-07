@@ -35,7 +35,9 @@ CHART_HEADER_RE = re.compile(r"^  ([A-Za-z0-9_.-]+):\s*$")
 # such as annotations); later scalar fields sit at four spaces.
 ITEM_START_RE = re.compile(r"^  - (\w+):(?: (.*))?$")
 ITEM_FIELD_RE = re.compile(r"^    (\w+):(?: (.*))?$")
-SEMVER_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$")
+SEMVER_RE = re.compile(
+    r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$"
+)
 
 
 def unquote(value: str) -> str:

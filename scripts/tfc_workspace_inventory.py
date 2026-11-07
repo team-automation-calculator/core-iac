@@ -84,7 +84,9 @@ def main() -> int:
             by_id.get(t["relationships"]["sourceable"]["data"]["id"], "?")
             for t in triggers
         )
-        consumers = paged(f"/workspaces/{wid}/relationships/remote-state-consumers", token)
+        consumers = paged(
+            f"/workspaces/{wid}/relationships/remote-state-consumers", token
+        )
         consumer_names = ", ".join(by_id.get(c["id"], c["id"]) for c in consumers)
         variables = paged(f"/workspaces/{wid}/vars", token)
         var_names = ", ".join(
