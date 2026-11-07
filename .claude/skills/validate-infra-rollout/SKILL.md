@@ -23,11 +23,12 @@ staging's diff matches the expectation.
   also owns RDS, the ACM certificate and its Route 53 validation records, the
   app namespace and Secret (module `main_rails_app`), and ArgoCD with the
   app's `Application` (module `argocd`). The app's Helm release left the
-  staging workspace in ArgoCD migration Phase 6: on staging the app is
-  synced by ArgoCD from `main`, `helm list` shows no `automation-calculator`
-  release (only `argocd` and `argocd-apps` in namespace `argocd`), and a
-  missing app release in a staging snapshot is expected. Production still
-  owns the release until Phase 8. Development is intentionally
+  staging workspace in ArgoCD migration Phase 6 and the production one in
+  Phase 8: the app is synced by ArgoCD from `main` (automatically on
+  staging, by a manual `argocd app sync` on production), `helm list` shows
+  no `automation-calculator` release (only `argocd` and `argocd-apps` in
+  namespace `argocd`), and a missing app release in a snapshot is expected.
+  Development is intentionally
   unprovisioned: its config is validated by CircleCI only and never applies.
   Merging to `main` triggers a run in every workspace whose files changed:
   - **staging auto-applies**, usually 3–5 minutes after merge;
