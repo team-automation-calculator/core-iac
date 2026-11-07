@@ -8,12 +8,12 @@ deploy-image skill reads those items before the rollout, runs the ones it can,
 and ticks them afterwards with a note saying what was observed and where, so
 the PR records its own verification.
 
-Run:  python3 -I .claude/skills/deploy-image/scripts/pr_checklist.py prs <old_sha> <new_sha>
-      python3 -I .claude/skills/deploy-image/scripts/pr_checklist.py list 238 241
-      python3 -I .claude/skills/deploy-image/scripts/pr_checklist.py list 238 --open
-      python3 -I .claude/skills/deploy-image/scripts/pr_checklist.py check 238 \
+Run:  python3 -I scripts/pr_checklist.py prs <old_sha> <new_sha>
+      python3 -I scripts/pr_checklist.py list 238 241
+      python3 -I scripts/pr_checklist.py list 238 --open
+      python3 -I scripts/pr_checklist.py check 238 \
           --match 'smoke staging' --note 'staging 49/0/2 before (-950) and after (-951), 2026-10-26' --dry-run
-      python3 -I .claude/skills/deploy-image/scripts/pr_checklist.py note 238 \
+      python3 -I scripts/pr_checklist.py note 238 \
           --match 'puma RSS' --note 'not checked: no kubeconfig context for staging'
 
 `check` flips exactly one unchecked `- [ ]` item to `- [x]` and appends the
@@ -29,8 +29,9 @@ import subprocess
 import sys
 import tempfile
 
-REPO = "team-automation-calculator/automation-calculator"
-ITEM = re.compile(r"^(?P<indent>\s*)(?P<bullet>[-*])\s+\[(?P<state>[ xX])\]\s+(?P<text>.*)$")
+DEFAULT_REPO = "team-automation-calculator/automation-calculator"
+REPO = DEFAULT_REPO  # overridden by --repo (e.g. team-automation-calculator/core-iac for a bump PR)
+ITEM =re.compile(r"^(?P<indent>\s*)(?P<bullet>[-*])\s+\[(?P<state>[ xX])\]\s+(?P<text>.*)$")
 
 
 def gh(*args):
@@ -115,6 +116,7 @@ def edit(args, tick):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--repo", default=DEFAULT_REPO, help="GitHub OWNER/NAME the PR numbers belong to")
     sub = parser.add_subparsers(dest="command", required=True)
 
     prs = sub.add_parser("prs", help="merged PRs whose merge commit lies in old..new")
@@ -139,6 +141,8 @@ def main():
         cmd.set_defaults(func=lambda args, tick=tick: edit(args, tick))
 
     args = parser.parse_args()
+    global REPO
+    REPO = args.repo
     return args.func(args)
 
 

@@ -1,4 +1,4 @@
-alarm_email                    = "steven.uray@automation-caluclations.net"
+alarm_email                    = "steven.uray@automation-calculations.net"
 app_version                    = "0.9.6-980"
 automation_calculator_app_host = "development.automation-calculations.io"
 backup_retention_period        = 7

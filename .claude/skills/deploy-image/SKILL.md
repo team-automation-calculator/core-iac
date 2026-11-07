@@ -42,12 +42,12 @@ is only started after staging's retest matches its baseline.
   the pod memory limit in the first hour`, `/health → 200 with database:
   ok` (see #238 for the shape). Those items are part of this deploy's
   change-specific checks, and the PR body is where the result is recorded.
-  `scripts/pr_checklist.py` (in this skill's directory) lists the PRs
-  between two commits, prints their checklist items, and ticks one item at a
-  time with a note:
+  The repo's `scripts/pr_checklist.py` (run from the repo root) lists the
+  PRs between two commits, prints their checklist items, and ticks one item
+  at a time with a note:
 
   ```bash
-  S=.claude/skills/deploy-image/scripts/pr_checklist.py
+  S=scripts/pr_checklist.py
   python3 -I $S prs <deployed sha> <candidate sha>      # merged PRs whose merge commit is in the range
   python3 -I $S list <pr> [<pr>...] --open               # unchecked items only
   python3 -I $S check <pr> --match '<unique text>' --note '<what, where, when>' --dry-run
