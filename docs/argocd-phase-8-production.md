@@ -8,7 +8,10 @@ by hand, and then Terraform forgets the Helm release without destroying it (**Co
 Production **stays on manual sync**: after this phase a production deploy is "merge the bump PR,
 then `argocd app sync`". Nothing in the `automation-calculator` namespace is recreated or rolled at
 any point; the only cluster writes are ArgoCD's tracking annotations and the deletion of Helm's
-own history records.
+own history records. Those writes, the `argocd app sync` and the `terraform state rm` are the
+user's to run with their own production identity: the `ac_app_production-ro` kube context is
+read-only, and Claude Code sessions are denied production cluster writes. A Claude session can
+run the read-only checks (preflight, canary check, diffs, alarm history) alongside.
 
 The rules are the ones from Phases 5 and 6, with the production twist from the plan's Risks:
 
@@ -94,7 +97,7 @@ mkdir -p tmp
 scripts/argocd_preflight.sh | tee tmp/phase8-00-preflight.txt
 ```
 
-**Pod headroom.** The Phase 0 table applies unchanged: one `t3.medium` allows 17 pods; ArgoCD adds
+**Pod headroom.** The Phase 0 table applies unchanged: one arm64 `t4g.medium` (since #410) allows 17 pods; ArgoCD adds
 4 (controller, repo-server, server, redis; the ApplicationSet controller is scaled to 0); the
 script fails when fewer than 4 slots would be left afterwards. Expect production's count to be
 close to staging's before Phase 2 (the add-ons are the same; the app is one pod), plus one during a
@@ -115,7 +118,11 @@ Phase 0 options **in its own PR, applied and verified before Commit A**:
    overrides the module default of `max_size = 1`), so this is one number, a base-cluster-layer run
    on production only, and a second instance's cost. It doubles the ceiling to 34 and is the choice
    when the shortfall is more than one slot. The base-layer apply queues a cluster-addons run
-   through the run trigger; expect that run to plan 0 changes and let it finish.
+   through the run trigger; expect that run to plan 0 changes and let it finish. Every
+   base-cluster-layer plan also carries the node group's AMI `release_version` bump (the module
+   follows the newest AMI release), and applying it rolls the existing node: the single-node
+   clusters showed an 85–88 s app outage on each node roll in 2026-11 (#409, #410). Schedule it
+   like a node roll, not as a no-op.
 
 **The release and the app are where Terraform left them:**
 
@@ -165,7 +172,10 @@ terraform plan | tee ../../../../../../tmp/phase8-01-production-commit-a.txt
 **Stop and do not merge** if the production plan shows anything on `module.main_rails_app` (the
 release, the namespace, the Secret, RDS, ACM), on `module.cluster_addons`, or an import: none of
 that is this commit. The Phase 4 `import` blocks in `imports_argocd_phase4.tf` are inert once the
-objects are in state and do not appear.
+objects are in state and do not appear. Two artifacts that older production plans showed are now
+findings, not noise: a replacement of the ACM validation records (fixed by #404; it means a
+module-level `depends_on` crept back onto `main_rails_app`) and a `1 to add` on
+`aws_sns_topic_subscription.alarms_email` (fixed by #420).
 
 ### 4.2 Merge and confirm
 
@@ -285,6 +295,22 @@ scripts/argocd_staging_verify.sh --env production --expect-helm-release | tee tm
 
 Then a fresh speculative production plan (4.1's command) must show **0 changes**: the Helm
 provider never reads live objects, so the annotations are invisible to it.
+
+Production is the one environment with CloudWatch alarms (`ac-app-production-*`, including the
+unhealthy-hosts alarm that #425 tied to the app's target group through the Ingress's
+`ingress.k8s.aws/stack` tag). Adoption touches no pod and no target, so the expectation from the
+section 3 baseline time to now is **no transition** at all. Read the history (the
+`validate-infra-rollout` skill's alarm facts explain why `describe-alarm-history`, not
+`StateReason`, is the authority):
+
+```bash
+aws cloudwatch describe-alarm-history --region us-west-1 --profile ac-ci-staging-ro \
+  --start-date <section 3 UTC> --end-date <now UTC> --max-records 100 --output text \
+  --query 'AlarmHistoryItems[?starts_with(AlarmName,`ac-app-production`)].[Timestamp,HistoryItemType,AlarmName,HistorySummary]'
+AWS_PROFILE=ac-ci-staging-ro python3 -I scripts/alb_alarm_window.py --env production --start <section 3 UTC> --end <now UTC>
+```
+
+Repeat the same read after Commit B (section 6, step 5) over its window.
 
 Production is now in the Phase 5 end state: two controllers know about the app, ArgoCD on manual
 sync. **A bump PR merged from here until section 6 step 4 is applied by Terraform** (the production
