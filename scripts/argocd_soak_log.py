@@ -79,7 +79,7 @@ class Cycle:
     notes: str
 
     @classmethod
-    def from_row(cls, row: str, line_number: int) -> "Cycle":
+    def from_row(cls, row: str, line_number: int) -> Cycle:
         # Notes may contain an escaped pipe (\|); split on unescaped pipes only.
         cells = [c.strip() for c in UNESCAPED_PIPE_RE.split(row.strip().strip("|"))]
         if len(cells) != len(COLUMNS):
@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--today",
         type=parse_date,
-        default=dt.date.today(),
+        default=dt.datetime.now(dt.UTC).date(),
         help="evaluation date for the gate (default: today, YYYY-MM-DD)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
