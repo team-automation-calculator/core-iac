@@ -223,10 +223,16 @@ Rollout, staging first:
    A names with `scripts/external_dns_txt_prefix_migration.py delete-legacy-cname` (dry run first,
    then `--apply`; step 7 of `docs/external-dns-txt-prefix-migration.md`), and record the inverse
    batch in `tmp/` as was done for the prefix migration. Note that this removes the 0.21 rollback
-   path below.
+   path below. **Done 2026-11-07** (#411 validation): staging `--apply` at 17:33Z (Route 53 change
+   `C05734473GB0ICTMR9DFZ`), production `--apply` at 17:37Z (`C087991221IFDR2RX5CU0`); each batch
+   deleted exactly the two `cname-extdns.*` records of its environment and nothing else, and the
+   inverse batches are saved as `tmp/411/<env>-inverse.json`. The week-long gate was waived: both
+   environments had been clean since the 2026-11-04 upgrade.
 
 Rollback: `helm -n kube-system rollback external-dns <revision>` restores 0.21, which still owns
 through the `cname-extdns` records (they are never deleted by 0.22/0.23), so no DNS is lost.
+**No longer available since 2026-11-07:** the legacy records are gone, so a 0.21 rollback would
+freeze DNS. Re-create them first from the saved inverse batch (step 7 of the migration doc).
 
 ### Phase 4: EKS 1.37 (staging PR, then production PR)
 
