@@ -54,9 +54,17 @@ blocking) or, with the guard gone, an ALB deletion.
 - `terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars`:
   `manage_app_helm_release = false`.
 - `CLAUDE.md`: production deploys read "merge the bump PR, then `argocd app sync`".
+- `.claude/skills/deploy-image/SKILL.md` and `.claude/skills/validate-infra-rollout/SKILL.md`:
+  production deploys by a manual `argocd app sync`, and a production snapshot has no app Helm
+  release (added when `main` was merged into the stack on 2026-11-07, in a later commit than
+  Commit B, but part of it).
 
-If the PR is approved as a whole, merge it only after reverting Commit B off the branch
-(`git revert <sha>`, push), and re-land Commit B as a follow-up PR when section 6 reaches step 4.
+If the PR is approved as a whole, merge it only after taking Commit B off the branch, and re-land
+it as a follow-up PR when section 6 reaches step 4. Since `main` was merged in, `git revert <sha>`
+of Commit B conflicts on production's `terraform.tfvars` (the neighbouring lines moved). Do it by
+hand instead: delete the `manage_app_helm_release = false` line from that file, restore the
+production-on-TFC wording in the `CLAUDE.md` paragraph and the two skills (`git diff` them against
+the parent of Commit B and the Phase 7 branch), commit and push.
 That is how Phase 6 landed the automated-sync flip. If both commits are merged together by
 mistake, the production plan errors with `Instance cannot be destroyed` (section 6 explains why);
 nothing is applied, and the fix is to run section 6 from step 2 and re-queue the run.
