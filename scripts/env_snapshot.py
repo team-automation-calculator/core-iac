@@ -2,9 +2,9 @@
 """Snapshot an environment's observable state before and after an infra rollout, and diff two snapshots.
 
 Usage:
-    python3 -I env_snapshot.py take staging tmp/<pr>/staging-before
-    python3 -I env_snapshot.py take production tmp/<pr>/production-before [--context CTX] [--profile P]
-    python3 -I env_snapshot.py diff tmp/<pr>/staging-before tmp/<pr>/staging-after
+    python3 -I scripts/env_snapshot.py take staging tmp/<pr>/staging-before
+    python3 -I scripts/env_snapshot.py take production tmp/<pr>/production-before [--context CTX] [--profile P]
+    python3 -I scripts/env_snapshot.py diff tmp/<pr>/staging-before tmp/<pr>/staging-after
 
 `take` runs only reads (helm list / get manifest, kubectl get pods, Route 53 list, ACM describe,
 GET /health) under the environment's read-only persona and writes one file per check into the
