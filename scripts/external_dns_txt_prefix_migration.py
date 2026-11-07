@@ -61,7 +61,7 @@ SHORT_ENV_NAMES = {"staging": "staging", "production": "prod"}
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 APP_HOST_RE = re.compile(
-    r'^\s*automation_calculator_app_host\s*=\s*"([^"]+)"\s*$', re.M
+    r'^\s*automation_calculator_app_host\s*=\s*"([^"]+)"\s*$', re.MULTILINE
 )
 
 

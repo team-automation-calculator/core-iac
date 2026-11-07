@@ -1,0 +1,6 @@
+# Commits git blame skips. Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub's blame view reads this file automatically.
+
+# style: format scripts with Black
+4429be7ddd5ebb0c6d7aab03025db1228ac88e05

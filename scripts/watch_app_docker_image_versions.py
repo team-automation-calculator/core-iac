@@ -34,14 +34,12 @@ TAGS_URL = (
     f"https://hub.docker.com/v2/repositories/{IMAGE_REPO}/tags/"
     "?page_size=25&ordering=last_updated"
 )
-REGISTRY_AUTH_URL = (
-    f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
-)
+REGISTRY_AUTH_URL = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
 REGISTRY_BASE_URL = f"https://registry-1.docker.io/v2/{IMAGE_REPO}"
-MANIFEST_ACCEPT = ", ".join([
-    "application/vnd.docker.distribution.manifest.v2+json",
-    "application/vnd.oci.image.manifest.v1+json",
-])
+MANIFEST_ACCEPT = (
+    "application/vnd.docker.distribution.manifest.v2+json, "
+    "application/vnd.oci.image.manifest.v1+json"
+)
 REVISION_LABEL = "org.opencontainers.image.revision"
 HTTP_TIMEOUT_SECONDS = 15
 POLL_INTERVAL_SECONDS = 60
@@ -70,7 +68,9 @@ def fetch_short_commit_hash(tag: str) -> str:
     Returns "" if the label is absent. The Docker Hub registry requires a bearer
     token even for public repos, but it's anonymous and free.
     """
-    with urllib.request.urlopen(REGISTRY_AUTH_URL, timeout=HTTP_TIMEOUT_SECONDS) as response:
+    with urllib.request.urlopen(
+        REGISTRY_AUTH_URL, timeout=HTTP_TIMEOUT_SECONDS
+    ) as response:
         token = json.load(response)["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -82,7 +82,9 @@ def fetch_short_commit_hash(tag: str) -> str:
         manifest = json.load(response)
     config_digest = manifest["config"]["digest"]
 
-    blob_req = urllib.request.Request(f"{REGISTRY_BASE_URL}/blobs/{config_digest}", headers=headers)
+    blob_req = urllib.request.Request(
+        f"{REGISTRY_BASE_URL}/blobs/{config_digest}", headers=headers
+    )
     with urllib.request.urlopen(blob_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
         config = json.loads(response.read().decode("utf-8"), strict=False)
     labels = config.get("config", {}).get("Labels") or {}
@@ -102,15 +104,22 @@ def find_bump_pr(version: str) -> dict | None:
     branch = f"bump-app-docker-image-version-{version}"
     result = subprocess.run(
         [
-            "gh", "pr", "list",
-            "--head", branch,
-            "--state", "all",
-            "--json", "url,state",
-            "--limit", "1",
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "all",
+            "--json",
+            "url,state",
+            "--limit",
+            "1",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gh pr list failed")
@@ -121,7 +130,9 @@ def find_bump_pr(version: str) -> dict | None:
 def run_bump(version: str, short_commit_hash: str) -> int:
     print(f"Invoking {BUMP_SCRIPT.name} {version} {short_commit_hash or '<empty>'}")
     result = subprocess.run(
-        [str(BUMP_SCRIPT), version, short_commit_hash], cwd=BUMP_SCRIPT.parent
+        [str(BUMP_SCRIPT), version, short_commit_hash],
+        cwd=BUMP_SCRIPT.parent,
+        check=False,
     )
     return result.returncode
 
@@ -190,17 +201,23 @@ def main() -> int:
         print(f"Sync: all envs at {hub_newest} (matches Docker Hub newest)")
     elif len(deployed) == 1:
         (current,) = deployed
-        print(f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)")
+        print(
+            f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)"
+        )
         pending_version = hub_newest
     else:
-        print(f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}")
+        print(
+            f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}"
+        )
     print()
 
     if pending_version is not None:
         try:
             pr = find_bump_pr(pending_version)
         except (OSError, RuntimeError, json.JSONDecodeError) as exc:
-            print(f"Could not check for an existing bump PR: {exc}; watching for new tags instead")
+            print(
+                f"Could not check for an existing bump PR: {exc}; watching for new tags instead"
+            )
         else:
             if pr is None:
                 print(f"No PR found for pending bump to {pending_version}; bumping now")
