@@ -1,9 +1,11 @@
-"""Tests for breaches, replay and parse_time in scripts/alb_alarm_window.py."""
+"""Tests for breaches, replay, unsupported_reason, main and parse_time in scripts/alb_alarm_window.py."""
 
 import datetime as dt
+import sys
 
+import alb_alarm_window
 import pytest
-from alb_alarm_window import breaches, parse_time, replay
+from alb_alarm_window import breaches, parse_time, replay, unsupported_reason
 
 
 def alarm(op="GreaterThanThreshold", threshold=0.0, periods=1, **extra):
@@ -55,9 +57,36 @@ def test_breaches_zero_is_a_value_not_missing():
     assert breaches(0.0, alarm(op="LessThanThreshold", threshold=1.0)) is True
 
 
-def test_breaches_unknown_operator_raises():
-    with pytest.raises(KeyError):
-        breaches(1.0, alarm(op="GreaterThanUpperThreshold"))
+ANOMALY_OPERATORS = [
+    "GreaterThanUpperThreshold",
+    "LessThanLowerThreshold",
+    "LessThanLowerOrGreaterThanUpperThreshold",
+]
+
+
+@pytest.mark.parametrize("op", ANOMALY_OPERATORS)
+def test_breaches_anomaly_operator_raises_value_error(op):
+    rule = {"ComparisonOperator": op, "EvaluationPeriods": 1}
+    with pytest.raises(ValueError, match=op):
+        breaches(1.0, rule)
+
+
+# unsupported_reason
+
+
+def test_unsupported_reason_none_for_static_threshold_alarm():
+    assert unsupported_reason(alarm(MetricName="HTTPCode_ELB_5XX_Count")) is None
+
+
+@pytest.mark.parametrize("op", ANOMALY_OPERATORS)
+def test_unsupported_reason_anomaly_operator(op):
+    rule = {"ComparisonOperator": op, "ThresholdMetricId": "ad1", "Metrics": []}
+    assert op in unsupported_reason(rule)
+
+
+def test_unsupported_reason_metric_math():
+    rule = alarm(Metrics=[{"Id": "e1", "Expression": "m1 + m2"}])
+    assert "metric math" in unsupported_reason(rule)
 
 
 # replay
@@ -116,6 +145,14 @@ def test_replay_datapoints_to_alarm_m_of_n():
     ]
 
 
+def test_replay_without_datapoints_to_alarm_needs_all_periods():
+    window = minutes(4)
+    rule = alarm(periods=2)
+    assert list(replay(rule, series_of(window, [1, 0, 1, 1]), window)) == [
+        (window[3], "ALARM")
+    ]
+
+
 def test_replay_missing_minutes_are_not_breaching():
     window = minutes(4)
     rule = alarm(periods=2, TreatMissingData="notBreaching")
@@ -141,6 +178,56 @@ def test_replay_less_than_alarm_like_healthy_hosts():
 
 def test_replay_empty_window():
     assert list(replay(alarm(), {}, [])) == []
+
+
+# main
+
+
+def test_main_skips_anomaly_alarm_with_warning(monkeypatch, capsys, caplog):
+    dims = [{"Name": "LoadBalancer", "Value": "app/ac-app-production/abc"}]
+    static = alarm(
+        AlarmName="ac-app-production-alb-5xx-errors",
+        MetricName="HTTPCode_ELB_5XX_Count",
+        Namespace="AWS/ApplicationELB",
+        Dimensions=dims,
+        Statistic="Sum",
+        Period=60,
+        TreatMissingData="notBreaching",
+    )
+    anomaly = {
+        "AlarmName": "ac-app-production-anomaly",
+        "ComparisonOperator": "GreaterThanUpperThreshold",
+        "EvaluationPeriods": 1,
+        "ThresholdMetricId": "ad1",
+        "Metrics": [{"Id": "ad1", "Expression": "ANOMALY_DETECTION_BAND(m1, 2)"}],
+    }
+    monkeypatch.setattr(
+        alb_alarm_window, "describe_alarms", lambda env, region: [anomaly, static]
+    )
+    monkeypatch.setattr(alb_alarm_window, "metric_series", lambda *a: {})
+    monkeypatch.setattr(alb_alarm_window, "target_group_dimensions", lambda *a: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "alb_alarm_window.py",
+            "--start",
+            "2026-11-07T16:00:00Z",
+            "--end",
+            "2026-11-07T16:05:00Z",
+        ],
+    )
+
+    alb_alarm_window.main()
+
+    out = capsys.readouterr().out
+    assert "alb-5xx-errors" in out
+    assert "anomaly" not in out
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any(
+        "ac-app-production-anomaly" in m and "GreaterThanUpperThreshold" in m
+        for m in warnings
+    )
 
 
 # parse_time
