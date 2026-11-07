@@ -109,8 +109,8 @@ def print_summary(rows, types, hours):
             continue
         od = r["ondemand"]
         print(
-            f"{itype:12} {str(r['vcpu']):>4} {str(r['memory']):>8} {str(r['generation']):>7} "
-            f"{od:8.4f} {od*hours:7.2f} {od*hours*12:7.2f} {str(r['spot_avg']):>9} {str(r['pct_interrupt']):>10}"
+            f"{itype:12} {r['vcpu']!s:>4} {r['memory']!s:>8} {r['generation']!s:>7} "
+            f"{od:8.4f} {od*hours:7.2f} {od*hours*12:7.2f} {r['spot_avg']!s:>9} {r['pct_interrupt']!s:>10}"
         )
 
 

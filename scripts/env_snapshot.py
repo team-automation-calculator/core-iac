@@ -21,7 +21,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 ENVS = {
     "staging": {
@@ -57,6 +57,7 @@ def pick_context(candidates: list[str]) -> str:
         ["kubectl", "config", "get-contexts", "-o", "name"],
         capture_output=True,
         text=True,
+        check=False,
     ).stdout.split()
     for c in candidates:
         if c in names:
@@ -121,7 +122,7 @@ def take(args: argparse.Namespace) -> int:
         "profile": profile,
         "context": ctx,
         "identity": identity,
-        "taken_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "taken_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     (out / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
 
