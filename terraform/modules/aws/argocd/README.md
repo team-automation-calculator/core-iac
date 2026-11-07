@@ -16,7 +16,7 @@ What the release does and does not do:
   longer has `applicationSet.enabled`). Four pods: application controller, repo server, server,
   redis.
 - `server.insecure=true`: the UI/API is only reachable through `kubectl port-forward`. No Ingress.
-- Explicit resource requests and memory limits sized for a single `t3.medium`.
+- Explicit resource requests and memory limits sized for a single `t4g.medium` (arm64; the images are multi-arch).
 - No IRSA. The admin password is set from a bcrypt **hash** held as a sensitive TFC workspace
   variable (`argocd_admin_password_bcrypt_hash`, plus `argocd_admin_password_mtime`), passed to
   the chart through `set_sensitive`. The plaintext lives only in the team password manager. When

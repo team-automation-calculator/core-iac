@@ -56,10 +56,16 @@ cluster is intentionally unprovisioned).
 
 Runbook with the exact commands: `docs/argocd-phase-0-preflight.md`.
 
-- **Capacity.** Each cluster is one `t3.medium` (desired 1, max 2, no autoscaler;
-  `terraform/modules/aws/base-cluster-layer/variables.tf`). The binding limit is **pod count**, not
-  CPU or memory: a `t3.medium` allows 17 pods. Today's baseline is roughly 9 to 10 pods and ArgoCD
-  adds 4 (controller, repo-server, server, redis). Check before installing with
+- **Capacity.** Each cluster is one arm64 `t4g.medium` (2 vCPU, 4 GiB; desired 1, max 2, no
+  autoscaler; `node_group_instance_types` in each env's `base-cluster-layer/terraform.tfvars`, moved
+  from `t3.medium` by #409 and #410 in 2026-11). The binding limit is **pod count**, not CPU or
+  memory: a `t4g.medium` allows 17 pods, the same as the `t3.medium` it replaced. Today's baseline
+  is roughly 9 to 10 pods and ArgoCD adds 4 (controller, repo-server, server, redis). Requests are
+  not tight but are no longer near zero: since #402 and #403 the ALB controller (2 x 50m / 128Mi)
+  and external-dns (20m / 64Mi) carry requests, about 120m CPU and 320Mi together, next to the app
+  (250m / 512Mi); ArgoCD's requests below add 210m and 480Mi. The argo-cd chart's images
+  (`quay.io/argoproj/argocd`, the upstream Redis image) are published for `linux/arm64`, so the
+  node architecture needs no chart setting. Check before installing with
   `scripts/argocd_preflight.sh` (read-only; exits non-zero when fewer than 4 pod slots would be
   left after ArgoCD, or when the `helm` / `argocd` CLIs are missing). By hand:
 
@@ -307,7 +313,13 @@ must never reconcile the same Deployment.
 - **Ingress deletion means ALB deletion**, and external-dns can leave an orphaned TXT ownership record
   that blocks recreating the A record. Mitigation: adopt in place, no finalizer on the real
   Application, no `helm uninstall`, no prune until Terraform has forgotten the release.
-- **Pod-count ceiling on `t3.medium`.** Mitigation: Phase 0 count; bump `desired_size` if needed.
+- **Renaming the Ingress or its namespace** gives the ALB controller a new stack, so the target
+  group tag `ingress.k8s.aws/stack=automation-calculator/automation-calculator` changes. The
+  unhealthy-hosts alarm (#425, `cluster-addons-layer/cloudwatch_alarms.tf`) finds its target group
+  by that tag and would fail to plan or lose its data. Mitigation: the Application keeps
+  `fullnameOverride: automation-calculator` and namespace `automation-calculator`, the same as the
+  Helm release it adopts.
+- **Pod-count ceiling on `t4g.medium`.** Mitigation: Phase 0 count; bump `desired_size` if needed.
 - **Stale TFC plans on production.** Mitigation: fresh runs only, confirmed immediately; local
   speculative plans before every production-affecting merge.
 - **Two controllers on one Deployment.** Mitigation: ArgoCD stays on manual sync until
