@@ -35,12 +35,11 @@ staging's diff matches the expectation.
   each workspace on the PR head (speculative plan) and on the merge commit
   (the real run). The status flips to `success` when the plan succeeds,
   which for staging means applied and for production means planned and
-  waiting. `scripts/wait_commit_status.py` in this skill's directory polls
-  them through `gh`:
+  waiting. The repo's `scripts/wait_commit_status.py` (run from the repo
+  root) polls them through `gh`:
 
   ```bash
-  S=.claude/skills/validate-infra-rollout/scripts
-  python3 -I $S/wait_commit_status.py <merge sha>            # one line per state change, exits when terminal
+  python3 -I scripts/wait_commit_status.py <merge sha>       # one line per state change, exits when terminal
   gh api repos/team-automation-calculator/core-iac/commits/<sha>/status \
     --jq '.statuses[] | select(.context | startswith("Terraform Cloud")) | "\(.context) \(.state) \(.updated_at) \(.target_url)"'
   ```
@@ -72,8 +71,10 @@ staging's diff matches the expectation.
   VPC change) is a stop: do not merge, or if already merged, do not confirm
   production and report.
 
-- **What a snapshot is.** `scripts/env_snapshot.py` in this skill's
-  directory captures, read-only, everything the morning's rollouts were
+- **Timing an RDS modify.** The repo's `scripts/rds_status_poll.py <env> <log>` (run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with a 2 s `curl` loop on `/health` to bound an outage; the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
+
+- **What a snapshot is.** The repo's `scripts/env_snapshot.py` (run from
+  the repo root) captures, read-only, everything the morning's rollouts were
   verified with: `helm list -A` and `helm get manifest` for every release,
   pods (image, restarts, resources) in `automation-calculator`,
   `kube-system` and `default`, the host's Route 53 records (A/AAAA aliases,
@@ -81,11 +82,11 @@ staging's diff matches the expectation.
   ACM certificate's status and expected validation records, and `/health`.
 
   ```bash
-  S=.claude/skills/validate-infra-rollout/scripts
-  python3 -I $S/env_snapshot.py take staging    tmp/<pr>/staging-before
-  python3 -I $S/env_snapshot.py take staging    tmp/<pr>/staging-after
-  python3 -I $S/env_snapshot.py diff tmp/<pr>/staging-before tmp/<pr>/staging-after
-  python3 -I $S/env_snapshot.py take production tmp/<pr>/production-before [--context CTX]
+  S=scripts/env_snapshot.py
+  python3 -I $S take staging    tmp/<pr>/staging-before
+  python3 -I $S take staging    tmp/<pr>/staging-after
+  python3 -I $S diff tmp/<pr>/staging-before tmp/<pr>/staging-after
+  python3 -I $S take production tmp/<pr>/production-before [--context CTX]
   ```
 
   Snapshots live in the gitignored `tmp/`, one directory per PR. A check

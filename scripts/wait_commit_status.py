@@ -2,7 +2,7 @@
 """Wait for GitHub commit statuses (for example Terraform Cloud runs) to leave "pending".
 
 Usage:
-    python3 scripts/wait_commit_status.py SHA [--filter Terraform] [--interval 30] [--timeout 1800]
+    python3 -I scripts/wait_commit_status.py SHA [--filter Terraform] [--interval 30] [--timeout 1800]
 
 Polls `gh api repos/<owner>/<repo>/commits/SHA/status` with the gh CLI (so it reuses the
 gh login) and prints one line per status context each time its state changes. Exits 0 when
