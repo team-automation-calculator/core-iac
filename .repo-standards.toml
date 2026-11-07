@@ -20,7 +20,3 @@ reason = "./go compile runs inside ./go lint in the CircleCI validate_python job
 
 [overrides.lint]
 reason = "ruff check runs inside ./go lint in the CircleCI validate_python job; the audit only reads .github/workflows/ci.yml"
-
-# Deferrals, lifted one PR at a time (plans/repo-standards-conformance.md).
-[overrides.claude-project]
-reason = "not yet adopted: PR 11"
