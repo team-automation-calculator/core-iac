@@ -93,6 +93,7 @@ scripts/ec2_worker_node_utilization.py         # Node sizing plan: read-only Clo
 scripts/ec2_worker_node_pricing.py             # Node sizing plan: us-west-1 on-demand, RI and Savings Plan rates for candidate node types from downloaded public price files
 scripts/rds_utilization_summary.py             # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
 scripts/rds_price_list_extract.py              # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
+scripts/alb_alarm_window.py                    # Read-only replay of the ac-app-<env>-* CloudWatch alarms over an ALB metrics window (--start/--end UTC, --env): per-minute alarm metrics and host counts, which alarm would have fired, and a warning for a host-count alarm missing the TargetGroup dimension
 ```
 
 ## Key Conventions

@@ -3,8 +3,21 @@ data "aws_lb" "app" {
   name  = "ac-app-${var.environment_name}"
 }
 
+# UnHealthyHostCount and HealthyHostCount are only published per target group
+# (TargetGroup plus LoadBalancer), never for the load balancer alone, so the
+# unhealthy-hosts alarm needs the app's target group as well. The ALB controller
+# creates that group with a generated name; find it by the tags it sets.
+data "aws_lb_target_group" "app" {
+  count = var.cloudwatch_alarms_enabled ? 1 : 0
+  tags = {
+    "elbv2.k8s.aws/cluster" = var.eks_cluster_name
+    "ingress.k8s.aws/stack" = "automation-calculator/automation-calculator"
+  }
+}
+
 locals {
-  alb_dimension = try(join("/", slice(split("/", data.aws_lb.app[0].arn), 1, 4)), "")
+  alb_dimension          = try(join("/", slice(split("/", data.aws_lb.app[0].arn), 1, 4)), "")
+  target_group_dimension = try(data.aws_lb_target_group.app[0].arn_suffix, "")
 }
 
 resource "aws_sns_topic" "alarms" {
@@ -97,6 +110,7 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
 
   dimensions = {
     LoadBalancer = local.alb_dimension
+    TargetGroup  = local.target_group_dimension
   }
 
   alarm_actions = [aws_sns_topic.alarms[0].arn]
