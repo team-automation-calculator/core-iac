@@ -45,7 +45,7 @@ go -> go.py                     # ./go, the single entry point (see Common Comma
 pyproject.toml, poetry.lock     # Poetry project: Python dev dependencies (pytest, Black, Ruff) and tool config
 .python-version                 # Python version pin (3.12.12)
 .repo-standards.toml            # Link to the shared repo standards and this repo's exemptions
-.circleci/config.yml            # CI validation pipeline
+.circleci/config.yml            # CI validation pipeline: Terraform fmt/validate, Helm lint, and ./go lint, ./go test, ./go check-images on cimg/python:3.12.12
 ```
 
 ## Layered Apply Order
@@ -67,6 +67,8 @@ Each environment must be applied in order:
 ./go validate # lint, then test (what to run before pushing)
 ./go audit    # audit against ~/git/repo-standards
 ```
+
+CI pins Poetry 2.3.2 (`pipx install --force poetry==2.3.2` in the `validate_python` job) to match the version that generated `poetry.lock`. If you upgrade Poetry locally and regenerate the lock, bump the pin in `.circleci/config.yml` too.
 
 ### Terraform
 ```bash
