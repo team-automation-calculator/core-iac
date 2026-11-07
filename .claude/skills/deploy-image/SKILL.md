@@ -42,12 +42,12 @@ is only started after staging's retest matches its baseline.
   the pod memory limit in the first hour`, `/health → 200 with database:
   ok` (see #238 for the shape). Those items are part of this deploy's
   change-specific checks, and the PR body is where the result is recorded.
-  `scripts/pr_checklist.py` (in this skill's directory) lists the PRs
-  between two commits, prints their checklist items, and ticks one item at a
-  time with a note:
+  The repo's `scripts/pr_checklist.py` (run from the repo root) lists the
+  PRs between two commits, prints their checklist items, and ticks one item
+  at a time with a note:
 
   ```bash
-  S=.claude/skills/deploy-image/scripts/pr_checklist.py
+  S=scripts/pr_checklist.py
   python3 -I $S prs <deployed sha> <candidate sha>      # merged PRs whose merge commit is in the range
   python3 -I $S list <pr> [<pr>...] --open               # unchecked items only
   python3 -I $S check <pr> --match '<unique text>' --note '<what, where, when>' --dry-run
@@ -71,10 +71,15 @@ is only started after staging's retest matches its baseline.
 
 - **How a deploy happens.** `core-iac/scripts/bump_app_docker_image_version_branch.sh <tag> <short_sha>`
   (or `core-iac/scripts/watch_app_docker_image_versions.py`, which runs it
-  when a new tag appears on Docker Hub) opens one PR that bumps `app_version`
-  and `short_commit_hash` in the development, staging **and** production
-  `terraform.tfvars` plus `helm/automation-calculator/values.yaml`. Merging
-  it triggers Terraform Cloud runs:
+  when a new tag appears on Docker Hub) opens one PR that bumps `image.tag`
+  and `shortCommitHash` in `helm/automation-calculator/values.yaml` and in
+  `values-development.yaml`, `values-staging.yaml` **and**
+  `values-production.yaml` next to it. Those `values-<env>.yaml` files are
+  the single source of truth for what each environment runs; there is no
+  `app_version` / `short_commit_hash` in `terraform.tfvars` any more (ArgoCD
+  migration Phase 1). A promotion that moves one environment only (staging
+  first, production later, as #416 and #419 did) edits that environment's
+  `values-<env>.yaml` by hand. Merging it triggers Terraform Cloud runs:
   - **staging auto-applies**, usually 3–5 minutes after merge;
   - **production stops at "apply pending"** and needs a confirm in the
     Terraform Cloud UI. That confirm is the staging→production gate. The
@@ -149,10 +154,20 @@ is only started after staging's retest matches its baseline.
     context and current-context untouched:
 
     ```bash
+    BEFORE=$(kubectl config current-context)
     aws eks update-kubeconfig --name "ac_app_${ENV}" --region us-west-1 \
-      --profile "ac-ci-${P}-ro" --alias "ac_app_${ENV}-ro"
+      --profile "ac-ci-${P}-ro" --alias "ac_app_${ENV}-ro" --user-alias "ac_app_${ENV}-ro"
+    kubectl config use-context "$BEFORE"     # update-kubeconfig switched it
     CTX="ac_app_${ENV}-ro"
+    kubectl --context "$CTX" auth whoami     # Username must contain _read_only
     ```
+
+    `--user-alias` is what keeps the personas apart: without it the
+    credentials go into the one user entry named by the cluster ARN, which
+    the user's read-write context also uses, so the next
+    `update-kubeconfig` with either profile silently re-points both
+    contexts (seen on both environments on 2026-11-07; details in
+    `core-iac/docs/aws-sso-auth.md`).
 
   - Profile is read-write and no read-only profile works: do **not** run
     the checks as the admin role on your own. Tell the user that only the
@@ -165,6 +180,33 @@ is only started after staging's retest matches its baseline.
   read-write role (a command answered with `Forbidden` under the view
   role, or a wish to `exec` into a container): stop, say what and why, and
   ask before using it. There is no step in this skill that requires it.
+
+- **Production alarms watch the same rollout.** Production (and only
+  production) has four CloudWatch alarms on the app ALB, defined in
+  `core-iac/terraform/modules/aws/cluster-addons-layer/cloudwatch_alarms.tf`:
+  ELB 5xx > 10 for 2 min, target 5xx > 10 for 2 min, p99 latency > 3 s for
+  3 min, and any unhealthy target for 2 min. Each ALARM and OK transition
+  is an email through the SNS topic `ac-app-production-alarms` (subscription
+  confirmed 2026-11-07). An image deploy is a rolling update that keeps a
+  Ready pod, so the expectation for a production deploy is **no alarm
+  transition during the watch**; one that does happen is a finding even
+  when the smoke suite passes, and an email the user receives during the
+  deploy should be explained in the report. Read the window after the
+  production retest (read-only; `ac-ci-staging-ro` can read production's
+  alarms because CloudWatch is account-level):
+
+  ```bash
+  aws cloudwatch describe-alarm-history --region us-west-1 --profile ac-ci-staging-ro \
+    --start-date <baseline time UTC> --end-date <retest time UTC> --max-records 100 --output text \
+    --query 'AlarmHistoryItems[?starts_with(AlarmName,`ac-app-production`)].[Timestamp,HistoryItemType,AlarmName,HistorySummary]'
+  AWS_PROFILE=ac-ci-staging-ro python3 -I core-iac/scripts/alb_alarm_window.py --start <baseline UTC> --end <retest UTC>
+  ```
+
+  The first is the authority for what fired. The second shows the
+  per-minute 5xx counts, p99 latency and healthy/unhealthy host counts
+  behind it, which is where a near miss (a single minute of 5xx while the
+  old pod drained) shows up. Do not read an alarm's `StateReason` as
+  evidence: CloudWatch only rewrites it on a transition.
 
 ## Checks
 
@@ -332,8 +374,12 @@ like any other regression.
    cluster checks when `CTX` exists for production.
 7. **Retest production.** Same checks. Production assets should be
    byte-identical (same digests and sizes) to staging's for the same image.
-   Tick the production items of the PR checklists the same way, including
-   any "after merge: production image built from `main`" item once
+   Then read the production alarm history and the per-minute ALB metrics
+   from the production baseline time to now (the alarms fact above); the
+   expectation is no transition, and a 5xx or unhealthy-host minute during
+   the pod swap goes in the report even when no alarm fired. Tick the
+   production items of the PR checklists the same way, including any
+   "after merge: production image built from `main`" item once
    production's `/health` reports the candidate sha.
 8. **Record.** State the before/after result for each environment, the time
    each hash flipped, what the suite could not verify, which optional
@@ -353,6 +399,7 @@ the user has to act on:
 | After (`<new sha>`, image `-<new>`) | 49 examples, 0 failures, 2 pending |
 | Cluster (optional) | 2/2 pods Ready on `-<new>`, 0 restarts, old ReplicaSet at 0 — or "not checked: no kubeconfig context" |
 | Logs around smoke runs (optional) | before/after: no 5xx, no exceptions — or "not checked" |
+| Alarms (production only) | no transitions 16:28Z to 16:50Z; ALB metrics: 0 ELB 5xx, 0 unhealthy-host minutes — or "alb-5xx-errors ALARM 16:42Z → OK 16:44Z during the pod swap: finding, see below" |
 
 Then the PR checklists, one line per item:
 
