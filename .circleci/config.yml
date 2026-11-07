@@ -12,6 +12,10 @@ executors:
   terraform:
     docker:
       - image: hashicorp/terraform:1.17.0
+  python:
+    docker:
+      # Matches .python-version.
+      - image: cimg/python:3.12.12
 
 jobs:
   lint_helm_chart:
@@ -194,16 +198,34 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/github/org
 
+  validate_python:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          # The image ships an older Poetry that rejects poetry.lock; pin the
+          # version that generated the lock file.
+          name: Install Poetry
+          command: pipx install --force poetry==2.3.2
+      - run:
+          name: Install dependencies
+          command: poetry install --with dev
+      - run:
+          name: Lint (compile check, Black, Ruff, bash -n)
+          command: ./go lint
+      - run:
+          name: Test (pytest)
+          command: ./go test
+
   validate_app_docker_image_versions:
-    docker:
-      - image: cimg/base:stable
+    executor: python
     steps:
       - checkout
       - run:
           name: Validate app Docker image versions exist on Docker Hub
           command: |
             git fetch origin main
-            python3 scripts/check_app_docker_image_versions.py --base origin/main
+            ./go check-images
 
 workflows:
   validate:
@@ -228,6 +250,7 @@ workflows:
       - validate_production_aws_route53_domains
       - validate_org_ci_access_module
       - validate_production_github_org
+      - validate_python
       - validate_app_docker_image_versions:
           filters:
             branches:
