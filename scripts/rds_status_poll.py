@@ -26,8 +26,15 @@ PROFILES = {"staging": "ac-ci-staging-ro", "production": "ac-ci-prod-ro"}
 
 def describe(profile: str, region: str) -> str:
     cmd = [
-        "aws", "rds", "describe-db-instances",
-        "--region", region, "--profile", profile, "--output", "json",
+        "aws",
+        "rds",
+        "describe-db-instances",
+        "--region",
+        region,
+        "--profile",
+        profile,
+        "--output",
+        "json",
     ]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -50,7 +57,9 @@ def describe(profile: str, region: str) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("env", choices=sorted(PROFILES))
     ap.add_argument("log")
     ap.add_argument("--minutes", type=float, default=45)

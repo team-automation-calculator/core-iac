@@ -165,7 +165,9 @@ def parse_time(text):
 
 def main():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument("--start", required=True, type=parse_time, help="UTC, e.g. 2026-11-07T16:25:00Z")
+    parser.add_argument(
+        "--start", required=True, type=parse_time, help="UTC, e.g. 2026-11-07T16:25:00Z"
+    )
     parser.add_argument("--end", required=True, type=parse_time, help="UTC, exclusive")
     parser.add_argument("--env", default="production")
     parser.add_argument("--region", default="us-west-1")
@@ -178,15 +180,30 @@ def main():
     columns = []
     for alarm in alarms:
         label = alarm["AlarmName"].replace(f"ac-app-{args.env}-", "")
-        columns.append((label, metric_series(alarm, args.start, args.end, args.region), alarm))
+        columns.append(
+            (label, metric_series(alarm, args.start, args.end, args.region), alarm)
+        )
     host_dims = target_group_dimensions(dims[0]["Value"], args.region)
     for metric, stat in CONTEXT_METRICS:
         use_dims = host_dims if metric.endswith("HostCount") and host_dims else dims
-        fake = {"Namespace": namespace, "MetricName": metric, "Dimensions": use_dims, "Statistic": stat}
-        columns.append((f"{metric}/{stat}", metric_series(fake, args.start, args.end, args.region), None))
+        fake = {
+            "Namespace": namespace,
+            "MetricName": metric,
+            "Dimensions": use_dims,
+            "Statistic": stat,
+        }
+        columns.append(
+            (
+                f"{metric}/{stat}",
+                metric_series(fake, args.start, args.end, args.region),
+                None,
+            )
+        )
 
     for alarm in alarms:
-        if alarm["MetricName"].endswith("HostCount") and all(d["Name"] != "TargetGroup" for d in alarm["Dimensions"]):
+        if alarm["MetricName"].endswith("HostCount") and all(
+            d["Name"] != "TargetGroup" for d in alarm["Dimensions"]
+        ):
             print(
                 f"WARNING: {alarm['AlarmName']} evaluates {alarm['MetricName']} with only the LoadBalancer "
                 "dimension; AWS publishes that metric per target group, so this alarm never receives "
@@ -217,7 +234,9 @@ def main():
     print(header)
     shown = 0
     for minute in minutes:
-        alarm_values = [series.get(minute) for _, series, alarm in columns if alarm is not None]
+        alarm_values = [
+            series.get(minute) for _, series, alarm in columns if alarm is not None
+        ]
         if not any(v for v in alarm_values):
             continue
         shown += 1

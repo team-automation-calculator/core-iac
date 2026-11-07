@@ -32,7 +32,9 @@ def fetch(sha: str) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sha")
-    parser.add_argument("--filter", default="Terraform", help="substring a context must contain")
+    parser.add_argument(
+        "--filter", default="Terraform", help="substring a context must contain"
+    )
     parser.add_argument("--interval", type=int, default=30)
     parser.add_argument("--timeout", type=int, default=1800)
     args = parser.parse_args()
@@ -49,7 +51,10 @@ def main() -> int:
         for s in statuses:
             if seen.get(s["context"]) != s["state"]:
                 seen[s["context"]] = s["state"]
-                print(f"{s['updated_at']} {s['context']} {s['state']} {s['target_url']}", flush=True)
+                print(
+                    f"{s['updated_at']} {s['context']} {s['state']} {s['target_url']}",
+                    flush=True,
+                )
         if statuses and all(s["state"] in TERMINAL for s in statuses):
             return 0
         time.sleep(args.interval)

@@ -22,6 +22,7 @@ Both refuse to act when the match text hits zero or more than one item, change
 nothing else in the body, and print the before/after lines. Use `--dry-run`
 first. Nothing here ever unticks an item or rewrites other text.
 """
+
 import argparse
 import json
 import re
@@ -31,7 +32,9 @@ import tempfile
 
 DEFAULT_REPO = "team-automation-calculator/automation-calculator"
 REPO = DEFAULT_REPO  # overridden by --repo (e.g. team-automation-calculator/core-iac for a bump PR)
-ITEM =re.compile(r"^(?P<indent>\s*)(?P<bullet>[-*])\s+\[(?P<state>[ xX])\]\s+(?P<text>.*)$")
+ITEM = re.compile(
+    r"^(?P<indent>\s*)(?P<bullet>[-*])\s+\[(?P<state>[ xX])\]\s+(?P<text>.*)$"
+)
 
 
 def gh(*args):
@@ -40,7 +43,9 @@ def gh(*args):
 
 
 def body_of(number):
-    return json.loads(gh("pr", "view", str(number), "--repo", REPO, "--json", "body,title,state,url"))
+    return json.loads(
+        gh("pr", "view", str(number), "--repo", REPO, "--json", "body,title,state,url")
+    )
 
 
 def items(body):
@@ -54,19 +59,41 @@ def items(body):
 
 def cmd_prs(args):
     shas = subprocess.run(
-        ["git", "rev-list", f"{args.old}..{args.new}"], check=True, capture_output=True, text=True
+        ["git", "rev-list", f"{args.old}..{args.new}"],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.split()
     merged = json.loads(
-        gh("pr", "list", "--repo", REPO, "--state", "merged", "--base", "main",
-           "--limit", "100", "--json", "number,title,mergeCommit,mergedAt")
+        gh(
+            "pr",
+            "list",
+            "--repo",
+            REPO,
+            "--state",
+            "merged",
+            "--base",
+            "main",
+            "--limit",
+            "100",
+            "--json",
+            "number,title,mergeCommit,mergedAt",
+        )
     )
-    rows = [pr for pr in merged if pr["mergeCommit"] and pr["mergeCommit"]["oid"] in shas]
+    rows = [
+        pr for pr in merged if pr["mergeCommit"] and pr["mergeCommit"]["oid"] in shas
+    ]
     rows.sort(key=lambda pr: pr["mergedAt"])
     if not rows:
-        print(f"no merged PR has its merge commit in {args.old[:7]}..{args.new[:7]}", file=sys.stderr)
+        print(
+            f"no merged PR has its merge commit in {args.old[:7]}..{args.new[:7]}",
+            file=sys.stderr,
+        )
         return 1
     for pr in rows:
-        print(f"#{pr['number']} {pr['mergeCommit']['oid'][:7]} {pr['mergedAt']} {pr['title']}")
+        print(
+            f"#{pr['number']} {pr['mergeCommit']['oid'][:7]} {pr['mergedAt']} {pr['title']}"
+        )
     return 0
 
 
@@ -86,16 +113,23 @@ def edit(args, tick):
     pr = body_of(args.pr)
     body = pr["body"]
     lines = body.splitlines(keepends=True)
-    hits = [(i, done, text) for i, done, text in items(body) if args.match in text and not done]
+    hits = [
+        (i, done, text)
+        for i, done, text in items(body)
+        if args.match in text and not done
+    ]
     if len(hits) != 1:
         state = "no unchecked item" if not hits else f"{len(hits)} unchecked items"
-        print(f"#{args.pr}: {state} match {args.match!r}; refusing to edit", file=sys.stderr)
+        print(
+            f"#{args.pr}: {state} match {args.match!r}; refusing to edit",
+            file=sys.stderr,
+        )
         for _, _, text in hits:
             print(f"  [ ] {text}", file=sys.stderr)
         return 1
     index = hits[0][0]
     old = lines[index]
-    newline = old[len(old.rstrip("\r\n")):]
+    newline = old[len(old.rstrip("\r\n")) :]
     stripped = old.rstrip("\r\n")
     if tick:
         stripped = re.sub(r"\[ \]", "[x]", stripped, count=1)
@@ -115,8 +149,14 @@ def edit(args, tick):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--repo", default=DEFAULT_REPO, help="GitHub OWNER/NAME the PR numbers belong to")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--repo",
+        default=DEFAULT_REPO,
+        help="GitHub OWNER/NAME the PR numbers belong to",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     prs = sub.add_parser("prs", help="merged PRs whose merge commit lies in old..new")
@@ -135,8 +175,14 @@ def main():
     ):
         cmd = sub.add_parser(name, help=help_text)
         cmd.add_argument("pr", type=int)
-        cmd.add_argument("--match", required=True, help="text that appears in exactly one unchecked item")
-        cmd.add_argument("--note", required=not tick, help="what was observed, where and when")
+        cmd.add_argument(
+            "--match",
+            required=True,
+            help="text that appears in exactly one unchecked item",
+        )
+        cmd.add_argument(
+            "--note", required=not tick, help="what was observed, where and when"
+        )
         cmd.add_argument("--dry-run", action="store_true")
         cmd.set_defaults(func=lambda args, tick=tick: edit(args, tick))
 
