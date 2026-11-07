@@ -32,6 +32,7 @@ helm/
   automation-calculator/        # App Helm chart
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
 docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, external-dns, ArgoCD, arm64)
+  architecture/                 # Mermaid diagrams: AWS resources, request/response flows, PR validation and deploy
 scripts/                        # Python and Bash helpers
 tests/                          # pytest tests for the Python scripts
 iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
