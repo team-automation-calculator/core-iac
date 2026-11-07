@@ -45,13 +45,24 @@ Each environment must be applied in order:
 
 ## Common Commands
 
+### ./go
+`./go` is the single entry point (`go` is a symlink to `go.py`). Bare `./go` checks the tools and lists the commands.
+```bash
+./go help     # list every command
+./go init     # poetry install --with dev
+./go lint     # compile check, Black --check, Ruff, bash -n on tracked *.sh
+./go test     # pytest
+./go validate # lint, then test (what to run before pushing)
+./go audit    # audit against ~/git/repo-standards
+```
+
 ### Terraform
 ```bash
 # Format check (what CI runs)
-terraform fmt -check -recursive terraform/
+terraform fmt -check -recursive terraform/   # or: ./go fmt-check
 
 # Format all tf files — run this before committing any .tf changes
-terraform fmt -recursive terraform/
+terraform fmt -recursive terraform/          # or: ./go fmt
 
 # Validate a specific config
 cd terraform/env/development/aws/us-west-1/base-cluster-layer
@@ -67,7 +78,7 @@ terraform apply
 ### Helm
 ```bash
 # Lint the chart (what CI runs — note the --strict flag)
-helm lint helm/automation-calculator/ --strict
+helm lint helm/automation-calculator/ --strict   # or: ./go helm-lint
 
 # Render templates locally
 helm template automation-calculator helm/automation-calculator/ --values helm/automation-calculator/values.yaml
