@@ -92,6 +92,7 @@ scripts/tfc_workspace_inventory.py             # Spacelift migration Phase 0: re
 scripts/ec2_worker_node_utilization.py         # Node sizing plan: read-only CloudWatch CPU and burst-credit summary for an EKS node group ASG (plans/ec2-worker-node-sizing.md)
 scripts/ec2_worker_node_pricing.py             # Node sizing plan: us-west-1 on-demand, RI and Savings Plan rates for candidate node types from downloaded public price files
 scripts/rds_utilization_summary.py             # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
+scripts/rds_status_poll.py                     # validate-infra-rollout: read-only poll of an env's RDS instances under the -ro profile, one log line per status/retention/LatestRestorableTime change (for timing a modify)
 scripts/rds_price_list_extract.py              # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
 ```
 

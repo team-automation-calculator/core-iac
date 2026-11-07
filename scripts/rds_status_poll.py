@@ -5,8 +5,8 @@ Used to time the outage RDS documents when backup_retention_period moves between
 non-zero value (the instance goes `modifying` -> `backing-up` -> `available`), and more
 generally to see when an apply reaches the instance.
 
-    python3 -I .claude/skills/validate-infra-rollout/scripts/rds_status_poll.py staging tmp/414/rds-poll.log
-    python3 -I .claude/skills/validate-infra-rollout/scripts/rds_status_poll.py staging tmp/414/rds-poll.log --minutes 45 --interval 10
+    python3 -I scripts/rds_status_poll.py staging tmp/414/rds-poll.log
+    python3 -I scripts/rds_status_poll.py staging tmp/414/rds-poll.log --minutes 45 --interval 10
 
 Writes one line per change (and one at start) to the log and stdout:
     2026-11-04T20:31:00Z ac-app-staging available 0 05:45-06:15
