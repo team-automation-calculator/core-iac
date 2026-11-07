@@ -86,8 +86,6 @@ def kube_identity(ctx: str, env: dict) -> str:
 
 
 def take(args: argparse.Namespace) -> int:
-    import os
-
     cfg = ENVS[args.env]
     host = args.host or cfg["host"]
     profile = args.profile or cfg["profile"]
