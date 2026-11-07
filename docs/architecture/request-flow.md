@@ -9,7 +9,7 @@ sequenceDiagram
     autonumber
     actor B as Browser
     participant R53 as Route 53
-    participant ALB as ALB ac-app-<env>
+    participant ALB as ALB ac-app-#lt;env#gt;
     participant N as Node (NodePort)
     participant P as Rails pod :3000
     participant DB as RDS PostgreSQL :5432
@@ -45,7 +45,7 @@ Key elements:
 ```mermaid
 sequenceDiagram
     actor B as Browser
-    participant ALB as ALB ac-app-<env>
+    participant ALB as ALB ac-app-#lt;env#gt;
     B->>ALB: GET https://www.automation-calculations.io/anything
     Note over ALB: Ingress rule for www uses the<br/>redirect-www annotation action
     ALB-->>B: 301 Location https://automation-calculations.io/
@@ -68,7 +68,7 @@ sequenceDiagram
     ALB->>P: forward
     P-->>B: 302 to provider authorize URL (client id from env)
     B->>IdP: authorize and consent
-    IdP-->>B: 302 to /users/auth/<provider>/callback?code=...
+    IdP-->>B: 302 to /users/auth/#lt;provider#gt;/callback?code=...
     B->>ALB: GET callback
     ALB->>P: forward to users/omniauth_callbacks
     P->>NAT: token exchange (client secret from env)
@@ -116,10 +116,10 @@ sequenceDiagram
     participant ELB as ELBv2 API
     participant R53 as Route 53
     participant CW as CloudWatch
-    participant SNS as SNS ac-app-<env>-alarms
+    participant SNS as SNS ac-app-#lt;env#gt;-alarms
 
     LBC->>API: watch Ingress, Service, EndpointSlices
-    LBC->>ELB: create or update ALB ac-app-<env>, listeners, target group, registered nodes
+    LBC->>ELB: create or update ALB ac-app-#lt;env#gt;, listeners, target group, registered nodes
     XD->>API: watch Ingress hosts
     XD->>ELB: (reads ALB hostname from Ingress status)
     XD->>R53: UPSERT A alias + ownership TXT (never deletes)

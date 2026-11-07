@@ -58,7 +58,7 @@ sequenceDiagram
     Dev->>GH: mark ready, review, merge
     GH->>CCI: pipeline on main
     CCI->>CCI: build, lint, test, build prod
-    CCI->>CCI: ./go tag as 0.9.6-<build number>
+    CCI->>CCI: ./go tag as 0.9.6-#lt;build number#gt;
     CCI->>DH: ./go push
 ```
 
