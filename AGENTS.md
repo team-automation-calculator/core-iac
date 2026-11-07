@@ -31,6 +31,8 @@ terraform/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
 helm/
   automation-calculator/        # App Helm chart
+argocd/
+  scratch/                      # Phase 3 dry-run AppProject + Application, applied by hand (docs/argocd-phase-3-dry-run.md)
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
 docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, external-dns, ArgoCD, arm64)
 scripts/                        # Python and Bash helpers
@@ -122,6 +124,7 @@ scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (d
 scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration, plus delete-legacy-cname for the post-0.23 cname-extdns cleanup (dry run unless --apply)
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
+scripts/argocd_canary_check.sh                 # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
 scripts/watch_addon_rollout.sh                 # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
 scripts/wait_commit_status.py                  # validate-infra-rollout: poll a commit's GitHub statuses (Terraform Cloud runs) through gh until none is pending, one line per state change
 scripts/env_snapshot.py                        # validate-infra-rollout: read-only before/after snapshot of an environment (helm releases and manifests, pods, Route 53, ACM, /health) under the -ro profile, and a diff of two snapshots
