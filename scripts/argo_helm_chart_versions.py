@@ -22,7 +22,6 @@ import re
 import sys
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 INDEX_URL = "https://argoproj.github.io/argo-helm/index.yaml"
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -54,8 +53,8 @@ def parse_index(text: str) -> dict[str, list[dict[str, str]]]:
     (dependencies, maintainers, urls) are ignored.
     """
     entries: dict[str, list[dict[str, str]]] = {}
-    chart: Optional[str] = None
-    current: Optional[dict[str, str]] = None
+    chart: str | None = None
+    current: dict[str, str] | None = None
     in_entries = False
 
     for line in text.splitlines():
@@ -87,16 +86,16 @@ def parse_index(text: str) -> dict[str, list[dict[str, str]]]:
     return entries
 
 
-def semver_key(version: str) -> Optional[tuple[int, int, int]]:
+def semver_key(version: str) -> tuple[int, int, int] | None:
     match = SEMVER_RE.match(version)
     if not match or match.group(4):  # unparseable or prerelease
         return None
     return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
-def latest_stable(items: list[dict[str, str]]) -> Optional[dict[str, str]]:
-    best: Optional[dict[str, str]] = None
-    best_key: Optional[tuple[int, int, int]] = None
+def latest_stable(items: list[dict[str, str]]) -> dict[str, str] | None:
+    best: dict[str, str] | None = None
+    best_key: tuple[int, int, int] | None = None
     for item in items:
         if item.get("deprecated", "false").lower() == "true":
             continue

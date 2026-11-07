@@ -36,11 +36,9 @@ TAGS_URL = (
 )
 REGISTRY_AUTH_URL = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
 REGISTRY_BASE_URL = f"https://registry-1.docker.io/v2/{IMAGE_REPO}"
-MANIFEST_ACCEPT = ", ".join(
-    [
-        "application/vnd.docker.distribution.manifest.v2+json",
-        "application/vnd.oci.image.manifest.v1+json",
-    ]
+MANIFEST_ACCEPT = (
+    "application/vnd.docker.distribution.manifest.v2+json, "
+    "application/vnd.oci.image.manifest.v1+json"
 )
 REVISION_LABEL = "org.opencontainers.image.revision"
 HTTP_TIMEOUT_SECONDS = 15
@@ -123,6 +121,7 @@ def find_bump_pr(version: str) -> dict | None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gh pr list failed")
@@ -133,7 +132,9 @@ def find_bump_pr(version: str) -> dict | None:
 def run_bump(version: str, short_commit_hash: str) -> int:
     print(f"Invoking {BUMP_SCRIPT.name} {version} {short_commit_hash or '<empty>'}")
     result = subprocess.run(
-        [str(BUMP_SCRIPT), version, short_commit_hash], cwd=BUMP_SCRIPT.parent
+        [str(BUMP_SCRIPT), version, short_commit_hash],
+        cwd=BUMP_SCRIPT.parent,
+        check=False,
     )
     return result.returncode
 

@@ -37,7 +37,7 @@ def describe(profile: str, region: str) -> str:
         "json",
     ]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     except OSError as exc:  # e.g. `aws` not on PATH in a detached shell; keep polling
         return f"error: {exc}"
     if proc.returncode != 0:
@@ -74,7 +74,7 @@ def main() -> int:
         while time.monotonic() < deadline:
             cur = describe(profile, args.region)
             if cur != prev:
-                line = f"{dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')} {cur}"
+                line = f"{dt.datetime.now(dt.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} {cur}"
                 print(line, flush=True)
                 log.write(line + "\n")
                 log.flush()

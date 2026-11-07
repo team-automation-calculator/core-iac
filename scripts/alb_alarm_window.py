@@ -49,7 +49,7 @@ CONTEXT_METRICS = [
 
 def aws(args, region):
     cmd = ["aws", "--region", region, "--output", "json", *args]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         sys.exit(f"aws {' '.join(args[:2])} failed: {result.stderr.strip()}")
     return json.loads(result.stdout)
@@ -121,7 +121,7 @@ def metric_series(alarm_like, start, end, region):
     points = aws(args, region)["Datapoints"]
     series = {}
     for point in points:
-        when = dt.datetime.fromisoformat(point["Timestamp"].replace("Z", "+00:00"))
+        when = dt.datetime.fromisoformat(point["Timestamp"])
         value = point["ExtendedStatistics"][ext] if ext else point[stat]
         series[when] = value
     return series
@@ -160,7 +160,7 @@ def replay(alarm, series, minutes):
 
 
 def parse_time(text):
-    return dt.datetime.strptime(text, WINDOW_FORMAT).replace(tzinfo=dt.timezone.utc)
+    return dt.datetime.strptime(text, WINDOW_FORMAT).replace(tzinfo=dt.UTC)
 
 
 def main():
