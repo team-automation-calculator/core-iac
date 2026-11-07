@@ -29,11 +29,18 @@ def describe(profile: str, region: str) -> str:
         "aws", "rds", "describe-db-instances",
         "--region", region, "--profile", profile, "--output", "json",
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    except OSError as exc:  # e.g. `aws` not on PATH in a detached shell; keep polling
+        return f"error: {exc}"
     if proc.returncode != 0:
         return f"error: {proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else proc.returncode}"
+    try:
+        instances = json.loads(proc.stdout)["DBInstances"]
+    except (ValueError, KeyError) as exc:
+        return f"error: unparseable describe-db-instances output ({exc})"
     rows = []
-    for inst in json.loads(proc.stdout)["DBInstances"]:
+    for inst in instances:
         rows.append(
             f"{inst['DBInstanceIdentifier']} {inst['DBInstanceStatus']} "
             f"retention={inst['BackupRetentionPeriod']} window={inst.get('PreferredBackupWindow')} "
