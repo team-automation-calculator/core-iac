@@ -96,6 +96,7 @@ scripts/ec2_worker_node_pricing.py             # Node sizing plan: us-west-1 on-
 scripts/rds_utilization_summary.py             # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
 scripts/rds_status_poll.py                     # validate-infra-rollout: read-only poll of an env's RDS instances under the -ro profile, one log line per status/retention/LatestRestorableTime change (for timing a modify)
 scripts/rds_price_list_extract.py              # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
+scripts/alb_alarm_window.py                    # Read-only replay of the ac-app-<env>-* CloudWatch alarms over an ALB metrics window (--start/--end UTC, --env): per-minute alarm metrics and host counts, which alarm would have fired, and a warning for a host-count alarm missing the TargetGroup dimension
 scripts/pr_checklist.py                        # Lists the PRs an image contains and ticks their test-plan checklist items through gh (--repo selects the repo; default is the app repo)
 ```
 
