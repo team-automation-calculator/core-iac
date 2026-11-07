@@ -11,9 +11,13 @@ every matching context is in a terminal state (success, failure, error), 1 on ti
 
 import argparse
 import json
+import logging
+import os
 import subprocess
 import sys
 import time
+
+logger = logging.getLogger(__name__)
 
 REPO = "team-automation-calculator/core-iac"
 TERMINAL = {"success", "failure", "error"}
@@ -38,6 +42,11 @@ def main() -> int:
     parser.add_argument("--interval", type=int, default=30)
     parser.add_argument("--timeout", type=int, default=1800)
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     seen: dict[str, str] = {}
     deadline = time.time() + args.timeout
@@ -45,7 +54,7 @@ def main() -> int:
         try:
             statuses = [s for s in fetch(args.sha) if args.filter in s["context"]]
         except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as exc:
-            print(f"poll error: {exc}", file=sys.stderr, flush=True)
+            logger.warning("poll error: %s", exc)
             time.sleep(args.interval)
             continue
         for s in statuses:
