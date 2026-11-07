@@ -1,7 +1,12 @@
 # Repo standards conformance: adopting repo-standards with CircleCI kept
 
-Status: **proposal** (draft PR). Nothing below is implemented; this PR adds only this document. It
-lays out how this repo adopts the shared standards in
+Status: **implemented** as of 2026-11-07. The plan landed as these PRs, in merge order: #428, #429,
+#430, #431, #433, #434, #435, #436, #438 (CircleCI `validate_python` job, the plan's PR 9), #437
+(`AGENTS.md`, the plan's PR 10) and #432 (claude.ai Project, the plan's PR 11). `./go audit` now
+reports `CONFORMING: 12 pass, 0 fail, 3 skipped`. The open questions are resolved at the end of
+this document. The rest is kept as the original plan for the record.
+
+The plan lays out how this repo adopts the shared standards in
 [stevenuray/repo-standards](https://github.com/stevenuray/repo-standards) (Python 3.12 pinned,
 Poetry, Black, Ruff, pytest, stdlib logging, a `./go` entry point, `AGENTS.md`, a recorded claude.ai
 Project) while keeping CircleCI as the CI system and declaring that as an intentional exemption.
@@ -302,12 +307,16 @@ still run as `python3 -I scripts/<name>.py`; the `./go` commands are additions, 
 The skill files under `.claude/skills/` do not change. No runtime dependency is added: Poetry
 manages dev tools only. The `plans/` and `docs/` split is unchanged.
 
-## Open questions
+## Open questions (resolved)
 
 - Should `./go` also wrap `terraform validate` for a named env directory? It needs `TFE_TOKEN` and
-  a backend init, so the proposal leaves it out.
-- `.git-blame-ignore-revs` for the Black commit: yes or no.
+  a backend init, so the proposal leaves it out. **Resolved: no.** `./go` wraps `terraform fmt`
+  and `fmt -check` only, not `terraform validate`.
+- `.git-blame-ignore-revs` for the Black commit: yes or no. **Resolved: yes.**
+  `.git-blame-ignore-revs` was added.
 - Whether to pin the CircleCI Python image to the patch version (`3.12.12`) or the minor (`3.12`).
+  **Resolved: patch.** The job uses `cimg/python:3.12.12`, and Poetry is pinned to 2.3.2 in the
+  job (`pipx install --force poetry==2.3.2`).
 
 ## Sources
 
