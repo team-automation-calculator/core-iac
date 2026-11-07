@@ -91,6 +91,28 @@ resource "helm_release" "aws_load_balancer_controller" {
       name  = "controllerConfig.featureGates.NLBGatewayAPI"
       value = "false"
     },
+    # Resource requests/limits for the controller container (chart default is
+    # resources: {}, i.e. BestEffort with no scheduling guarantee). Observed on
+    # staging after 9 days: 1-2m CPU and 24-29Mi memory per replica (2 replicas,
+    # one t3.medium node). Requests sit ~4x above idle so the pods get scheduling
+    # weight and Burstable QoS without over-reserving: 2 x 50m / 128Mi is ~5% of
+    # the node's CPU and ~8% of its memory. The memory limit is ~9x idle so a
+    # cache growth bug is contained before it starves the node, but reconciling
+    # a few dozen Ingresses/target groups stays well under it. No CPU limit on
+    # purpose: CFS throttling slows reconciles and webhook responses (which
+    # block Ingress/Pod admission) with no benefit on a mostly idle node.
+    {
+      name  = "resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "128Mi"
+    },
+    {
+      name  = "resources.limits.memory"
+      value = "256Mi"
+    },
   ]
 
   # Chart CRDs live in crds/, which helm upgrade never touches; apply them
@@ -119,7 +141,7 @@ resource "helm_release" "external-dns" {
   name       = "external-dns"
   repository = "https://kubernetes-sigs.github.io/external-dns/"
   chart      = "external-dns"
-  version    = "1.21.1"
+  version    = "1.23.0"
   namespace  = "kube-system"
 
   # The trailing conditional element only adds txtPrefix when configured, so
@@ -136,9 +158,16 @@ resource "helm_release" "external-dns" {
         name  = "extraArgs[0]"
         value = "--aws-zone-type=public"
       },
-      # Chart defaults (policy=upsert-only, txt registry, owner id "default")
-      # match the previous Bitnami deployment, so existing Route 53 TXT
-      # ownership records stay valid across the migration.
+      # policy has no chart default since 1.22.0 (the schema requires it).
+      # upsert-only is what the chart used to default to and what the previous
+      # Bitnami deployment ran; anything else lets external-dns delete records.
+      {
+        name  = "policy"
+        value = "upsert-only"
+      },
+      # Chart defaults for the rest (txt registry, owner id "default") match
+      # the previous Bitnami deployment, so existing Route 53 TXT ownership
+      # records stay valid across the migration.
       {
         name  = "serviceAccount.create"
         value = "false"
@@ -146,6 +175,30 @@ resource "helm_release" "external-dns" {
       {
         name  = "serviceAccount.name"
         value = "external-dns"
+      },
+      # Resource requests/limits for the single external-dns replica. Observed
+      # usage with one public hosted zone is ~1m CPU / ~15Mi (staging, 9 days
+      # uptime, 0 restarts), so these leave several times headroom for the
+      # startup Route 53 listing and sync bursts. No CPU limit: CFS throttling
+      # only slows reconciliation, and the request already reserves capacity.
+      # Memory limit gives the kubelet a bound to OOM-kill a leak instead of
+      # letting it pressure kube-system node memory. The chart schema types
+      # these as strings, so type is pinned to keep "20m"/"64Mi" from being
+      # coerced.
+      {
+        name  = "resources.requests.cpu"
+        type  = "string"
+        value = "20m"
+      },
+      {
+        name  = "resources.requests.memory"
+        type  = "string"
+        value = "64Mi"
+      },
+      {
+        name  = "resources.limits.memory"
+        type  = "string"
+        value = "128Mi"
       },
     ],
     var.external_dns_txt_prefix == "" ? [] : [

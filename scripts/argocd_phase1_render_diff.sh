@@ -17,12 +17,12 @@ set -euo pipefail
 # Secret (the placeholders below only reach the old chart).
 #
 # Usage: scripts/argocd_phase1_render_diff.sh [BASE_REF]
-#   BASE_REF defaults to origin/argocd-phase-0 (the chart before Phase 1);
-#   pass the merge commit of PR #377 once that branch is gone.
+#   BASE_REF defaults to origin/main, which holds the chart before Phase 1
+#   until this phase merges; after that, pass the last pre-Phase-1 commit.
 # Output lands in tmp/argocd-phase1-render/ (gitignored). Exit code is 0 when
 # every env rendered; the diffs are printed and saved for review.
 
-BASE_REF="${1:-origin/argocd-phase-0}"
+BASE_REF="${1:-origin/main}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CHART_REL="helm/automation-calculator"

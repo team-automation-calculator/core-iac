@@ -4,6 +4,12 @@ variable "automation_calculator_app_host" {
   type        = string
 }
 
+variable "backup_retention_period" {
+  default     = 0
+  description = "Days to retain automated RDS backups (0 disables them, max 35). Defaults to 0, the historical behaviour; each environment sets it in tfvars. Must be non-zero before a major engine version upgrade so RDS takes its own pre- and post-upgrade snapshots. Changing between 0 and a non-zero value causes a brief outage (RDS takes the instance offline to create the first backup)."
+  type        = number
+}
+
 variable "db_engine_version" {
   default     = null
   description = "The PostgreSQL engine version for the RDS instance. If null, AWS uses its default."
@@ -38,6 +44,12 @@ variable "environment_name" {
   type        = string
 }
 
+variable "final_snapshot_identifier" {
+  default     = null
+  description = "Name of the final DB snapshot taken when the RDS instance is destroyed; only used when skip_final_snapshot is false. If null, automation-calculator-<environment_name>-final is used. Must start with a letter, contain only letters, numbers and hyphens, and not end with a hyphen or contain two consecutive hyphens. A destroy fails if a snapshot with this name already exists."
+  type        = string
+}
+
 variable "github_oauth_app_id" {
   description = "The GitHub OAuth App ID for the automation-calculator app."
   type        = string
@@ -62,6 +74,12 @@ variable "route53_zone_name" {
   default     = "automation-calculations.io"
   description = "The name of the Route53 zone to create the DNS records in."
   type        = string
+}
+
+variable "skip_final_snapshot" {
+  default     = true
+  description = "Whether to skip the final DB snapshot when the RDS instance is destroyed. Defaults to true (the historical behaviour); set to false to take a final snapshot named by final_snapshot_identifier."
+  type        = bool
 }
 
 variable "vpc_id" {
