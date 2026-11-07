@@ -108,11 +108,72 @@ staging's diff matches the expectation.
     probably mislabeled: on 2026-11-04 `ac_app_staging-ro` was found
     embedding `AWS_PROFILE=ac-ci-staging` (cluster-admin). `env_snapshot.py`
     refuses a context whose `kubectl auth whoami` identity is not a
-    `_read_only` role; recreate the context with `aws eks update-kubeconfig
-    --name ac_app_<env> --region us-west-1 --profile ac-ci-<env>-ro --alias
-    ac_app_<env>-ro` (see `docs/aws-sso-auth.md`);
+    `_read_only` role. The cause is a shared kubeconfig *user* entry: without
+    `--user-alias`, every context on a cluster uses the one user named by
+    the cluster ARN, and whichever `update-kubeconfig` ran last sets its
+    profile. Recreate the `-ro` context with its own user entry and restore
+    the user's current context, which `update-kubeconfig` switches:
+
+    ```bash
+    BEFORE=$(kubectl config current-context)
+    aws eks update-kubeconfig --name ac_app_<env> --region us-west-1 \
+      --profile ac-ci-<env>-ro --alias ac_app_<env>-ro --user-alias ac_app_<env>-ro
+    kubectl config use-context "$BEFORE"
+    kubectl --context ac_app_<env>-ro auth whoami    # must be ..._read_only
+    ```
+
+    (`<env>` is `staging` or `production` for the cluster, `staging` or
+    `prod` for the profile.) Then pass `--context ac_app_<env>-ro` to
+    `env_snapshot.py`. See `docs/aws-sso-auth.md`;
   - the permission mode may deny production reads outright. Report
     "production not inspected" and stop there; do not work around it.
+
+- **CloudWatch alarms are part of the diff.** Production has four alarms
+  on the app ALB, defined in
+  `terraform/modules/aws/cluster-addons-layer/cloudwatch_alarms.tf` and
+  enabled only where `cloudwatch_alarms_enabled = true` (production; staging
+  has none): `ac-app-production-alb-5xx-errors` (ELB 5xx > 10 for 2 min),
+  `-target-5xx-errors` (target 5xx > 10 for 2 min), `-latency-p99` (p99 > 3 s
+  for 3 min) and `-unhealthy-hosts` (any unhealthy target for 2 min, on the
+  target group since #425). Every ALARM and OK transition publishes to the
+  SNS topic `ac-app-production-alarms`, whose email subscription has been
+  confirmed since #420 (2026-11-07), so each transition is an email. Every
+  read below works with `ac-ci-staging-ro` as well as `ac-ci-prod-ro`
+  (CloudWatch is account-level).
+
+  What a rollout is expected to produce:
+  - add-on, values, chart or image change that replaces a pod through a
+    rolling update: **no transitions**. The app Deployment keeps a Ready
+    pod, so the target group never loses its only healthy host;
+  - node roll (EKS upgrade, AMI release, instance type): `unhealthy-hosts`
+    ALARM about 2 min after the node drains and OK about 2 min after the
+    replacement target is healthy; often `alb-5xx-errors` too when the
+    outage spans two minutes of 5xx. Measured 2026-11-07 (#410): 0 healthy
+    hosts for 2 min, 39 ELB 5xx in one minute. These emails are the signal
+    working, not a finding; report them with their times;
+  - RDS modify: usually nothing (the 2026-11-07 retention change produced
+    4 target 5xx in one minute, below every threshold).
+  A transition the change type does not predict is a finding, and so is
+  a node roll that produces none.
+
+  Read the history for the window and the per-minute metrics behind it:
+
+  ```bash
+  aws cloudwatch describe-alarm-history --region us-west-1 --profile ac-ci-staging-ro \
+    --start-date <before UTC> --end-date <after UTC> --max-records 100 --output text \
+    --query 'AlarmHistoryItems[?starts_with(AlarmName,`ac-app-production`)].[Timestamp,HistoryItemType,AlarmName,HistorySummary]'
+  AWS_PROFILE=ac-ci-staging-ro python3 -I scripts/alb_alarm_window.py --start <before UTC> --end <after UTC>
+  ```
+
+  `describe-alarm-history` is the authority for what fired; the replay in
+  `alb_alarm_window.py` is an approximation (the live alarm looks back over
+  sparse 5xx datapoints) that shows the values and the near misses. Do not
+  use an alarm's `StateReason` as proof of anything: CloudWatch rewrites it
+  only on a state transition, so an alarm that has stayed OK keeps its
+  reason text from the last transition (or from creation) indefinitely.
+  An alarm whose metric needs a dimension it does not have (the
+  `unhealthy-hosts` case before #425) receives no data and never fires;
+  the script prints a WARNING for that shape.
 
 - **One account, one hosted zone.** Staging and production share AWS
   account `030153300357` and the single `automation-calculations.io` zone.
@@ -172,13 +233,20 @@ staging's diff matches the expectation.
 6. **Hand off production.** Tell the user the production run is at "apply
    pending" with its URL, remind them of the discard-and-rerun step if more
    than ~10 minutes have passed, and wait. Before they confirm, take
-   `production-before` (with the Helm limitation above). After their
-   confirm, watch `/health` and take `production-after`, then `diff`, with
-   the same expectation as staging.
+   `production-before` (with the Helm limitation above) and note the time,
+   which is the start of the alarm window. After their confirm, watch
+   `/health` and take `production-after`, then `diff`, with the same
+   expectation as staging. Then read the production alarm history for the
+   window from the baseline time to the after-snapshot time and compare it
+   with what the change type predicts (the alarms fact above); for a node
+   roll also run `alb_alarm_window.py` over the window so the report can
+   say how long the target group had no healthy host, and ask the user
+   whether the ALARM and OK emails arrived.
 7. **Record.** Post a comment on the PR with the result table below (the
-   morning's PRs carry one each; keep the shape), and tick the test-plan
-   items that were actually observed, one at a time with a note of what was
-   seen, where and when. Never tick an item that was not checked.
+   morning's PRs carry one each; keep the shape), including the alarms row,
+   and tick the test-plan items that were actually observed, one at a time
+   with a note of what was seen, where and when. Never tick an item that was
+   not checked.
 
 ## Report shape
 
@@ -193,6 +261,7 @@ One table per environment:
 | Route 53 (host) | identical (12 records) |
 | ACM | ISSUED, validation records identical |
 | `/health` | 200, `short_commit_hash` unchanged |
+| CloudWatch alarms (production only) | no transitions 17:55Z to 18:05Z, as expected for a values change — or "unhealthy-hosts ALARM 17:17Z → OK 17:19Z and alb-5xx-errors ALARM 17:18Z → OK 17:20Z, matching the node roll; 0 healthy hosts 17:16Z to 17:17Z; user confirmed 4 emails" |
 | Not checked | e.g. "plan text (no TFE_TOKEN); user read run-… in the UI" |
 
 Then bullets for what the user has to do (confirm production, read a plan,
