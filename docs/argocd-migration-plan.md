@@ -336,7 +336,7 @@ Runbook with the state-address reasoning, the expected plan per step and the rol
 - Remove `helm/automation-calculator` and `terraform/modules/aws/main_rails_app` from
   `cluster_addons_layer_module_directories` so chart changes stop queueing TFC runs (and stale
   production plans).
-- Update `.circleci/config.yml`, `CLAUDE.md` (commands, scripts, how deploys work), the README setup
+- Update `.circleci/config.yml`, `AGENTS.md` (commands, scripts, how deploys work; `CLAUDE.md` imports it), the README setup
   steps, and the status line at the top of this document.
 
 ## Risks and mitigations
