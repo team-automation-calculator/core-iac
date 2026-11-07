@@ -179,7 +179,11 @@ is the same move-only plan.
 ### Step 4: merge the toggle, watch both workspaces
 
 Merge the PR. The automated-sync commit (step 6) must not be part of this merge: revert it off the
-branch first (`git revert <sha>`, push) and re-land it after step 5. If it was merged together with
+branch first and re-land it after step 5. Since `main` was merged into the branch the tfvars
+alignment differs from that commit, so a literal `git revert <sha>` conflicts: instead delete the
+three `argocd_application_{automated_sync,prune,self_heal} = true` lines from staging's
+`terraform.tfvars`, run `terraform fmt -recursive terraform/`, commit and push; the follow-up PR
+adds them back the same way. If it was merged together with
 the toggle anyway, nothing breaks (Terraform has already forgotten the release and ArgoCD never
 reads Helm history), but the cheap rollback of section 6.2 then needs the flip reverted first, and
 step 6's prune checks must still be done, just after the fact.
