@@ -1,3 +1,9 @@
+variable "addons_dependency" {
+  default     = []
+  description = "Values the app Helm release must be installed after, e.g. the add-on Helm release names output by cluster-addons-layer. Used only for ordering via terraform_data.cluster_addons; the values are never read."
+  type        = list(string)
+}
+
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
@@ -8,6 +14,12 @@ variable "automation_calculator_helm_release_local_path" {
   default     = "helm-charts/automation-calculator"
   description = "The local path to the helm chart for the automation-calculator app."
   type        = string
+}
+
+variable "backup_retention_period" {
+  default     = 0
+  description = "Days to retain automated RDS backups (0 disables them, max 35). Defaults to 0, the historical behaviour; each environment sets it in tfvars. Must be non-zero before a major engine version upgrade so RDS takes its own pre- and post-upgrade snapshots. Changing between 0 and a non-zero value causes a brief outage (RDS takes the instance offline to create the first backup)."
+  type        = number
 }
 
 variable "db_engine_version" {
@@ -44,6 +56,12 @@ variable "environment_name" {
   type        = string
 }
 
+variable "final_snapshot_identifier" {
+  default     = null
+  description = "Name of the final DB snapshot taken when the RDS instance is destroyed; only used when skip_final_snapshot is false. If null, automation-calculator-<environment_name>-final is used. Must start with a letter, contain only letters, numbers and hyphens, and not end with a hyphen or contain two consecutive hyphens. A destroy fails if a snapshot with this name already exists."
+  type        = string
+}
+
 variable "github_oauth_app_id" {
   description = "The GitHub OAuth App ID for the automation-calculator app."
   type        = string
@@ -62,6 +80,12 @@ variable "google_oauth_app_id" {
 variable "google_oauth_app_secret" {
   description = "The Google OAuth App Secret for the automation-calculator app."
   type        = string
+}
+
+variable "skip_final_snapshot" {
+  default     = true
+  description = "Whether to skip the final DB snapshot when the RDS instance is destroyed. Defaults to true (the historical behaviour); set to false to take a final snapshot named by final_snapshot_identifier."
+  type        = bool
 }
 
 variable "route53_zone_name" {
