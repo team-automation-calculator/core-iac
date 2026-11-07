@@ -92,6 +92,7 @@ scripts/ec2_worker_node_utilization.py         # Node sizing plan: read-only Clo
 scripts/ec2_worker_node_pricing.py             # Node sizing plan: us-west-1 on-demand, RI and Savings Plan rates for candidate node types from downloaded public price files
 scripts/rds_utilization_summary.py             # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
 scripts/rds_price_list_extract.py              # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
+scripts/pr_checklist.py                        # Lists the PRs an image contains and ticks their test-plan checklist items through gh (--repo selects the repo; default is the app repo)
 ```
 
 ## Key Conventions
