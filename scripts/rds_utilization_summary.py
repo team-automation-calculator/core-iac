@@ -42,7 +42,7 @@ METRICS = [
 
 def aws(args, region):
     cmd = ["aws", "--region", region, "--output", "json"] + args
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"{' '.join(cmd)}\n{result.stderr.strip()}")
     return json.loads(result.stdout)
@@ -107,7 +107,7 @@ def main():
     parser.add_argument("--period", type=int, default=3600)
     args = parser.parse_args()
 
-    end = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    end = dt.datetime.now(dt.UTC).replace(microsecond=0)
     start = end - dt.timedelta(days=args.days)
     print(f"Window: {start.isoformat()} to {end.isoformat()} (period {args.period}s)\n")
 

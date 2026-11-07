@@ -26,11 +26,18 @@ PROFILES = {"staging": "ac-ci-staging-ro", "production": "ac-ci-prod-ro"}
 
 def describe(profile: str, region: str) -> str:
     cmd = [
-        "aws", "rds", "describe-db-instances",
-        "--region", region, "--profile", profile, "--output", "json",
+        "aws",
+        "rds",
+        "describe-db-instances",
+        "--region",
+        region,
+        "--profile",
+        profile,
+        "--output",
+        "json",
     ]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     except OSError as exc:  # e.g. `aws` not on PATH in a detached shell; keep polling
         return f"error: {exc}"
     if proc.returncode != 0:
@@ -50,7 +57,9 @@ def describe(profile: str, region: str) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("env", choices=sorted(PROFILES))
     ap.add_argument("log")
     ap.add_argument("--minutes", type=float, default=45)
@@ -65,7 +74,7 @@ def main() -> int:
         while time.monotonic() < deadline:
             cur = describe(profile, args.region)
             if cur != prev:
-                line = f"{dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')} {cur}"
+                line = f"{dt.datetime.now(dt.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} {cur}"
                 print(line, flush=True)
                 log.write(line + "\n")
                 log.flush()

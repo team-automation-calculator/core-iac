@@ -47,13 +47,13 @@ blocking) or, with the guard gone, an ALB deletion.
   staging soak); `--env production` has always selected `values-production.yaml`, and the
   production Application and Deployment have the same names as staging's, so no other flag is
   needed. It is not renamed here to keep the stacked Phase 7 PR and its runbook stable.
-- This runbook, the plan's Phase 8 section, and the `CLAUDE.md` script line.
+- This runbook, the plan's Phase 8 section, and the `AGENTS.md` script line.
 
 **Commit B, "retire the Terraform release on production":**
 
 - `terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars`:
   `manage_app_helm_release = false`.
-- `CLAUDE.md`: production deploys read "merge the bump PR, then `argocd app sync`".
+- `AGENTS.md` (the tool-neutral half of `CLAUDE.md` since main's #437): production deploys read "merge the bump PR, then `argocd app sync`".
 - `.claude/skills/deploy-image/SKILL.md` and `.claude/skills/validate-infra-rollout/SKILL.md`:
   production deploys by a manual `argocd app sync`, and a production snapshot has no app Helm
   release (added when `main` was merged into the stack on 2026-11-07, in a later commit than
@@ -63,7 +63,7 @@ If the PR is approved as a whole, merge it only after taking Commit B off the br
 it as a follow-up PR when section 6 reaches step 4. Since `main` was merged in, `git revert <sha>`
 of Commit B conflicts on production's `terraform.tfvars` (the neighbouring lines moved). Do it by
 hand instead: delete the `manage_app_helm_release = false` line from that file, restore the
-production-on-TFC wording in the `CLAUDE.md` paragraph and the two skills (`git diff` them against
+production-on-TFC wording in the `AGENTS.md` paragraph and the two skills (`git diff` them against
 the parent of Commit B and the Phase 7 branch), commit and push.
 That is how Phase 6 landed the automated-sync flip. If both commits are merged together by
 mistake, the production plan errors with `Instance cannot be destroyed` (section 6 explains why);
@@ -599,7 +599,7 @@ production plan.
   baseline; the state backup in `tmp/` is deleted.
 - `scripts/argocd_staging_verify.sh --env production` prints `Verify OK` with no flags.
 - `argocd app get automation-calculator` on production: Sync Policy Manual, Synced, Healthy; a
-  fresh production plan shows 0 changes; `CLAUDE.md` says production deploys are "merge, then
+  fresh production plan shows 0 changes; `AGENTS.md` says production deploys are "merge, then
   `argocd app sync`".
 - Phase 9 (decommission the release from the module, drop the chart from the TFC trigger prefixes)
   can start.

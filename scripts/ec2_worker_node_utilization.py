@@ -73,9 +73,9 @@ def main():
     args = parser.parse_args()
 
     end = (
-        dt.datetime.fromisoformat(args.end).replace(tzinfo=dt.timezone.utc)
+        dt.datetime.fromisoformat(args.end).replace(tzinfo=dt.UTC)
         if args.end
-        else dt.datetime.now(dt.timezone.utc)
+        else dt.datetime.now(dt.UTC)
     )
     start = end - dt.timedelta(days=args.days)
     day = 86400
