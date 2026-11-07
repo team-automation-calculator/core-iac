@@ -44,10 +44,14 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import logging
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SSO_SESSION_NAME = "automation-calculator"
 SSO_REGION = "us-east-1"  # Identity Center organization instance region
@@ -78,7 +82,9 @@ def validate_sso_start_url(sso_start_url: str) -> None:
         return
     message = f"error: {sso_start_url!r} is not an AWS access portal URL"
     if "identitycenter.amazonaws.com" in sso_start_url:
-        message += ":\nthis is the Identity Center instance (issuer) URL, not the portal URL"
+        message += (
+            ":\nthis is the Identity Center instance (issuer) URL, not the portal URL"
+        )
     sys.exit(
         message
         + "\nexpected form: https://<subdomain>.awsapps.com/start"
@@ -122,7 +128,9 @@ def upsert_section(config_text: str, header: str, body: dict[str, str]) -> str:
     the user's comments and reformat unrelated profiles.
     """
     lines = config_text.splitlines()
-    section_lines = [f"[{header}]"] + [f"{key} = {value}" for key, value in body.items()]
+    section_lines = [f"[{header}]"] + [
+        f"{key} = {value}" for key, value in body.items()
+    ]
 
     start = next(
         (i for i, line in enumerate(lines) if line.strip() == f"[{header}]"),
@@ -134,14 +142,20 @@ def upsert_section(config_text: str, header: str, body: dict[str, str]) -> str:
         lines.extend(section_lines)
     else:
         end = next(
-            (i for i in range(start + 1, len(lines)) if SECTION_HEADER_RE.match(lines[i])),
+            (
+                i
+                for i in range(start + 1, len(lines))
+                if SECTION_HEADER_RE.match(lines[i])
+            ),
             len(lines),
         )
         lines[start:end] = section_lines + ([""] if end < len(lines) else [])
     return "\n".join(lines) + "\n"
 
 
-def persisted_value(config: configparser.ConfigParser, section: str, key: str) -> str | None:
+def persisted_value(
+    config: configparser.ConfigParser, section: str, key: str
+) -> str | None:
     if config.has_section(section) and config.has_option(section, key):
         return config.get(section, key)
     return None
@@ -150,12 +164,16 @@ def persisted_value(config: configparser.ConfigParser, section: str, key: str) -
 def discover_account_id(config: configparser.ConfigParser) -> str | None:
     """Find the account id from any previously configured InfraEng SSO profile."""
     for section in config.sections():
-        if section.startswith("profile infra-eng-") and config.has_option(section, "sso_account_id"):
+        if section.startswith("profile infra-eng-") and config.has_option(
+            section, "sso_account_id"
+        ):
             return config.get(section, "sso_account_id")
     return None
 
 
-def configure(environment: str, read_only: bool, sso_start_url: str | None, account_id: str | None) -> str:
+def configure(
+    environment: str, read_only: bool, sso_start_url: str | None, account_id: str | None
+) -> str:
     """Write the sso-session and profile chain; return the chained profile name."""
     config = read_config()
 
@@ -165,7 +183,10 @@ def configure(environment: str, read_only: bool, sso_start_url: str | None, acco
     account_id = account_id or discover_account_id(config)
     missing = [
         flag
-        for flag, value in [("--sso-start-url", sso_start_url), ("--account-id", account_id)]
+        for flag, value in [
+            ("--sso-start-url", sso_start_url),
+            ("--account-id", account_id),
+        ]
         if not value
     ]
     if missing or sso_start_url is None or account_id is None:
@@ -211,13 +232,17 @@ def configure(environment: str, read_only: bool, sso_start_url: str | None, acco
 
     AWS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     AWS_CONFIG_PATH.write_text(config_text)
-    print(f"configured profiles {sso_profile} -> {ci_profile} in {AWS_CONFIG_PATH}", file=sys.stderr)
+    logger.info(
+        "configured profiles %s -> %s in %s", sso_profile, ci_profile, AWS_CONFIG_PATH
+    )
     return ci_profile
 
 
 def aws(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
     if capture:
-        return subprocess.run(["aws", *args], check=True, text=True, capture_output=True)
+        return subprocess.run(
+            ["aws", *args], check=True, text=True, capture_output=True
+        )
     # Uncaptured aws output (login prompts, kubeconfig updates) goes to
     # stderr: stdout is reserved for the eval-able AWS_PROFILE export line.
     return subprocess.run(["aws", *args], check=True, text=True, stdout=sys.stderr)
@@ -229,7 +254,7 @@ def login(ci_profile: str) -> None:
     except subprocess.CalledProcessError as error:
         sys.exit(
             f"error: aws sso login exited with status {error.returncode}\n"
-            'if the browser showed "Something doesn\'t compute - We couldn\'t verify\n'
+            "if the browser showed \"Something doesn't compute - We couldn't verify\n"
             'your sign-in credentials", the local config is usually not the problem:\n'
             "that page comes from stale AWS sign-in state in the browser or from\n"
             "federating the wrong Google account. Retry in a private window and pick\n"
@@ -237,18 +262,29 @@ def login(ci_profile: str) -> None:
             "signin.aws.amazon.com. See docs/aws-sso-auth.md#troubleshooting."
         )
     identity = aws(
-        "sts", "get-caller-identity", "--profile", ci_profile, "--output", "text",
-        "--query", "Arn", capture=True,
+        "sts",
+        "get-caller-identity",
+        "--profile",
+        ci_profile,
+        "--output",
+        "text",
+        "--query",
+        "Arn",
+        capture=True,
     ).stdout.strip()
-    print(f"logged in; {ci_profile} resolves to {identity}", file=sys.stderr)
+    logger.info("logged in; %s resolves to %s", ci_profile, identity)
 
 
 def kubectl(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
     try:
         if capture:
-            return subprocess.run(["kubectl", *args], check=True, text=True, capture_output=True)
+            return subprocess.run(
+                ["kubectl", *args], check=True, text=True, capture_output=True
+            )
         # Like aws(): uncaptured output goes to stderr, stdout stays eval-able.
-        return subprocess.run(["kubectl", *args], check=True, text=True, stdout=sys.stderr)
+        return subprocess.run(
+            ["kubectl", *args], check=True, text=True, stdout=sys.stderr
+        )
     except FileNotFoundError:
         sys.exit("error: kubectl not found on PATH")
 
@@ -263,8 +299,14 @@ def update_kubeconfig(ci_profile: str, environment: str) -> None:
     cluster = cluster_name(environment)
     try:
         aws(
-            "eks", "update-kubeconfig", "--name", cluster,
-            "--profile", ci_profile, "--region", CLUSTER_REGION,
+            "eks",
+            "update-kubeconfig",
+            "--name",
+            cluster,
+            "--profile",
+            ci_profile,
+            "--region",
+            CLUSTER_REGION,
         )
     except subprocess.CalledProcessError as error:
         sys.exit(
@@ -276,7 +318,9 @@ def update_kubeconfig(ci_profile: str, environment: str) -> None:
 def use_context(environment: str) -> None:
     """Point kubectl's current context at this environment's cluster."""
     cluster = cluster_name(environment)
-    contexts = kubectl("config", "get-contexts", "-o", "name", capture=True).stdout.split()
+    contexts = kubectl(
+        "config", "get-contexts", "-o", "name", capture=True
+    ).stdout.split()
     matches = [c for c in contexts if c == cluster or c.endswith(f"/{cluster}")]
     if not matches:
         sys.exit(
@@ -300,7 +344,9 @@ def main() -> int:
             "up, login, and export print an eval-able AWS_PROFILE export line"
         ),
     )
-    parser.add_argument("--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True)
+    parser.add_argument(
+        "--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True
+    )
     parser.add_argument(
         "--read-only",
         action="store_true",
@@ -316,6 +362,11 @@ def main() -> int:
     )
     parser.add_argument("--account-id", help="AWS account id (first run only)")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     _, ci_profile = profile_names(args.environment, args.read_only)
 
@@ -333,17 +384,20 @@ def main() -> int:
         use_context(args.environment)
 
     if args.command in ("up", "login"):
-        hint = (
-            "\nexport line follows on stdout; to adopt the profile in the "
-            "current shell,\nrun this command as "
-            f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
-        )
-        if args.command == "up":
-            hint += (
-                "\nkubectl already works: the kubeconfig embeds the profile and "
-                f"the current context\npoints at {cluster_name(args.environment)}."
+        hints = [
+            (
+                "export line follows on stdout; to adopt the profile in the "
+                "current shell, run this command as "
+                f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
             )
-        print(hint + "\n", file=sys.stderr)
+        ]
+        if args.command == "up":
+            hints.append(
+                "kubectl already works: the kubeconfig embeds the profile and "
+                f"the current context points at {cluster_name(args.environment)}."
+            )
+        for hint in hints:
+            logger.info("%s", hint)
         print(f"export AWS_PROFILE={ci_profile}")
     return 0
 

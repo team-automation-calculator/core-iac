@@ -23,8 +23,12 @@ PriceDescription and Product Family. The CSV has five preamble lines before the 
 
 import argparse
 import csv
+import logging
+import os
 import re
 import sys
+
+logger = logging.getLogger(__name__)
 
 COLUMNS = [
     "TermType",
@@ -60,6 +64,11 @@ def main():
         "--grep", help="regex over usageType, PriceDescription, Product Family"
     )
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     pattern = re.compile(args.grep, re.IGNORECASE) if args.grep else None
     with open(args.csv_path, newline="", encoding="utf-8") as handle:
@@ -88,7 +97,7 @@ def main():
                 continue
             count += 1
             print(" | ".join(row[c] for c in COLUMNS))
-    print(f"-- {count} rows", file=sys.stderr)
+    logger.info("-- %d rows", count)
     return 0
 
 

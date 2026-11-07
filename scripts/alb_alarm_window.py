@@ -7,7 +7,8 @@ depending on the SNS subscription having been confirmed at the time. It reads th
 metrics they evaluate at 60 s granularity for the window, prints every minute in which
 any of them was non-zero, and re-applies each alarm's rule (statistic, comparison,
 threshold, consecutive evaluation periods) to say when it would have entered ALARM
-and returned to OK. Nothing is written to AWS.
+and returned to OK. Nothing is written to AWS. An alarm the replay cannot re-apply (an
+anomaly-detection operator or a metric math expression) is skipped with a warning.
 
 Usage:
     AWS_PROFILE=ac-ci-staging-ro python3 -I scripts/alb_alarm_window.py \
@@ -32,8 +33,12 @@ DESCRIPTION = "Read-only replay of the cluster-addons CloudWatch alarms over an 
 import argparse
 import datetime as dt
 import json
+import logging
+import os
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 WINDOW_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -49,7 +54,7 @@ CONTEXT_METRICS = [
 
 def aws(args, region):
     cmd = ["aws", "--region", region, "--output", "json", *args]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         sys.exit(f"aws {' '.join(args[:2])} failed: {result.stderr.strip()}")
     return json.loads(result.stdout)
@@ -121,30 +126,51 @@ def metric_series(alarm_like, start, end, region):
     points = aws(args, region)["Datapoints"]
     series = {}
     for point in points:
-        when = dt.datetime.fromisoformat(point["Timestamp"].replace("Z", "+00:00"))
+        when = dt.datetime.fromisoformat(point["Timestamp"])
         value = point["ExtendedStatistics"][ext] if ext else point[stat]
         series[when] = value
     return series
 
 
+# Static-threshold comparisons the replay can re-apply. The anomaly-detection
+# operators (GreaterThanUpperThreshold, LessThanLowerThreshold,
+# LessThanLowerOrGreaterThanUpperThreshold) compare against a band that CloudWatch
+# computes, so there is no static Threshold to replay against.
+OPERATORS = {
+    "GreaterThanThreshold": lambda value, threshold: value > threshold,
+    "GreaterThanOrEqualToThreshold": lambda value, threshold: value >= threshold,
+    "LessThanThreshold": lambda value, threshold: value < threshold,
+    "LessThanOrEqualToThreshold": lambda value, threshold: value <= threshold,
+}
+
+
+def unsupported_reason(alarm):
+    """Why the replay cannot re-apply this alarm's rule, or None when it can."""
+    op = alarm.get("ComparisonOperator")
+    if op not in OPERATORS:
+        return f"comparison operator {op} has no static threshold to replay"
+    if "MetricName" not in alarm:
+        return "it evaluates a metric math expression, not a single metric"
+    return None
+
+
 def breaches(value, alarm):
     op = alarm["ComparisonOperator"]
-    threshold = alarm["Threshold"]
+    if op not in OPERATORS:
+        raise ValueError(f"unsupported comparison operator: {op}")
     if value is None:
         # TreatMissingData=notBreaching on every alarm in cloudwatch_alarms.tf.
         return alarm.get("TreatMissingData") == "breaching"
-    return {
-        "GreaterThanThreshold": value > threshold,
-        "GreaterThanOrEqualToThreshold": value >= threshold,
-        "LessThanThreshold": value < threshold,
-        "LessThanOrEqualToThreshold": value <= threshold,
-    }[op]
+    return OPERATORS[op](value, alarm["Threshold"])
 
 
 def replay(alarm, series, minutes):
     """Yield (minute, 'ALARM'|'OK') transitions by re-applying the alarm's rule."""
     periods = alarm["EvaluationPeriods"]
-    datapoints_to_alarm = alarm.get("DatapointsToAlarm") or periods
+    # DatapointsToAlarm is absent (meaning N of N) or at least 1.
+    datapoints_to_alarm = alarm.get("DatapointsToAlarm")
+    if datapoints_to_alarm is None:
+        datapoints_to_alarm = periods
     state = "OK"
     for index, minute in enumerate(minutes):
         recent = minutes[max(0, index - periods + 1) : index + 1]
@@ -160,38 +186,74 @@ def replay(alarm, series, minutes):
 
 
 def parse_time(text):
-    return dt.datetime.strptime(text, WINDOW_FORMAT).replace(tzinfo=dt.timezone.utc)
+    return dt.datetime.strptime(text, WINDOW_FORMAT).replace(tzinfo=dt.UTC)
 
 
 def main():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument("--start", required=True, type=parse_time, help="UTC, e.g. 2026-11-07T16:25:00Z")
+    parser.add_argument(
+        "--start", required=True, type=parse_time, help="UTC, e.g. 2026-11-07T16:25:00Z"
+    )
     parser.add_argument("--end", required=True, type=parse_time, help="UTC, exclusive")
     parser.add_argument("--env", default="production")
     parser.add_argument("--region", default="us-west-1")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
-    alarms = describe_alarms(args.env, args.region)
+    alarms = []
+    for alarm in describe_alarms(args.env, args.region):
+        reason = unsupported_reason(alarm)
+        if reason:
+            logger.warning(
+                "skipping %s (%s): %s",
+                alarm["AlarmName"],
+                alarm.get("ComparisonOperator"),
+                reason,
+            )
+        else:
+            alarms.append(alarm)
+    if not alarms:
+        sys.exit(f"no replayable alarms named ac-app-{args.env}-* in {args.region}")
     dims = alarms[0]["Dimensions"]
     namespace = alarms[0]["Namespace"]
 
     columns = []
     for alarm in alarms:
         label = alarm["AlarmName"].replace(f"ac-app-{args.env}-", "")
-        columns.append((label, metric_series(alarm, args.start, args.end, args.region), alarm))
+        columns.append(
+            (label, metric_series(alarm, args.start, args.end, args.region), alarm)
+        )
     host_dims = target_group_dimensions(dims[0]["Value"], args.region)
     for metric, stat in CONTEXT_METRICS:
         use_dims = host_dims if metric.endswith("HostCount") and host_dims else dims
-        fake = {"Namespace": namespace, "MetricName": metric, "Dimensions": use_dims, "Statistic": stat}
-        columns.append((f"{metric}/{stat}", metric_series(fake, args.start, args.end, args.region), None))
+        fake = {
+            "Namespace": namespace,
+            "MetricName": metric,
+            "Dimensions": use_dims,
+            "Statistic": stat,
+        }
+        columns.append(
+            (
+                f"{metric}/{stat}",
+                metric_series(fake, args.start, args.end, args.region),
+                None,
+            )
+        )
 
     for alarm in alarms:
-        if alarm["MetricName"].endswith("HostCount") and all(d["Name"] != "TargetGroup" for d in alarm["Dimensions"]):
-            print(
-                f"WARNING: {alarm['AlarmName']} evaluates {alarm['MetricName']} with only the LoadBalancer "
+        if alarm["MetricName"].endswith("HostCount") and all(
+            d["Name"] != "TargetGroup" for d in alarm["Dimensions"]
+        ):
+            logger.warning(
+                "%s evaluates %s with only the LoadBalancer "
                 "dimension; AWS publishes that metric per target group, so this alarm never receives "
                 "data and cannot fire. Check its StateReason with describe-alarms.",
-                file=sys.stderr,
+                alarm["AlarmName"],
+                alarm["MetricName"],
             )
 
     minutes = []
@@ -217,7 +279,9 @@ def main():
     print(header)
     shown = 0
     for minute in minutes:
-        alarm_values = [series.get(minute) for _, series, alarm in columns if alarm is not None]
+        alarm_values = [
+            series.get(minute) for _, series, alarm in columns if alarm is not None
+        ]
         if not any(v for v in alarm_values):
             continue
         shown += 1
