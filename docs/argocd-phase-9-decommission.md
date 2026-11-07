@@ -4,9 +4,10 @@ Companion to Phase 9 of `argocd-migration-plan.md`. After Phase 6 (staging) and 
 (production) neither cluster-addons workspace holds `helm_release.automation-calculator` in its
 state and neither cluster has a Helm release for the app any more: the ArgoCD `Application` is the
 only controller of the Service, Deployment and Ingress. This phase deletes the code that is dead as
-a result, and stops chart changes from queueing TFC runs. **It makes no cluster call and changes
-nothing on either cluster.** The only applies are in-place updates of `trigger_prefixes` on the
-three cluster-addons TFC workspaces, made by the `tf_cloud` workspaces.
+a result, and stops chart changes from queueing TFC runs. **It changes nothing on the app.** The
+applies are in-place updates of `trigger_prefixes` on the three cluster-addons TFC workspaces
+(made by the `tf_cloud` workspaces), the state-only destroy of the dead `terraform_data` ordering
+handle, and the `atomic` flip on the ArgoCD release (a no-op `helm upgrade`, section 3).
 
 The one rule: **the resource block may only be deleted from a module whose every consumer has
 already forgotten the resource.** Deleting a resource block for an instance that is still in state
@@ -25,8 +26,15 @@ the merge, not watched after.
     labels and annotations it mirrored in Phase 4: they are inert, dropping them would be a
     metadata update on both live Secrets for nothing, and they are what makes the re-adoption in
     section 6 possible.
-  - `variables.tf`: `manage_helm_release` and `automation_calculator_helm_release_local_path` are
-    deleted. Everything that feeds the Secret, RDS or ACM stays (`environment_name` still names
+  - `main.tf` also loses `terraform_data.cluster_addons`, the ordering handle #404 added so the
+    release could wait for the ALB controller and external-dns without a module-level `depends_on`.
+    With the release gone it orders nothing. It is a state-only resource (it holds the two add-on
+    release names and talks to no API), so its destroy in section 3 touches nothing outside
+    Terraform. The env's `module "main_rails_app"` still has no `depends_on`: that would bring back
+    the ACM validation-record churn #404 fixed. The Application that creates the Ingress is in
+    `module.argocd`, which keeps its own `depends_on = [module.cluster_addons]`.
+  - `variables.tf`: `manage_helm_release`, `automation_calculator_helm_release_local_path` and
+    `addons_dependency` are deleted. Everything that feeds the Secret, RDS or ACM stays (`environment_name` still names
     the DB subnet group).
   - `values.yml` (the `ingress.certificateArn` template) is deleted; nothing reads it.
   - `versions.tf`: the `helm` provider requirement is gone (nothing in the module uses it);
@@ -36,7 +44,9 @@ the merge, not watched after.
   - `outputs.tf`: the certificate ARN output's description no longer mentions the release.
 - Each env's `terraform/env/<env>/aws/us-west-1/cluster-addons-layer/`
   - `main.tf`: `module "main_rails_app"` no longer passes
-    `automation_calculator_helm_release_local_path` or `manage_helm_release`.
+    `automation_calculator_helm_release_local_path`, `manage_helm_release` or `addons_dependency`.
+- `terraform/modules/aws/cluster-addons-layer/outputs.tf`: the `app_helm_release_dependencies`
+  output (#404), whose only consumer was `addons_dependency`, is deleted. Outputs plan nothing.
   - `variables.tf`: `manage_app_helm_release` is deleted; the `argocd_application_automated_sync`
     description no longer refers to it.
   - `terraform.tfvars` (staging and production): `manage_app_helm_release = false` is deleted.
@@ -121,14 +131,15 @@ the PR branch checkout, with `TFE_TOKEN` set (speculative remote runs; nothing i
 
 ```bash
 cd terraform/env/staging/aws/us-west-1/cluster-addons-layer
-terraform plan | tee ../../../../../../tmp/phase9-staging.txt          # 1 to change: helm_release.argocd atomic only
+terraform plan | tee ../../../../../../tmp/phase9-staging.txt          # 1 to change (atomic), 1 to destroy (terraform_data)
 cd ../../../../../production/aws/us-west-1/cluster-addons-layer
-terraform plan | tee ../../../../../../tmp/phase9-production.txt       # 1 to change: helm_release.argocd atomic only
+terraform plan | tee ../../../../../../tmp/phase9-production.txt       # 1 to change (atomic), 1 to destroy (terraform_data)
 ```
 
-The only acceptable change in either plan is `atomic: false => true` on
-`module.argocd[0].helm_release.argocd`. Anything touching `module.main_rails_app` means a
-precondition in 2.1 or 2.2 is not actually met: stop.
+The only acceptable changes in either plan are `atomic: false => true` on
+`module.argocd[0].helm_release.argocd` and the destroy of
+`module.main_rails_app.terraform_data.cluster_addons`. Anything else touching
+`module.main_rails_app` means a precondition in 2.1 or 2.2 is not actually met: stop.
 
 The speculative runs TFC attaches to the PR show the same. **Stop and do not merge** if either
 plan shows:
@@ -138,7 +149,9 @@ plan shows:
   is no guard; on staging the merge would auto-apply a `helm uninstall`.
 - `module.main_rails_app.kubernetes_namespace_v1.automation_calculator will be created` or
   `kubernetes_secret_v1.app_secrets will be created`: a Phase 4 object is not in state.
-- Anything on `module.argocd[0]` or `module.cluster_addons`: not this PR.
+- Anything on `module.argocd[0]` other than the `atomic` flip, or on `module.cluster_addons`:
+  not this PR. A replacement of the ACM validation records means a module-level `depends_on`
+  came back onto `main_rails_app` (#404).
 
 Also confirm in the TFC UI that both addons workspaces are idle (no run planning or waiting for a
 confirm) and that their last applied runs planned 0 changes.
@@ -147,8 +160,8 @@ confirm) and that their last applied runs planned 0 changes.
 
 | Workspace | Expected plan for the merge |
 |---|---|
-| `ac_app_staging_cluster_addons_layer` | **1 to change**, in place: `module.argocd[0].helm_release.argocd`, `atomic: false => true` and nothing else. Auto-applies: the provider runs a `helm upgrade` with the same chart and values, which records a new Helm revision and changes no objects (no pod restarts; `argocd app get` stays Synced/Healthy). The release deletion itself plans nothing: the resource left state in Phase 6. |
-| `ac_app_production_cluster_addons_layer` | **1 to change**, in place: the same `atomic` flip. **Confirm promptly**: the apply is a `helm upgrade` against EKS with the plan-time token, so a stale plan fails with the credentials error. Nothing from the release deletion: it left state in Phase 8. |
+| `ac_app_staging_cluster_addons_layer` | **1 to change**, in place: `module.argocd[0].helm_release.argocd`, `atomic: false => true`. **1 to destroy**: `module.main_rails_app.terraform_data.cluster_addons` (state only, no API call). Nothing else. Auto-applies: the provider runs a `helm upgrade` with the same chart and values, which records a new Helm revision and changes no objects (no pod restarts; `argocd app get` stays Synced/Healthy). The release deletion itself plans nothing: the resource left state in Phase 6. |
+| `ac_app_production_cluster_addons_layer` | **1 to change**, in place: the same `atomic` flip, and the same **1 to destroy** of `terraform_data.cluster_addons`. **Confirm promptly**: the apply is a `helm upgrade` against EKS with the plan-time token, so a stale plan fails with the credentials error. Nothing from the release deletion: it left state in Phase 8. |
 | `ac_app_development_cluster_addons_layer` | No cluster: fails at `data.aws_eks_cluster` as it did before this PR. |
 | each env's `tf_cloud` workspace | **1 to change**, in place: `module.tf_cloud_workspaces.tfe_workspace.cluster_addons_tfe_workspace`, `trigger_prefixes` loses `helm/automation-calculator`. Nothing else: no replacement, no change to the base-cluster workspace or the run trigger. |
 
@@ -209,7 +222,7 @@ order:
    `argocd app delete automation-calculator --cascade=false` (**never** without
    `--cascade=false`: the Application carries no finalizer, but the flag is the belt and braces).
    Production is already manual.
-2. Revert this PR (0 changes) so the module has the resource block again.
+2. Revert this PR so the module has the resource block again (its plan re-creates the state-only `terraform_data.cluster_addons` and reverts the `atomic` flip; nothing else).
 3. Re-adopt the live objects into a Helm release by hand. It works because the Service,
    Deployment, Ingress and Secret still carry `meta.helm.sh/release-name`, `release-namespace`
    and `app.kubernetes.io/managed-by: Helm`:
@@ -239,8 +252,8 @@ without `--cascade=false`; adding a `helm_release` for the app back to the modul
 
 - Section 2 held on both envs before the merge (keep the `tmp/phase9-*.txt` plan transcripts
   until the merge is done; they hold no secrets).
-- The merge planned exactly **1 to change** (the `atomic` flip on `module.argocd[0].helm_release.argocd`,
-  nothing to add or destroy) on both `ac_app_staging_cluster_addons_layer` and
+- The merge planned exactly **1 to change** (the `atomic` flip on `module.argocd[0].helm_release.argocd`)
+  and **1 to destroy** (`module.main_rails_app.terraform_data.cluster_addons`), nothing to add, on both `ac_app_staging_cluster_addons_layer` and
   `ac_app_production_cluster_addons_layer`, and both applied; `helm -n argocd history argocd` shows
   one new revision per cluster with no pod restarts. The three `tf_cloud` runs applied one in-place
   change each and the workspaces' trigger prefixes no longer list `helm/automation-calculator`.

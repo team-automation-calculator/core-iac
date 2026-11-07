@@ -101,8 +101,10 @@ is only started after staging's retest matches its baseline.
     cluster writes). The production Terraform Cloud workspace no longer owns
     the app release, so a bump merge queues no production apply to confirm.
 
-  The Terraform Cloud runs a merge triggers still show on the `core-iac`
-  merge commit; for a bump PR every workspace should plan no app change:
+  Since ArgoCD migration Phase 9 the chart directory is not a trigger
+  prefix of any workspace, so a bump PR that only edits the values files
+  queues no Terraform Cloud run at all. Runs a merge does trigger show on
+  the `core-iac` merge commit:
 
   ```bash
   gh api repos/team-automation-calculator/core-iac/commits/main/status \
