@@ -71,10 +71,15 @@ is only started after staging's retest matches its baseline.
 
 - **How a deploy happens.** `core-iac/scripts/bump_app_docker_image_version_branch.sh <tag> <short_sha>`
   (or `core-iac/scripts/watch_app_docker_image_versions.py`, which runs it
-  when a new tag appears on Docker Hub) opens one PR that bumps `app_version`
-  and `short_commit_hash` in the development, staging **and** production
-  `terraform.tfvars` plus `helm/automation-calculator/values.yaml`. Merging
-  it triggers Terraform Cloud runs:
+  when a new tag appears on Docker Hub) opens one PR that bumps `image.tag`
+  and `shortCommitHash` in `helm/automation-calculator/values.yaml` and in
+  `values-development.yaml`, `values-staging.yaml` **and**
+  `values-production.yaml` next to it. Those `values-<env>.yaml` files are
+  the single source of truth for what each environment runs; there is no
+  `app_version` / `short_commit_hash` in `terraform.tfvars` any more (ArgoCD
+  migration Phase 1). A promotion that moves one environment only (staging
+  first, production later, as #416 and #419 did) edits that environment's
+  `values-<env>.yaml` by hand. Merging it triggers Terraform Cloud runs:
   - **staging auto-applies**, usually 3–5 minutes after merge;
   - **production stops at "apply pending"** and needs a confirm in the
     Terraform Cloud UI. That confirm is the staging→production gate. The

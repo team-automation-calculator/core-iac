@@ -133,7 +133,7 @@ def helm_lint(*args):
 
 
 def check_images(*args):
-    """Check that app_version values added since origin/main exist on Docker Hub."""
+    """Check that image.tag values added to the chart values files since origin/main exist on Docker Hub."""
     require("git")
     run(
         sys.executable,
