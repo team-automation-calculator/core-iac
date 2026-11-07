@@ -363,16 +363,19 @@ objects in both states), the expected plans and the rollback: `docs/argocd-phase
 - Delete from `main_rails_app`: the `helm_release`, its `moved` block, `manage_helm_release`,
   `automation_calculator_helm_release_local_path`, `values.yml`, and the `helm` provider
   requirement. Keep the module for RDS, ACM, the namespace and the Secret. Both envs ran
-  `terraform state rm` on the release in Phases 6 and 8, so deleting the block plans 0 changes;
-  the runbook proves that before the merge, because with the block gone there is no
-  `prevent_destroy` left to catch a release that is still in state.
+  `terraform state rm` on the release in Phases 6 and 8, so deleting the block plans nothing for
+  the release; the runbook proves that before the merge, because with the block gone there is no
+  `prevent_destroy` left to catch a release that is still in state. The release's add-on ordering
+  handle from #404 (`terraform_data.cluster_addons`, `addons_dependency` and the add-ons output
+  feeding it) goes too: with no release it orders nothing, and its destroy is state only.
 - Each env's `cluster-addons-layer` loses `manage_app_helm_release` and the chart-path input, and
   staging and production lose `imports_argocd_phase4.tf` (applied in Phase 4).
 - Remove `helm/automation-calculator` from `cluster_addons_layer_module_directories` so chart
   changes stop queueing TFC runs (and stale production plans). `terraform/modules/aws/main_rails_app`
   **stays** in the list, unlike what this bullet first said: the module still owns the namespace,
   the Secret, RDS and ACM in every addons workspace, so changes to it must keep queueing their runs.
-- Update `CLAUDE.md` (layout, apply order, how deploys work, scripts), the README setup steps, and
+- Update `AGENTS.md` (layout, apply order, how deploys work, scripts; `CLAUDE.md` imports it since
+  #437), the README setup steps, and
   the status line at the top of this document. `.circleci/config.yml` needed no change: `helm lint`
   still guards the chart ArgoCD deploys and every validated module still exists.
 

@@ -66,7 +66,7 @@ the merge, not watched after.
   900-second wait, which a non-atomic retry repaired in place). With both clusters installed, a
   failed upgrade should roll back to the working ArgoCD instead. This is the one change in the PR
   that is not a no-op on the clusters: see section 3.
-- Documentation: `CLAUDE.md` (layout, apply order, how a deploy works, scripts), `README.md`
+- Documentation: `AGENTS.md` (the tool-neutral half of `CLAUDE.md` since #437; layout, apply order, how a deploy works, scripts), `README.md`
   (setup steps), the plan's status line and Phase 9 section, and this runbook.
 - `.circleci/config.yml` is unchanged: `helm lint` still guards the chart ArgoCD deploys,
   `validate_main_rails_app_module` still validates a module that exists, and
