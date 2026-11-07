@@ -6,8 +6,8 @@ description: Promote an app image through staging to production with a smoke-tes
 # Deploy an app image: baseline, deploy, retest, then production
 
 The app has no release process beyond this: a green `main` build pushes an
-image, a `core-iac` PR pins that image, Terraform Cloud rolls it out. This
-skill is the verification wrapped around those steps so that every rollout
+image, a `core-iac` PR pins that image, ArgoCD (staging) and Terraform Cloud
+(production) roll it out. This skill is the verification wrapped around those steps so that every rollout
 has a before/after comparison on both environments.
 
 Promotion order is always **staging first, then production**, and production
@@ -79,13 +79,22 @@ is only started after staging's retest matches its baseline.
   `app_version` / `short_commit_hash` in `terraform.tfvars` any more (ArgoCD
   migration Phase 1). A promotion that moves one environment only (staging
   first, production later, as #416 and #419 did) edits that environment's
-  `values-<env>.yaml` by hand. Merging it triggers Terraform Cloud runs:
-  - **staging auto-applies**, usually 3–5 minutes after merge;
-  - **production stops at "apply pending"** and needs a confirm in the
-    Terraform Cloud UI. That confirm is the staging→production gate. The
+  `values-<env>.yaml` by hand. After the merge:
+  - **staging is rolled out by ArgoCD** (since ArgoCD migration Phase 6):
+    the `automation-calculator` Application in the staging cluster's `argocd`
+    namespace tracks `main` with automated sync, so the new image rolls out
+    within ArgoCD's polling interval (about 3 minutes) of the merge. The
+    staging Terraform Cloud workspace no longer owns the app release; its
+    run, if the merge triggers one, plans no app change. A rollback is a
+    `git revert` of the bump on `main`, not `argocd app rollback` (automated
+    sync refuses it). With `CTX`, `argocd app get automation-calculator`
+    (through the port-forward in `core-iac/docs/argocd-phase-2-install.md`)
+    shows the synced revision;
+  - **production stops at "apply pending"** in Terraform Cloud and needs a
+    confirm in the UI. That confirm is the staging→production gate. The
     user does it; this skill never does.
 
-  Run states show on the `core-iac` merge commit:
+  Production run states show on the `core-iac` merge commit:
 
   ```bash
   gh api repos/team-automation-calculator/core-iac/commits/main/status \
