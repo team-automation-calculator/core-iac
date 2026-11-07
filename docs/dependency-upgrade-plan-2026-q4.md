@@ -266,12 +266,15 @@ updates in the same apply. Then update vpc-cni and CoreDNS by hand, `kubectl get
 within 7 days of the upgrade, so the "one-way" note from the 1.36 PRs no longer applies; outside
 that window it is one-way.
 
-### Phase 5: RDS 16.13 to 18.6 (backup PR, then staging PR, then production PR)
+### Phase 5: RDS 16.13 to 18.6 (backup PRs for staging then production, then the staging and production upgrade PRs)
 
 **5a: backups first (all envs).** Add `backup_retention_period` (default 7) to
-`main_rails_app` and set it; optionally `skip_final_snapshot = false` with a
-`final_snapshot_identifier`. This is a modify with no downtime. Once retention is non-zero RDS
-takes its own before/after snapshots during a major upgrade.
+`main_rails_app` and set it; set `skip_final_snapshot = false` in staging and production (development
+keeps `true` because it is torn down and rebuilt), with the module deriving
+`final_snapshot_identifier`. This is an in-place modify, but AWS documents a brief outage when retention moves
+between 0 and a non-zero value (the instance is taken offline while the first backup is created),
+so apply it in a quiet moment. Once retention is non-zero RDS takes its own before/after snapshots
+during a major upgrade.
 
 **5b: staging, then 5c: production.** `db_engine_version = "18.6"` in the env's
 cluster-addons-layer tfvars; `version_dates/rds_postgres_version_dates.json` already lists 18.
