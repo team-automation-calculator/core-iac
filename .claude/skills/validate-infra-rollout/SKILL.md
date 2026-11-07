@@ -72,6 +72,8 @@ staging's diff matches the expectation.
   VPC change) is a stop: do not merge, or if already merged, do not confirm
   production and report.
 
+- **Timing an RDS modify.** The repo's `scripts/rds_status_poll.py <env> <log>` (run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with a 2 s `curl` loop on `/health` to bound an outage; the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
+
 - **What a snapshot is.** `scripts/env_snapshot.py` in this skill's
   directory captures, read-only, everything the morning's rollouts were
   verified with: `helm list -A` and `helm get manifest` for every release,
