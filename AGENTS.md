@@ -34,7 +34,7 @@ plans/                          # Investigation and migration proposals with cos
 docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, external-dns, ArgoCD, arm64)
 scripts/                        # Python and Bash helpers
 tests/                          # pytest tests for the Python scripts
-iac/specs/claude/project.json   # claude.ai Project spec (added by PR 11 of plans/repo-standards-conformance.md)
+iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
 version_dates/
   eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
   rds_postgres_version_dates.json # RDS PostgreSQL version support timelines

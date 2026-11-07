@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Everything tool-neutral is in `AGENTS.md`, imported above; only Claude-specific guidance lives here.
 
-The repo's claude.ai Project is `core-iac`: https://claude.ai/code/project/chan_01AbNyc2EaPGqeYqJC67yBLD (recorded in `iac/specs/claude/project.json` by PR 11).
+The repo's claude.ai Project is `core-iac`: https://claude.ai/code/project/chan_01AbNyc2EaPGqeYqJC67yBLD (recorded in `iac/specs/claude/project.json`).
 
 ## Skills and Scripts
 
