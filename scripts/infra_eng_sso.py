@@ -384,17 +384,20 @@ def main() -> int:
         use_context(args.environment)
 
     if args.command in ("up", "login"):
-        hint = (
-            "\nexport line follows on stdout; to adopt the profile in the "
-            "current shell,\nrun this command as "
-            f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
-        )
-        if args.command == "up":
-            hint += (
-                "\nkubectl already works: the kubeconfig embeds the profile and "
-                f"the current context\npoints at {cluster_name(args.environment)}."
+        hints = [
+            (
+                "export line follows on stdout; to adopt the profile in the "
+                "current shell, run this command as "
+                f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
             )
-        logger.info("%s\n", hint)
+        ]
+        if args.command == "up":
+            hints.append(
+                "kubectl already works: the kubeconfig embeds the profile and "
+                f"the current context points at {cluster_name(args.environment)}."
+            )
+        for hint in hints:
+            logger.info("%s", hint)
         print(f"export AWS_PROFILE={ci_profile}")
     return 0
 
