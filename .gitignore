@@ -37,3 +37,9 @@ tmp/
 # Claude Code: local worktrees and per-machine settings
 .claude/worktrees/
 .claude/settings.local.json
+
+# Python tooling (Poetry, pytest, Ruff)
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
