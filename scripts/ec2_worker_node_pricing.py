@@ -27,7 +27,11 @@ rates. The AWS Savings Plans file is used to cross-check the Savings Plan rates.
 
 import argparse
 import json
+import logging
+import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TYPES = [
     "t3.small",
@@ -84,7 +88,7 @@ def vantage_rows(data, region, types):
             continue
         linux = item.get("pricing", {}).get(region, {}).get("linux")
         if not linux:
-            print(f"warning: no {region} linux pricing for {itype}", file=sys.stderr)
+            logger.warning("no %s linux pricing for %s", region, itype)
             continue
         rows[itype] = {
             "vcpu": item.get("vCPU"),
@@ -109,8 +113,8 @@ def print_summary(rows, types, hours):
             continue
         od = r["ondemand"]
         print(
-            f"{itype:12} {str(r['vcpu']):>4} {str(r['memory']):>8} {str(r['generation']):>7} "
-            f"{od:8.4f} {od*hours:7.2f} {od*hours*12:7.2f} {str(r['spot_avg']):>9} {str(r['pct_interrupt']):>10}"
+            f"{itype:12} {r['vcpu']!s:>4} {r['memory']!s:>8} {r['generation']!s:>7} "
+            f"{od:8.4f} {od*hours:7.2f} {od*hours*12:7.2f} {r['spot_avg']!s:>9} {r['pct_interrupt']!s:>10}"
         )
 
 
@@ -172,6 +176,11 @@ def main():
     parser.add_argument("--hours", type=float, default=730.0)
     parser.add_argument("--types", default=",".join(DEFAULT_TYPES))
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     types = [t.strip() for t in args.types.split(",") if t.strip()]
     rows = vantage_rows(load_json(args.vantage), args.region, set(types))
