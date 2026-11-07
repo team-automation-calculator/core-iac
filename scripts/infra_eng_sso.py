@@ -44,10 +44,14 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import logging
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SSO_SESSION_NAME = "automation-calculator"
 SSO_REGION = "us-east-1"  # Identity Center organization instance region
@@ -228,9 +232,8 @@ def configure(
 
     AWS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     AWS_CONFIG_PATH.write_text(config_text)
-    print(
-        f"configured profiles {sso_profile} -> {ci_profile} in {AWS_CONFIG_PATH}",
-        file=sys.stderr,
+    logger.info(
+        "configured profiles %s -> %s in %s", sso_profile, ci_profile, AWS_CONFIG_PATH
     )
     return ci_profile
 
@@ -269,7 +272,7 @@ def login(ci_profile: str) -> None:
         "Arn",
         capture=True,
     ).stdout.strip()
-    print(f"logged in; {ci_profile} resolves to {identity}", file=sys.stderr)
+    logger.info("logged in; %s resolves to %s", ci_profile, identity)
 
 
 def kubectl(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
@@ -359,6 +362,11 @@ def main() -> int:
     )
     parser.add_argument("--account-id", help="AWS account id (first run only)")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     _, ci_profile = profile_names(args.environment, args.read_only)
 
@@ -386,7 +394,7 @@ def main() -> int:
                 "\nkubectl already works: the kubeconfig embeds the profile and "
                 f"the current context\npoints at {cluster_name(args.environment)}."
             )
-        print(hint + "\n", file=sys.stderr)
+        logger.info("%s\n", hint)
         print(f"export AWS_PROFILE={ci_profile}")
     return 0
 

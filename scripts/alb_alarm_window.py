@@ -32,8 +32,12 @@ DESCRIPTION = "Read-only replay of the cluster-addons CloudWatch alarms over an 
 import argparse
 import datetime as dt
 import json
+import logging
+import os
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 WINDOW_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -172,6 +176,11 @@ def main():
     parser.add_argument("--env", default="production")
     parser.add_argument("--region", default="us-west-1")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     alarms = describe_alarms(args.env, args.region)
     dims = alarms[0]["Dimensions"]
@@ -204,11 +213,12 @@ def main():
         if alarm["MetricName"].endswith("HostCount") and all(
             d["Name"] != "TargetGroup" for d in alarm["Dimensions"]
         ):
-            print(
-                f"WARNING: {alarm['AlarmName']} evaluates {alarm['MetricName']} with only the LoadBalancer "
+            logger.warning(
+                "%s evaluates %s with only the LoadBalancer "
                 "dimension; AWS publishes that metric per target group, so this alarm never receives "
                 "data and cannot fire. Check its StateReason with describe-alarms.",
-                file=sys.stderr,
+                alarm["AlarmName"],
+                alarm["MetricName"],
             )
 
     minutes = []

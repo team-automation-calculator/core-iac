@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import urllib.parse
 import urllib.request
+
+logger = logging.getLogger(__name__)
 
 API = "https://app.terraform.io/api/v2"
 
@@ -55,10 +58,15 @@ def main() -> int:
     )
     parser.add_argument("--org", default="team-automation-calculator")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     token = os.environ.get("TFE_TOKEN")
     if not token:
-        print("TFE_TOKEN is not set", file=sys.stderr)
+        logger.error("TFE_TOKEN is not set")
         return 2
 
     org = urllib.parse.quote(args.org)

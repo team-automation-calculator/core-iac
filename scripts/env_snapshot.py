@@ -16,12 +16,16 @@ rendered manifests, the host's Route 53 records, pods, the ACM certificate and /
 import argparse
 import difflib
 import json
+import logging
+import os
 import pathlib
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
+
+logger = logging.getLogger(__name__)
 
 ENVS = {
     "staging": {
@@ -95,13 +99,19 @@ def take(args: argparse.Namespace) -> int:
 
     identity = kube_identity(ctx, env) if ctx else ""
     if ctx and "_read_only/" not in identity:
-        print(
-            f"error: kubectl context {ctx} authenticates as {identity or 'unknown'}, not a "
-            f"_read_only role; it embeds the wrong AWS profile. Recreate it with\n"
-            f"  aws eks update-kubeconfig --name ac_app_{args.env} --region {REGION} "
-            f"--profile {cfg['profile']} --alias ac_app_{args.env}-ro\n"
-            f"or pass --context for a context that uses {cfg['profile']}.",
-            file=sys.stderr,
+        logger.error(
+            "kubectl context %s authenticates as %s, not a "
+            "_read_only role; it embeds the wrong AWS profile. Recreate it with\n"
+            "  aws eks update-kubeconfig --name ac_app_%s --region %s "
+            "--profile %s --alias ac_app_%s-ro\n"
+            "or pass --context for a context that uses %s.",
+            ctx,
+            identity or "unknown",
+            args.env,
+            REGION,
+            cfg["profile"],
+            args.env,
+            cfg["profile"],
         )
         return 2
 
@@ -460,6 +470,11 @@ def main() -> int:
     )
     d.set_defaults(fn=diff)
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
     return args.fn(args)
 
 

@@ -25,10 +25,14 @@ first. Nothing here ever unticks an item or rewrites other text.
 
 import argparse
 import json
+import logging
+import os
 import re
 import subprocess
 import sys
 import tempfile
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_REPO = "team-automation-calculator/automation-calculator"
 REPO = DEFAULT_REPO  # overridden by --repo (e.g. team-automation-calculator/core-iac for a bump PR)
@@ -85,9 +89,8 @@ def cmd_prs(args):
     ]
     rows.sort(key=lambda pr: pr["mergedAt"])
     if not rows:
-        print(
-            f"no merged PR has its merge commit in {args.old[:7]}..{args.new[:7]}",
-            file=sys.stderr,
+        logger.error(
+            "no merged PR has its merge commit in %s..%s", args.old[:7], args.new[:7]
         )
         return 1
     for pr in rows:
@@ -120,12 +123,9 @@ def edit(args, tick):
     ]
     if len(hits) != 1:
         state = "no unchecked item" if not hits else f"{len(hits)} unchecked items"
-        print(
-            f"#{args.pr}: {state} match {args.match!r}; refusing to edit",
-            file=sys.stderr,
-        )
+        logger.error("#%s: %s match %r; refusing to edit", args.pr, state, args.match)
         for _, _, text in hits:
-            print(f"  [ ] {text}", file=sys.stderr)
+            logger.error("  [ ] %s", text)
         return 1
     index = hits[0][0]
     old = lines[index]
@@ -187,6 +187,11 @@ def main():
         cmd.set_defaults(func=lambda args, tick=tick: edit(args, tick))
 
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
     global REPO
     REPO = args.repo
     return args.func(args)
