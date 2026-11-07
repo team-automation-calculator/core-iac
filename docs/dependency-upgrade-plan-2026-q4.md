@@ -61,7 +61,8 @@ chart changes to `helm/automation-calculator` beyond what a tool bump forces.
 | aws-load-balancer-controller chart | `cluster-addons-layer/main.tf` | 3.6.1 | 3.6.1 | done in #324 |
 | external-dns chart | same | 1.21.1 (app 0.21) | 1.23.0 (app 0.23.0) | 1.22.0 made `policy` required and moved A ALIAS ownership TXT to the `a-` prefix |
 | metrics-server chart | same | 3.8.3 (app 0.6.2), installed in the `default` namespace | 3.14.0 (app 0.9.0) | 0.9.x supports Kubernetes 1.34+ |
-| EKS default add-ons (vpc-cni, coredns, kube-proxy) | not managed (no EKS add-ons registered; `list-addons` is empty in both clusters) | whatever the 1.36 upgrade left | per-version recommended | updated by hand after each control-plane bump |
+| kube-proxy EKS add-on | `env/<env>/.../base-cluster-layer/terraform.tfvars` `kube_proxy_addon_version` (registered as a managed add-on by `base-cluster-layer`) | v1.36.0-eksbuild.58 (before registration: staging v1.32.13-eksbuild.5, production v1.35.3-eksbuild.2, both self-managed) | v1.36.0-eksbuild.58 is the 1.36 default in us-west-1 | kube-proxy may be at most three minors behind the API server; staging's 1.32 on 1.36 was outside that. Bump the pin with each control-plane upgrade |
+| EKS default add-ons (vpc-cni, coredns) | not managed (self-managed objects from cluster creation; `list-addons` shows only kube-proxy) | staging: vpc-cni v1.20.5-eksbuild.1, CoreDNS v1.11.4-eksbuild.33; production: vpc-cni v1.21.1-eksbuild.1, CoreDNS v1.13.2-eksbuild.4 | per-version recommended | still updated by hand after each control-plane bump; registering them is a follow-up |
 
 Secondary providers (`random` 3.8.1, `tls` 4.2.1, `time` 0.13.1, `null` 3.2.4, `cloudinit` 2.3.7)
 ride along with the lock-file refresh in Phase 2 and need no review.
@@ -244,25 +245,34 @@ Audit of the EKS 1.37 release notes against this repo:
 | Metrics API | metrics-server 0.9.0 from Phase 3a is built against the 1.36 client libraries; 0.6.2 is from 2022 and three majors behind the compatibility matrix. Do Phase 3a first. |
 
 Add-on compatibility: ALB controller 3.6.1 (needs 1.22+), external-dns 0.23 and metrics-server
-0.9.0 are all current. The three default add-ons are not EKS-managed add-ons here, so after each
-control-plane upgrade update them by hand to the versions the EKS docs recommend for 1.37
-(vpc-cni, CoreDNS, kube-proxy), the same step the 1.36 PRs recorded. Consider registering them
-as EKS add-ons in a follow-up so Terraform can version them.
+0.9.0 are all current. kube-proxy is an EKS managed add-on pinned by `kube_proxy_addon_version`
+in each env's `base-cluster-layer/terraform.tfvars`, so the 1.37 PR bumps that pin in the same
+change as `kubernetes_cluster_version` (take the `defaultVersion: true` entry from
+`aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version 1.37 --region us-west-1`);
+the plan then shows an in-place `aws_eks_addon` update next to the cluster version change. vpc-cni
+and CoreDNS are still not EKS-managed add-ons here, so after each control-plane upgrade update
+those two by hand to the versions the EKS docs recommend for 1.37, the same step the 1.36 PRs
+recorded. Registering them the same way as kube-proxy is a follow-up.
 
 Rollout per env: apply `base-cluster-layer`; the control plane upgrades in place (needs five free
 IPs in the cluster subnets), then the managed node group rolls onto the 1.37 AL2023 AMI
 (`maxUnavailablePercentage: 33` on a one-node group means the node is replaced, so expect a few
-minutes of app downtime on the single `t3.medium`; schedule accordingly). Then update the default
-add-ons, `kubectl get nodes` shows 1.37, `./go smoke <env>`. EKS now allows a rollback to 1.36
+minutes of app downtime on the single `t3.medium`; schedule accordingly). The kube-proxy add-on
+updates in the same apply. Then update vpc-cni and CoreDNS by hand, `kubectl get nodes` shows
+1.37, `aws eks describe-addon --addon-name kube-proxy` shows `ACTIVE` at the new pin,
+`./go smoke <env>`. EKS now allows a rollback to 1.36
 within 7 days of the upgrade, so the "one-way" note from the 1.36 PRs no longer applies; outside
 that window it is one-way.
 
-### Phase 5: RDS 16.13 to 18.6 (backup PR, then staging PR, then production PR)
+### Phase 5: RDS 16.13 to 18.6 (backup PRs for staging then production, then the staging and production upgrade PRs)
 
 **5a: backups first (all envs).** Add `backup_retention_period` (default 7) to
-`main_rails_app` and set it; optionally `skip_final_snapshot = false` with a
-`final_snapshot_identifier`. This is a modify with no downtime. Once retention is non-zero RDS
-takes its own before/after snapshots during a major upgrade.
+`main_rails_app` and set it; set `skip_final_snapshot = false` in staging and production (development
+keeps `true` because it is torn down and rebuilt), with the module deriving
+`final_snapshot_identifier`. This is an in-place modify, but AWS documents a brief outage when retention moves
+between 0 and a non-zero value (the instance is taken offline while the first backup is created),
+so apply it in a quiet moment. Once retention is non-zero RDS takes its own before/after snapshots
+during a major upgrade.
 
 **5b: staging, then 5c: production.** `db_engine_version = "18.6"` in the env's
 cluster-addons-layer tfvars; `version_dates/rds_postgres_version_dates.json` already lists 18.
@@ -346,14 +356,18 @@ kubectl --context "$CTX" -n kube-system get deploy,ds -o wide       # images at 
 kubectl --context "$CTX" top nodes                                  # Metrics API serving
 kubectl --context "$CTX" -n kube-system logs deploy/external-dns --since=15m | grep -ci 'error'   # 0
 helm --kube-context "$CTX" list -A                                  # every release "deployed", chart versions as pinned
+aws eks describe-addon --cluster-name "$CLUSTER" --addon-name kube-proxy --region us-west-1 --query 'addon.[addonVersion,status]'   # tfvars pin, ACTIVE
 aws rds describe-db-instances --region us-west-1 --query 'DBInstances[].[EngineVersion,BackupRetentionPeriod,DBInstanceStatus]'
 curl -fsS https://<host>/health
 ```
 
 ## Follow-ups (not in scope)
 
-- Register vpc-cni, CoreDNS and kube-proxy as EKS managed add-ons in `base-cluster-layer` so the
-  post-upgrade manual step goes away.
+- Register vpc-cni and CoreDNS as EKS managed add-ons in `base-cluster-layer`, the way kube-proxy
+  already is, so the rest of the post-upgrade manual step goes away. vpc-cni needs
+  `before_compute = true` and a decision on the node role's CNI policy versus pod identity;
+  CoreDNS adoption with `OVERWRITE` resets any hand-edited Corefile or replica count, so check
+  both clusters for customisations first.
 - Move metrics-server into `kube-system` (delete-and-recreate).
 - Decide whether `auto_minor_version_upgrade` should stay on with a full-version pin, or the pin
   should become a major prefix.

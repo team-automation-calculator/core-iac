@@ -48,6 +48,7 @@ module "sso_infra_eng" {
 module "eks_cluster" {
   environment_name          = var.environment_name
   cluster_version           = var.kubernetes_cluster_version
+  kube_proxy_addon_version  = var.kube_proxy_addon_version
   source                    = "../../../../../modules/aws/base-cluster-layer"
   subnet_ids                = module.networking_layer.private_eks_subnet_ids
   vpc_id                    = module.networking_layer.vpc.id
