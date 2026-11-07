@@ -1,11 +1,13 @@
-"""Tests for normalize, to_txt_name, owner_of and build_plan in
-scripts/external_dns_txt_prefix_migration.py."""
+"""Tests for normalize, to_txt_name, owner_of, build_plan, new_value and
+create_changes in scripts/external_dns_txt_prefix_migration.py."""
 
 import pytest
 from external_dns_txt_prefix_migration import (
     TXT_PREFIX,
     TxtRecord,
     build_plan,
+    create_changes,
+    new_value,
     normalize,
     owner_of,
     to_txt_name,
@@ -50,10 +52,29 @@ def txt(name, *values, ttl=300):
         ("example.com..", "example.com"),
         ("", ""),
         (".", ""),
+        # Route 53 returns special characters as \NNN octal escapes.
+        ("\\052.staging.automation-calculations.io.", f"*.{HOST}"),
+        ("\\052.Staging.Automation-Calculations.IO.", f"*.{HOST}"),
+        ("a\\100b.example.com.", "a@b.example.com"),
+        # Not an octal escape (8 is not an octal digit): left as is.
+        ("a\\089.example.com", "a\\089.example.com"),
     ],
 )
 def test_normalize(name, expected):
     assert normalize(name) == expected
+
+
+def test_build_plan_matches_escaped_wildcard_records():
+    wildcard = f"*.{HOST}"
+    records = [
+        alias_a(f"\\052.{HOST}"),
+        txt(f"cname-\\052.{HOST}", ownership()),
+    ]
+    [plan] = build_plan(records, [wildcard])
+    assert plan.tokens == ["cname"]
+    assert plan.source is not None
+    assert plan.source.name == f"cname-*.{HOST}"
+    assert plan.new == {f"cname-extdns.*.{HOST}": None}
 
 
 # to_txt_name
@@ -179,14 +200,41 @@ def test_build_plan_source_requires_default_owner():
     assert plan.source.ttl == 60
 
 
-def test_build_plan_source_checks_only_first_ownership_value():
+def test_build_plan_source_considers_every_ownership_value():
     records = [
         alias_a(HOST),
         txt(f"cname-{HOST}", ownership(owner="other"), ownership()),
     ]
     [plan] = build_plan(records, [HOST])
     assert len(plan.old) == 1
-    assert plan.source is None
+    # Our owner value is second, after another owner's; it is still found.
+    assert plan.source is not None
+    assert plan.source.name == f"cname-{HOST}"
+    assert new_value(plan) == ownership()
+
+
+def test_build_plan_source_with_non_ownership_value_first():
+    records = [alias_a(HOST), txt(HOST, '"v=spf1 -all"', ownership(), ttl=60)]
+    [plan] = build_plan(records, [HOST])
+    assert plan.source is not None
+    assert plan.source.name == HOST
+    assert new_value(plan) == ownership()
+
+
+def test_create_changes_copies_our_owner_value_not_the_first():
+    records = [
+        alias_a(HOST),
+        txt(f"cname-{HOST}", ownership(owner="other"), ownership(), ttl=120),
+    ]
+    changes, inverse = create_changes(build_plan(records, [HOST]))
+    rrset = {
+        "Name": f"cname-extdns.{HOST}.",
+        "Type": "TXT",
+        "TTL": 120,
+        "ResourceRecords": [{"Value": ownership()}],
+    }
+    assert changes == [{"Action": "CREATE", "ResourceRecordSet": rrset}]
+    assert inverse == [{"Action": "DELETE", "ResourceRecordSet": rrset}]
 
 
 def test_build_plan_exits_when_host_has_no_records():
