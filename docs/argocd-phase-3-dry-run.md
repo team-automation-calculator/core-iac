@@ -155,15 +155,22 @@ Then the untouched check: `scripts/argocd_canary_check.sh | tee tmp/canary-04-sy
 
 ## 5. Bump `image.tag` on a branch
 
-The bump happens in git, on a branch that is **never merged**. Pick a tag that exists on Docker Hub,
-for example one that staging ran before (`git log -p origin/main --
-terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars | grep '^-app_version'`
-lists retired values; `0.9.6-698` was one).
+The bump happens in git, on a branch that is **never merged**. Pick a tag that exists on Docker Hub
+**and has a `linux/arm64` manifest**: the staging node is an arm64 `t4g.medium` since #409, and an
+amd64-only tag CrashLoops there with `exec format error`. Every tag before `0.9.6-990` is
+amd64-only (older tags such as `0.9.6-698` no longer work). If a newer multi-arch tag than the one
+`values-staging.yaml` holds exists, use it; otherwise use `latest`, which on 2026-11-07 pointed at
+the same multi-arch image as `0.9.6-990`. A different tag string still changes the pod template, so
+the sync rolls a new ReplicaSet and exercises the same path. Check the tag first:
+
+```bash
+docker manifest inspect automationcalculationsci/automation-calculator:<tag> | grep -c '"architecture": "arm64"'   # must be 1
+```
 
 ```bash
 git fetch origin
 git checkout -b argocd-canary-bump origin/main
-yq -i '.image.tag = "0.9.6-698"' helm/automation-calculator/values-staging.yaml
+yq -i '.image.tag = "<tag>"' helm/automation-calculator/values-staging.yaml
 git diff                                            # exactly one line
 git commit -am "ArgoCD Phase 3: canary image bump (never merge)"
 git push -u origin argocd-canary-bump
