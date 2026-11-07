@@ -21,8 +21,9 @@ the Secret. Pods are not restarted, the Secret's data does not change, the Ingre
     plans clean. The two `meta.helm.sh` annotations also let a revert re-adopt the Secret into the
     release (section 7).
   - `helm_release.automation-calculator`: the six `set_sensitive` blocks are gone; it `depends_on`
-    the namespace and the Secret so a fresh environment creates them first. `create_namespace`
-    stays `true` (a no-op now) so this phase's release diff is only the removed blocks.
+    the namespace and the Secret (next to `terraform_data.cluster_addons`, main's #404 add-on
+    ordering) so a fresh environment creates them first. `create_namespace` stays `true` (a no-op
+    now) so this phase's release diff is only the removed blocks.
   - `versions.tf`: `kubernetes ~> 2.16`; the lock file gains the kubernetes provider block. The
     env configs already declare the `kubernetes` provider (`provider.tf`) and pass it implicitly.
 - `terraform/env/{staging,production}/aws/us-west-1/cluster-addons-layer/imports_argocd_phase4.tf`:
@@ -63,7 +64,9 @@ kubectl -n automation-calculator get secret automation-calculator-app-secrets \
   -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}'; echo        # keep
 ```
 
-If it prints anything else, annotate first and re-check:
+If it prints anything else, annotate first and re-check. This is the one write in this section;
+on production it needs the user's own production identity (the `ac_app_production-ro` context
+cannot write, and Claude sessions are denied production kube writes):
 
 ```bash
 kubectl -n automation-calculator annotate secret automation-calculator-app-secrets helm.sh/resource-policy=keep
@@ -116,6 +119,9 @@ the namespace limited to metadata (it should not appear at all thanks to `ignore
   plan fail outright).
 - A change to `module.cluster_addons`, `module.argocd`, the Deployment-affecting values of the
   release, or `terraform.tfvars`: not this PR.
+- A replacement of the ACM validation records (`aws_route53_record` for the certificate
+  validation) or a change to `terraform_data.cluster_addons`: #404 removed the cause, so either is a
+  regression in this branch's wiring (a module-level `depends_on` on `main_rails_app` crept back).
 - "Cannot import non-existent remote object": the kubeconfig the run used does not see the
   namespace or Secret; the workspace credentials or the cluster are wrong.
 
