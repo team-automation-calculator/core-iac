@@ -194,7 +194,7 @@ new `policy = "upsert-only"` entry (required from 1.22.0; the comment that says 
 |---|---|
 | `policy` has no default and is required | Yes. Set `upsert-only` explicitly, matching today's effective value. Anything else risks deletes. |
 | Default annotation prefix is now `external-dns.kubernetes.io/`, no fallback | No. The app chart sets no external-dns annotations; hostnames come from Ingress rules. |
-| AWS A ALIAS ownership TXT uses the `a-` prefix instead of `cname-` | **Yes.** Our prefix is `%{record_type}-extdns.`, so today's owner records are `cname-extdns.<host>` and `aaaa-extdns.<host>`. 0.22.0 still reads the `cname-` record, UPSERTs a new `a-extdns.<host>` TXT on the first sync, and leaves the old one with a warning. Ownership is preserved. The old records are removed later with the upstream `scripts/aws-cleanup-legacy-txt-records.py --alias-cname-cleanup`, which only deletes a `cname-` record whose `a-` twin exists. |
+| AWS A ALIAS ownership TXT uses the `a-` prefix instead of `cname-` | **Yes.** Our prefix is `%{record_type}-extdns.`, so today's owner records are `cname-extdns.<host>` and `aaaa-extdns.<host>`. 0.22.0 still reads the `cname-` record, UPSERTs a new `a-extdns.<host>` TXT on the first sync, and leaves the old one with a warning. Ownership is preserved. The old records are removed later with `scripts/external_dns_txt_prefix_migration.py delete-legacy-cname`, which (like the upstream `aws-cleanup-legacy-txt-records.py --alias-cname-cleanup`) only deletes a `cname-` record whose `a-` twin exists. |
 | TXT registry deletes by stored value (0.23.0) | Behavioral; no config. |
 | `crd` registry namespace flag (0.23.0) | No. We use the `txt` registry. |
 | Removed providers (Gandi, Akamai, Plural, Transip), Pi-hole v5, Gateway/Ambassador API moves | No. |
@@ -220,8 +220,10 @@ Rollout, staging first:
    orphan-cleanup bug in 0.22 was only visible on records that lost their A twin).
 6. Production: fresh TFC run, same validation, `./go smoke prod`.
 7. After both envs are clean for a week, delete the legacy `cname-extdns.*` TXT records for alias
-   A names in a separate PR using the upstream cleanup script with `--dry-run` first, and record
-   the inverse batch in `tmp/` as was done for the prefix migration.
+   A names with `scripts/external_dns_txt_prefix_migration.py delete-legacy-cname` (dry run first,
+   then `--apply`; step 7 of `docs/external-dns-txt-prefix-migration.md`), and record the inverse
+   batch in `tmp/` as was done for the prefix migration. Note that this removes the 0.21 rollback
+   path below.
 
 Rollback: `helm -n kube-system rollback external-dns <revision>` restores 0.21, which still owns
 through the `cname-extdns` records (they are never deleted by 0.22/0.23), so no DNS is lost.
@@ -264,12 +266,15 @@ updates in the same apply. Then update vpc-cni and CoreDNS by hand, `kubectl get
 within 7 days of the upgrade, so the "one-way" note from the 1.36 PRs no longer applies; outside
 that window it is one-way.
 
-### Phase 5: RDS 16.13 to 18.6 (backup PR, then staging PR, then production PR)
+### Phase 5: RDS 16.13 to 18.6 (backup PRs for staging then production, then the staging and production upgrade PRs)
 
 **5a: backups first (all envs).** Add `backup_retention_period` (default 7) to
-`main_rails_app` and set it; optionally `skip_final_snapshot = false` with a
-`final_snapshot_identifier`. This is a modify with no downtime. Once retention is non-zero RDS
-takes its own before/after snapshots during a major upgrade.
+`main_rails_app` and set it; set `skip_final_snapshot = false` in staging and production (development
+keeps `true` because it is torn down and rebuilt), with the module deriving
+`final_snapshot_identifier`. This is an in-place modify, but AWS documents a brief outage when retention moves
+between 0 and a non-zero value (the instance is taken offline while the first backup is created),
+so apply it in a quiet moment. Once retention is non-zero RDS takes its own before/after snapshots
+during a major upgrade.
 
 **5b: staging, then 5c: production.** `db_engine_version = "18.6"` in the env's
 cluster-addons-layer tfvars; `version_dates/rds_postgres_version_dates.json` already lists 18.
