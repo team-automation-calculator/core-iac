@@ -39,7 +39,8 @@
     "requires_env": {
       "AWS_USE_DUALSTACK_ENDPOINT": "true"
     },
-    "reason": "The Google app holds one ACS URL and it is the dual-stack one, so the login must use the dual-stack endpoints. scripts/infra_eng_sso.py sets this. If acs_endpoint_kind above ever changes to an IPv4 kind, remove it there."
+    "requires_start_url": "dual_stack",
+    "reason": "The Google app holds one ACS URL and it is the dual-stack one, so the login must use the dual-stack endpoints and start from the dual-stack access portal URL (requires_start_url names a key of access_portal_urls). scripts/infra_eng_sso.py sets the variable and rejects the other portal URL. If acs_endpoint_kind above ever changes to an IPv4 kind, change both there."
   },
   "not_recorded": [
     "The Google app's attribute mapping.",

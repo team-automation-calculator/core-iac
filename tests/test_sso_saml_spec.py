@@ -14,6 +14,9 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+from infra_eng_sso import validate_sso_start_url
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPEC_PATH = REPO_ROOT / "iac" / "specs" / "sso" / "google-workspace-saml.json"
 LOGIN_SCRIPT = REPO_ROOT / "scripts" / "infra_eng_sso.py"
@@ -106,3 +109,66 @@ def test_login_script_uses_the_endpoints_the_google_app_accepts():
     assert (
         spec["cli_login"]["requires_env"].get("AWS_USE_DUALSTACK_ENDPOINT") == "true"
     ) == dual_stack
+
+
+# Made-up identifiers in the real shapes, to turn the spec's placeholder URLs
+# into URLs the script can be asked about.
+PLACEHOLDER_VALUES = {
+    "<instance-id>": "ssoins-examplexample000",
+    "<identity-store-id>": "d-example000",
+}
+
+
+def portal_url(spec: dict, kind: str) -> str:
+    url = spec["aws_identity_center"]["access_portal_urls"][kind]
+    for placeholder, value in PLACEHOLDER_VALUES.items():
+        url = url.replace(placeholder, value)
+    assert "<" not in url, f"unfilled placeholder in {url}"
+    return url
+
+
+def test_login_script_accepts_only_the_portal_url_the_google_app_accepts():
+    spec = load_spec()
+    portals = spec["aws_identity_center"]["access_portal_urls"]
+    required = spec["cli_login"]["requires_start_url"]
+
+    # Same pairing as the endpoint variable: a dual-stack ACS URL on the
+    # Google app means the login starts from the dual-stack portal URL.
+    assert spec["google_workspace_saml_app"]["acs_endpoint_kind"] == "dual-stack"
+    assert required == "dual_stack"
+
+    validate_sso_start_url(portal_url(spec, required))
+    validate_sso_start_url(portal_url(spec, required) + "/")
+
+    rejected = [kind for kind in portals if kind != required]
+    assert rejected == ["ipv4"]
+    for kind in rejected:
+        with pytest.raises(SystemExit) as error:
+            validate_sso_start_url(portal_url(spec, kind))
+        assert "legacy IPv4 portal URL" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.awsapps.com/start",
+        "https://example.awsapps.com/start/",
+        "https://example.awsapps.com/start#/",
+        "https://d-example000.awsapps.com/start",
+    ],
+)
+def test_login_script_rejects_the_legacy_portal_url(url):
+    with pytest.raises(SystemExit) as error:
+        validate_sso_start_url(url)
+
+    assert "legacy IPv4 portal URL" in str(error.value)
+    assert "https://ssoins-<id>.portal.<region>.app.aws" in str(error.value)
+
+
+def test_login_script_rejects_the_instance_url():
+    with pytest.raises(SystemExit) as error:
+        validate_sso_start_url(
+            "https://identitycenter.amazonaws.com/ssoins-examplexample000"
+        )
+
+    assert "instance (issuer) URL" in str(error.value)
