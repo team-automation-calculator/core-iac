@@ -7,7 +7,7 @@ github_org_working_directory           = "terraform/env/production/github/org"
 route53_domains_working_directory      = "terraform/env/production/aws/us-east-1/route53-domains"
 tfc_organization_members = {
   steven_uray = {
-    email           = "steven.uray@automation-calculations.io"
+    email           = "steven.uray@automation-calculations.net"
     import_existing = true
     owner           = true
   }
