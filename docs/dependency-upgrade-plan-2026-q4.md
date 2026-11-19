@@ -4,7 +4,7 @@ Status: **plan merged in #350; Phases 1 to 4 and 5a are merged and applied in st
 production; the RDS 18 upgrade (Phases 5b and 5c) is still open.** Phase 1 #352, Phase 2a #355,
 Phase 2b #356, Phase 2c #357, Phase 3a #358, Phase 3b #359, Phase 4 staging #360, Phase 4
 production #361, Phase 5a staging #414 and production #415 (replacing #362), Phase 5b #363 (draft),
-Phase 5c #364 (draft, stacked on #363), Phase 6 #365 (housekeeping; independent of 5b and 5c).
+Phase 5c #364 (draft, stacked on #363), Phase 6 #457 (housekeeping; independent of 5b and 5c; replaces #365).
 Corrections the implementation turned up are folded into the phase text below. Each phase is its own PR,
 following the pattern of the earlier bumps: one-line tfvars changes per environment, staging first,
 production after a soak, a release-note audit table in the PR body, and the matching
