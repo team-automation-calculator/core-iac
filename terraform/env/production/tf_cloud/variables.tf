@@ -67,6 +67,16 @@ variable "TF_VAR_GITHUB_TOKEN" {
   sensitive   = true
 }
 
+variable "tfc_organization_members" {
+  default     = {}
+  description = "Terraform Cloud organization members, keyed by a short stable name. owner adds the member to the owners team. Set import_existing = true for a member who is already in the organization (and, if owner, already in the owners team) so the membership is imported instead of re-invited. Removing an entry removes the user from the organization. See docs/tfc-org-members.md."
+  type = map(object({
+    email           = string
+    import_existing = optional(bool, false)
+    owner           = optional(bool, false)
+  }))
+}
+
 variable "tfe_workspace_tf_version" {
   description = "Allows for version pinning of tfe workspaces that have been created, because otherwise TF Cloud just chooses the latest one."
   type        = string
