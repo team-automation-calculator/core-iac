@@ -17,11 +17,12 @@ What the release does and does not do:
   redis.
 - `server.insecure=true`: the UI/API is only reachable through `kubectl port-forward`. No Ingress.
 - Explicit resource requests and memory limits sized for a single `t4g.medium` (arm64; the images are multi-arch).
-- No IRSA. The admin password is set from a bcrypt **hash** held as a sensitive TFC workspace
-  variable (`argocd_admin_password_bcrypt_hash`, plus `argocd_admin_password_mtime`), passed to
-  the chart through `set_sensitive`. The plaintext lives only in the team password manager. When
-  the variable is unset the chart generates a password into `argocd-initial-admin-secret` instead.
-  Never compute the hash in HCL: `bcrypt()` salts differently on every run.
+- No IRSA. The admin password is generated here (`random_password.argocd_admin`) and reaches the
+  chart as its `bcrypt_hash` through `set_sensitive`, with a `time_static` mtime, so the chart
+  never creates `argocd-initial-admin-secret`. The plaintext is the sensitive output
+  `argocd_admin_password`, held in the workspace state. The hash is stable across runs because the
+  resource computes it once; never use the `bcrypt()` function, which salts differently on every
+  run.
 - `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`: a failed install stays
   on the cluster for inspection instead of rolling back.
 
@@ -31,5 +32,4 @@ Validation and first login: `docs/argocd-phase-2-install.md`.
 |---|---|---|
 | `argocd_chart_version` | `10.11.6` | argo-cd chart version (Argo CD v3.5.6). Re-pin only in an upgrade PR together with the plan's Versions table. |
 | `argocd_namespace` | `argocd` | Namespace the release creates and installs into. |
-| `argocd_admin_password_bcrypt_hash` | `null` | Sensitive. bcrypt hash (`$2a$`/`$2b$`, 60 chars) of the admin password; validated so a plaintext password is rejected. `null` = chart-generated password. |
-| `argocd_admin_password_mtime` | `null` | RFC 3339 UTC time of the last password change. Must be set together with the hash; invalidates sessions issued before it. |
+| `argocd_admin_password_rotation` | `"1"` | Rotation key. Changing it generates a new admin password and mtime, which logs every session out. |

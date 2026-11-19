@@ -7,7 +7,10 @@
 #   - the cluster-wide pod count (non-terminal pods, which are what count
 #     against the kubelet's max-pods; the raw `get pods -A` count is shown too)
 #   - the headroom left after adding ArgoCD's pods (4 by default: application
-#     controller, repo-server, server, redis)
+#     controller, repo-server, server, redis). ArgoCD pods already running in
+#     ARGOCD_NAMESPACE are part of the pod count, so only the ones still to
+#     come are subtracted: the script gives the same answer before the Phase 2
+#     install and after it.
 #   - the aws-load-balancer-controller replica count
 #   - whether the helm and argocd CLIs are installed
 #
@@ -19,13 +22,15 @@
 #   scripts/argocd_preflight.sh
 #
 # Environment:
-#   ARGOCD_PODS    pods ArgoCD will add (default 4)
-#   ALB_DEPLOY     ALB controller Deployment name (default aws-load-balancer-controller)
-#   ALB_NAMESPACE  ALB controller namespace (default kube-system)
+#   ARGOCD_PODS       pods a full ArgoCD install runs (default 4)
+#   ARGOCD_NAMESPACE  namespace ArgoCD is installed into (default argocd)
+#   ALB_DEPLOY        ALB controller Deployment name (default aws-load-balancer-controller)
+#   ALB_NAMESPACE     ALB controller namespace (default kube-system)
 
 set -euo pipefail
 
 ARGOCD_PODS="${ARGOCD_PODS:-4}"
+ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ALB_DEPLOY="${ALB_DEPLOY:-aws-load-balancer-controller}"
 ALB_NAMESPACE="${ALB_NAMESPACE:-kube-system}"
 
@@ -61,13 +66,23 @@ allocatable_total="$(printf '%s\n' "${node_rows}" | awk -F'\t' 'NF { s += $2 } E
 active_pods="$(kubectl get pods -A --no-headers --field-selector=status.phase!=Succeeded,status.phase!=Failed | awk 'NF { n++ } END { print n + 0 }')"
 all_pods="$(kubectl get pods -A --no-headers | awk 'NF { n++ } END { print n + 0 }')"
 
-headroom=$((allocatable_total - active_pods - ARGOCD_PODS))
+# ArgoCD pods that already run are inside active_pods; subtracting all of
+# ARGOCD_PODS again would count them twice once Phase 2 has installed ArgoCD.
+# A missing namespace lists as zero pods.
+argocd_running="$(kubectl -n "${ARGOCD_NAMESPACE}" get pods --no-headers --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>/dev/null | awk 'NF { n++ } END { print n + 0 }')"
+argocd_to_add=$((ARGOCD_PODS - argocd_running))
+if [ "${argocd_to_add}" -lt 0 ]; then
+  argocd_to_add=0
+fi
+
+headroom=$((allocatable_total - active_pods - argocd_to_add))
 
 echo
 echo "Nodes:                         ${node_count}"
 echo "Allocatable pods (all nodes):  ${allocatable_total}"
 echo "Pods now (non-terminal):       ${active_pods}  (raw kubectl get pods -A count: ${all_pods})"
-echo "ArgoCD pods to add:            ${ARGOCD_PODS}"
+echo "ArgoCD pods already running:   ${argocd_running}  (namespace ${ARGOCD_NAMESPACE})"
+echo "ArgoCD pods to add:            ${argocd_to_add}  (of ${ARGOCD_PODS})"
 echo "Headroom after ArgoCD:         ${headroom}"
 
 if [ "${headroom}" -lt "${ARGOCD_PODS}" ]; then
