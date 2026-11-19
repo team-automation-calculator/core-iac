@@ -179,8 +179,8 @@ Validate:
 ```bash
 kubectl -n argocd get pods
 kubectl -n argocd get secret argocd-initial-admin-secret   # NotFound: Terraform set the password
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-argocd login localhost:8080 --username admin --plaintext   # password from the workspace output argocd_admin_password
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'   # the CLI's own port-forward
+argocd login --username admin   # password from the workspace output argocd_admin_password
 argocd app list   # empty
 ```
 
