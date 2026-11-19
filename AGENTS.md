@@ -14,6 +14,7 @@ Infrastructure as Code for the [automation-calculations.io](https://automation-c
 terraform/
   modules/
     tf_cloud/tf_cloud_workspaces/   # TFE workspace module
+    tf_cloud/tf_cloud_org_members/  # TFC organization memberships + owners team (applied from production tf_cloud; docs/tfc-org-members.md)
     aws/
       argocd/                       # ArgoCD Helm release (per-env toggle argocd_enabled; docs/argocd-migration-plan.md)
       base-cluster-layer/           # VPC, EKS cluster, IAM
@@ -36,7 +37,7 @@ terraform/
 helm/
   automation-calculator/        # App Helm chart
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
-docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, external-dns, ArgoCD, arm64)
+docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, TFC organization members and the IBMid sign-in change, external-dns, ArgoCD, arm64)
   architecture/                 # Mermaid diagrams: AWS resources, request/response flows, PR validation and deploy
 scripts/                        # Python and Bash helpers
 tests/                          # pytest tests for the Python scripts

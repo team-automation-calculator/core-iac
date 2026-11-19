@@ -117,6 +117,20 @@ jobs:
       - terraform/validate:
           path: ./terraform/modules/tf_cloud/tf_cloud_workspaces
 
+  validate_tf_cloud_org_members_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/tf_cloud/tf_cloud_org_members
+      - terraform/validate:
+          path: ./terraform/modules/tf_cloud/tf_cloud_org_members
+      - run:
+          name: Run the module tests (mocked provider, no TFE_TOKEN)
+          command: |
+            terraform -chdir=terraform/modules/tf_cloud/tf_cloud_org_members init -backend=false -input=false
+            terraform -chdir=terraform/modules/tf_cloud/tf_cloud_org_members test
+
   validate_base_cluster_layer_module:
     executor: terraform
     steps:
@@ -252,6 +266,7 @@ workflows:
       - validate_base_cluster_layer_module
       - validate_cluster_addons_module
       - validate_tf_cloud_workspaces_module
+      - validate_tf_cloud_org_members_module
       - validate_development_aws_base_cluster_layer
       - validate_development_aws_cluster_addons_layer
       - validate_development_tf_cloud_env
