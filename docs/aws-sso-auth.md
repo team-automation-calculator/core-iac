@@ -190,7 +190,7 @@ in the browser flow. In order:
    (`https://us-east-1.sso.signin.aws/platform/saml/acs/...`). A login that
    goes through the IPv4 endpoints sends Google a reply URL the app does not
    have, Google denies it, and AWS shows this page. Seen 2026-11-18: the plain
-   CLI login and `https://d-9067be3c25.awsapps.com/start` failed, while the
+   CLI login and `https://<identity-store-id>.awsapps.com/start` failed, while the
    `https://ssoins-<id>.portal.us-east-1.app.aws` portal and the command above
    worked. Only the login needs the variable; the cached token then works for
    every profile without it. The sign of this cause is a **Failed Login**,
