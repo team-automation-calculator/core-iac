@@ -7,7 +7,8 @@ depending on the SNS subscription having been confirmed at the time. It reads th
 metrics they evaluate at 60 s granularity for the window, prints every minute in which
 any of them was non-zero, and re-applies each alarm's rule (statistic, comparison,
 threshold, consecutive evaluation periods) to say when it would have entered ALARM
-and returned to OK. Nothing is written to AWS.
+and returned to OK. Nothing is written to AWS. An alarm the replay cannot re-apply (an
+anomaly-detection operator or a metric math expression) is skipped with a warning.
 
 Usage:
     AWS_PROFILE=ac-ci-staging-ro python3 -I scripts/alb_alarm_window.py \
@@ -131,24 +132,45 @@ def metric_series(alarm_like, start, end, region):
     return series
 
 
+# Static-threshold comparisons the replay can re-apply. The anomaly-detection
+# operators (GreaterThanUpperThreshold, LessThanLowerThreshold,
+# LessThanLowerOrGreaterThanUpperThreshold) compare against a band that CloudWatch
+# computes, so there is no static Threshold to replay against.
+OPERATORS = {
+    "GreaterThanThreshold": lambda value, threshold: value > threshold,
+    "GreaterThanOrEqualToThreshold": lambda value, threshold: value >= threshold,
+    "LessThanThreshold": lambda value, threshold: value < threshold,
+    "LessThanOrEqualToThreshold": lambda value, threshold: value <= threshold,
+}
+
+
+def unsupported_reason(alarm):
+    """Why the replay cannot re-apply this alarm's rule, or None when it can."""
+    op = alarm.get("ComparisonOperator")
+    if op not in OPERATORS:
+        return f"comparison operator {op} has no static threshold to replay"
+    if "MetricName" not in alarm:
+        return "it evaluates a metric math expression, not a single metric"
+    return None
+
+
 def breaches(value, alarm):
     op = alarm["ComparisonOperator"]
-    threshold = alarm["Threshold"]
+    if op not in OPERATORS:
+        raise ValueError(f"unsupported comparison operator: {op}")
     if value is None:
         # TreatMissingData=notBreaching on every alarm in cloudwatch_alarms.tf.
         return alarm.get("TreatMissingData") == "breaching"
-    return {
-        "GreaterThanThreshold": value > threshold,
-        "GreaterThanOrEqualToThreshold": value >= threshold,
-        "LessThanThreshold": value < threshold,
-        "LessThanOrEqualToThreshold": value <= threshold,
-    }[op]
+    return OPERATORS[op](value, alarm["Threshold"])
 
 
 def replay(alarm, series, minutes):
     """Yield (minute, 'ALARM'|'OK') transitions by re-applying the alarm's rule."""
     periods = alarm["EvaluationPeriods"]
-    datapoints_to_alarm = alarm.get("DatapointsToAlarm") or periods
+    # DatapointsToAlarm is absent (meaning N of N) or at least 1.
+    datapoints_to_alarm = alarm.get("DatapointsToAlarm")
+    if datapoints_to_alarm is None:
+        datapoints_to_alarm = periods
     state = "OK"
     for index, minute in enumerate(minutes):
         recent = minutes[max(0, index - periods + 1) : index + 1]
@@ -182,7 +204,20 @@ def main():
         stream=sys.stderr,
     )
 
-    alarms = describe_alarms(args.env, args.region)
+    alarms = []
+    for alarm in describe_alarms(args.env, args.region):
+        reason = unsupported_reason(alarm)
+        if reason:
+            logger.warning(
+                "skipping %s (%s): %s",
+                alarm["AlarmName"],
+                alarm.get("ComparisonOperator"),
+                reason,
+            )
+        else:
+            alarms.append(alarm)
+    if not alarms:
+        sys.exit(f"no replayable alarms named ac-app-{args.env}-* in {args.region}")
     dims = alarms[0]["Dimensions"]
     namespace = alarms[0]["Namespace"]
 

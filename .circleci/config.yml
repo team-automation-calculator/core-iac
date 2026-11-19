@@ -52,7 +52,7 @@ jobs:
       - terraform/fmt:
           path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
       - terraform/validate:
-          path: ./terraform/env/development/aws/us-west-1/
+          path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
   
   validate_staging_tf_cloud_env:
     executor: terraform
