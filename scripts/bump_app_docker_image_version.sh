@@ -28,11 +28,18 @@ ls ${PROD_TFVARS}
 
 YQ_EXPRESSION=".image.tag=\"${NEW_VERSION}\""
 
-OLD_TAG_VALUE=$(yq -r .image.tag ${HELM_VALUES_FILE})
-
 yq -i ${HELM_VALUES_FILE} --expression ${YQ_EXPRESSION}
 
+# Rewrite each app_version line whatever it currently holds. The environments
+# are pinned per env and can differ from each other and from values.yaml, so
+# replacing the old values.yaml tag would skip any env on a different tag
+# while still changing its short_commit_hash.
 for TFVARS_FILE in "${DEV_TFVARS}" "${STAGING_TFVARS}" "${PROD_TFVARS}"; do
-    sed -i '' "s/${OLD_TAG_VALUE}/${NEW_VERSION}/g" "${TFVARS_FILE}"
+    sed -i '' -E "s/^(app_version[[:space:]]*=[[:space:]]*)\"[^\"]*\"/\1\"${NEW_VERSION}\"/" "${TFVARS_FILE}"
     sed -i '' -E "s/^(short_commit_hash[[:space:]]*=[[:space:]]*)\"[^\"]*\"/\1\"${NEW_HASH}\"/" "${TFVARS_FILE}"
+
+    grep -q "^app_version[[:space:]]*=[[:space:]]*\"${NEW_VERSION}\"" "${TFVARS_FILE}" \
+        || { echo "app_version was not set to ${NEW_VERSION} in ${TFVARS_FILE}" >&2; exit 1; }
+    grep -q "^short_commit_hash[[:space:]]*=[[:space:]]*\"${NEW_HASH}\"" "${TFVARS_FILE}" \
+        || { echo "short_commit_hash was not set to ${NEW_HASH} in ${TFVARS_FILE}" >&2; exit 1; }
 done
