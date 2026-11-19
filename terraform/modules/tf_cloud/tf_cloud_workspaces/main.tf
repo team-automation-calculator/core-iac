@@ -17,30 +17,6 @@ resource "tfe_workspace_settings" "base_cluster_tfe_workspace" {
   remote_state_consumer_ids = [tfe_workspace.cluster_addons_tfe_workspace.id]
 }
 
-# The Identity Center ids the Google Workspace SAML app is configured for, fed
-# to the base layer's sso-infra-eng drift check. The repo is public, so the
-# values are never committed: they reach this config as variables (set on the
-# tf_cloud workspace, or TF_VAR_... for a local apply, like the GitHub token)
-# and are written to the base cluster workspace as sensitive variables. Left
-# empty, the check is skipped.
-resource "tfe_variable" "expected_identity_center_instance_id" {
-  category     = "terraform"
-  description  = "IAM Identity Center instance id (ssoins-...) expected by the sso-infra-eng drift check. Managed by the tf_cloud config."
-  key          = "expected_identity_center_instance_id"
-  sensitive    = true
-  value        = var.identity_center_instance_id
-  workspace_id = tfe_workspace.base_cluster_tfe_workspace.id
-}
-
-resource "tfe_variable" "expected_identity_store_id" {
-  category     = "terraform"
-  description  = "IAM Identity Center identity store id (d-...) expected by the sso-infra-eng drift check. Managed by the tf_cloud config."
-  key          = "expected_identity_store_id"
-  sensitive    = true
-  value        = var.identity_center_identity_store_id
-  workspace_id = tfe_workspace.base_cluster_tfe_workspace.id
-}
-
 resource "tfe_run_trigger" "cluster_addons_run_trigger" {
   count         = var.enable_cluster_addons_run_trigger ? 1 : 0
   workspace_id  = tfe_workspace.cluster_addons_tfe_workspace.id

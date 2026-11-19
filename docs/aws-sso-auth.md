@@ -47,14 +47,12 @@ Two settings matter more than they look:
   `AWS_USE_DUALSTACK_ENDPOINT=true` (see Troubleshooting).
 - **Entity ID.** It carries the identity store id. If the Identity Center
   instance is ever deleted and re-enabled, the id changes and every sign-in
-  fails. The `sso-infra-eng` module has a `check` that warns in a plan when
-  the live instance is not the expected one. The expected ids are not
-  committed. Each environment's `tf_cloud` config takes them as the sensitive
-  variables `identity_center_instance_id` and
-  `identity_center_identity_store_id` (set on the `tf_cloud` workspace, or as
-  `TF_VAR_...` for a local apply, the same way as the GitHub token) and writes
-  them to the `ac_app_<env>_base_cluster_layer` workspace as sensitive
-  Terraform variables. While they are empty the check is skipped.
+  fails. The `sso-infra-eng` module guards against that without the ids
+  being committed: its first apply records the live instance ARN and identity
+  store id in Terraform state (`terraform_data.identity_center_pin`), and a
+  `check` warns in every later plan when the live instance is no longer the
+  recorded one. After an intended change of instance, fix the Google app and
+  re-record with `terraform apply -replace` on that resource.
 
 ## One-time setup
 

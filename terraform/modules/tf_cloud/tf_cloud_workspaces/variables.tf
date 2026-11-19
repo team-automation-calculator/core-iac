@@ -93,20 +93,6 @@ variable "google_workspace_working_directory" {
   type        = string
 }
 
-variable "identity_center_identity_store_id" {
-  default     = ""
-  description = "IAM Identity Center identity store id (d-...) the Google Workspace SAML app is configured for. Written to the base cluster workspace as expected_identity_store_id. Never commit the value (public repo). Empty string skips the drift check."
-  sensitive   = true
-  type        = string
-}
-
-variable "identity_center_instance_id" {
-  default     = ""
-  description = "IAM Identity Center instance id (ssoins-...) the Google Workspace SAML app is configured for. Written to the base cluster workspace as expected_identity_center_instance_id. Never commit the value (public repo). Empty string skips the drift check."
-  sensitive   = true
-  type        = string
-}
-
 variable "route53_domains_module_directories" {
   description = "Module directories that trigger a run in the route53-domains workspace."
   type        = list(string)

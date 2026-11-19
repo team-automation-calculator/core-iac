@@ -33,18 +33,6 @@ variable "environment_name" {
   type        = string
 }
 
-variable "expected_identity_center_instance_id" {
-  default     = ""
-  description = "IAM Identity Center instance id (ssoins-...) the Google Workspace SAML app is configured for; a plan warns when the live instance differs. Not committed (public repo): set it as a Terraform variable on the workspace. Empty string skips the check."
-  type        = string
-}
-
-variable "expected_identity_store_id" {
-  default     = ""
-  description = "IAM Identity Center identity store id (d-...) the Google Workspace SAML app is configured for; a plan warns when the live instance differs. Not committed (public repo): set it as a Terraform variable on the workspace. Empty string skips the check."
-  type        = string
-}
-
 variable "kube_proxy_addon_version" {
   description = "Version of the kube-proxy EKS managed add-on (the defaultVersion from `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <kubernetes_cluster_version>`). Bump together with kubernetes_cluster_version."
   type        = string
