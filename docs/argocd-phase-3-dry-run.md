@@ -52,7 +52,7 @@ Ingress and therefore the ALB) and release name `automation-calculator`.
 
 ## 0. Before you start
 
-- Phase 2 is done on staging: ArgoCD pods Running, `argocd login` works, admin password rotated.
+- Phase 2 is done on staging: ArgoCD pods Running, `argocd login` works with the Terraform-generated admin password.
 - Tools: `kubectl`, `argocd`, `helm`, `yq`, `git`.
 - Pod headroom: the canary adds one pod, two during a rollout (`maxSurge` 25% rounds up to 1).
 
@@ -62,16 +62,13 @@ kubectl config current-context                                # must be the ac_a
 ARGOCD_PODS=2 scripts/argocd_preflight.sh                     # headroom for the canary (ArgoCD is already counted)
 ```
 
-Port-forward and log in, as in `argocd-phase-2-install.md`. In one terminal:
+Log in through the `argocd` CLI's own port-forward, as in `argocd-phase-2-install.md` section 4.2.
+Do not point the CLI at a `kubectl port-forward` (`localhost:8080`): the forward exits on the CLI's
+first connection. Every `argocd` command in this runbook needs `ARGOCD_OPTS` exported in its shell:
 
 ```bash
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-```
-
-In another:
-
-```bash
-argocd login localhost:8080 --username admin --plaintext
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'
+argocd login --username admin                              # password: terraform output -raw argocd_admin_password
 argocd app list                                            # empty
 argocd proj list                                           # default only
 ```
