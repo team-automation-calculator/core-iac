@@ -106,5 +106,9 @@ is in the map.
   hand-made, so its Terraform version is set in the TFC UI (Settings → General),
   not by this repo. It must be 1.7 or newer for the `import` blocks; keep it on
   the same version as the workspaces it creates (`tfe_workspace_tf_version`).
+  The same holds for `ac_app_staging_tf_workspaces` and
+  `ac_app_development_tf_workspaces`. All three were set to Terraform 1.17.0 in
+  the UI on 2026-11-18; before that the production one predated `import`
+  blocks (Terraform 1.5).
 - If the production `tf_cloud` workspace does not start a run on a change to
   `terraform/modules/tf_cloud/tf_cloud_org_members`, queue one by hand.
