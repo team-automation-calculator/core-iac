@@ -2,9 +2,9 @@ locals {
   # Value names verified against the argo-cd 10.11.6 chart's values.yaml.
   # No IRSA (the repo is public and ArgoCD makes no AWS calls), no Ingress (UI
   # access is a kubectl port-forward; see docs/argocd-phase-2-install.md). The
-  # admin password is optionally set from a bcrypt hash held in TFC (see
-  # variables.tf and the set_sensitive entries below); otherwise the chart
-  # generates one into argocd-initial-admin-secret.
+  # admin password is generated here and set from its bcrypt hash (see
+  # random_password.argocd_admin and the set_sensitive entries below), so the
+  # chart does not generate one into argocd-initial-admin-secret.
   argocd_values = {
     # Components we do not use. The chart dropped `applicationSet.enabled` in
     # 7.0 (the controller is always rendered), so scale it to zero instead:
@@ -79,26 +79,45 @@ resource "helm_release" "argocd" {
 
   values = [yamlencode(local.argocd_values)]
 
-  # Admin password as a pre-computed bcrypt hash, rendered by the chart into
-  # admin.password / admin.passwordMtime of the argocd-secret Secret. Passed
-  # through set_sensitive (not values) so plan output redacts it. Both entries
-  # are absent when the hash is null, which leaves the chart's generated
-  # password behaviour untouched. (helm provider 3 syntax: set_sensitive is a
-  # list attribute, not repeated blocks.)
-  set_sensitive = concat(
-    var.argocd_admin_password_bcrypt_hash == null ? [] : [
-      {
-        name  = "configs.secret.argocdServerAdminPassword"
-        value = var.argocd_admin_password_bcrypt_hash
-      }
-    ],
-    var.argocd_admin_password_mtime == null ? [] : [
-      {
-        name  = "configs.secret.argocdServerAdminPasswordMtime"
-        value = var.argocd_admin_password_mtime
-      }
-    ],
-  )
+  # Admin password as a bcrypt hash, rendered by the chart into admin.password
+  # / admin.passwordMtime of the argocd-secret Secret. Passed through
+  # set_sensitive (not values) so plan output redacts it. (helm provider 3
+  # syntax: set_sensitive is a list attribute, not repeated blocks.)
+  set_sensitive = [
+    {
+      name  = "configs.secret.argocdServerAdminPassword"
+      value = random_password.argocd_admin.bcrypt_hash
+    },
+    {
+      name  = "configs.secret.argocdServerAdminPasswordMtime"
+      value = time_static.argocd_admin_password.rfc3339
+    },
+  ]
+}
+
+# The admin password. bcrypt_hash is computed once when the resource is
+# created and then read from state, so it is stable across runs (unlike the
+# bcrypt() function, which salts differently on every call and would upgrade
+# ArgoCD on every run). No special characters, so the password pastes into a
+# shell and the argocd CLI prompt without quoting. The plaintext lives in the
+# workspace state, like the database password in main_rails_app; read it from
+# the env config's argocd_admin_password output.
+resource "random_password" "argocd_admin" {
+  length  = 32
+  special = false
+
+  keepers = {
+    rotation = var.argocd_admin_password_rotation
+  }
+}
+
+# The password's mtime. ArgoCD invalidates sessions issued before it, so it
+# must change exactly when the password does and not on any other run: the
+# chart's default (the render time) would log everyone out on every upgrade.
+resource "time_static" "argocd_admin_password" {
+  triggers = {
+    rotation = var.argocd_admin_password_rotation
+  }
 }
 
 # ArgoCD migration Phase 5 (docs/argocd-migration-plan.md): the real

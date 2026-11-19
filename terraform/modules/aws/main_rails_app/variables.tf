@@ -33,6 +33,12 @@ variable "db_security_group_ids" {
   type        = list(string)
 }
 
+variable "db_snapshot_identifier" {
+  default     = null
+  description = "Name of an RDS snapshot to create the app database from, e.g. the final snapshot of a destroyed environment. Read only when the instance is created: changes on an existing instance are ignored, so setting or editing it never replaces a live database. Null creates an empty database."
+  type        = string
+}
+
 variable "db_subnet_group_ids" {
   description = "The ids for the subnet group to put the DB in, note this also chooses the VPC of the DB based on the subnet."
   type        = list(string)

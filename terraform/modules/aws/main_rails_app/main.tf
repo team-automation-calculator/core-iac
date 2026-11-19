@@ -159,10 +159,19 @@ resource "aws_db_instance" "automation_calculator_app" {
   password                    = random_password.database_master_user_password.result
   port                        = var.db_port
   skip_final_snapshot         = var.skip_final_snapshot
+  snapshot_identifier         = var.db_snapshot_identifier
   username                    = "automation_calculator_devops"
   vpc_security_group_ids = [
     aws_security_group.allow_db_access_from_eks.id,
   ]
+
+  # snapshot_identifier forces replacement when it changes. It only means
+  # anything at create time (restore the instance from that snapshot), so
+  # ignore later changes: editing or clearing var.db_snapshot_identifier must
+  # never replace a running database.
+  lifecycle {
+    ignore_changes = [snapshot_identifier]
+  }
 }
 
 resource "random_password" "database_master_user_password" {

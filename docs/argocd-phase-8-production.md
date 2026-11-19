@@ -173,7 +173,7 @@ terraform plan | tee ../../../../../../tmp/phase8-01-production-commit-a.txt
 
 | Workspace | Expected plan for Commit A |
 |---|---|
-| `ac_app_production_cluster_addons_layer` | **2 to add**: `module.argocd[0].helm_release.argocd` and `module.argocd[0].helm_release.argocd_apps[0]`. 0 to change, 0 to destroy. **Needs a confirm.** |
+| `ac_app_production_cluster_addons_layer` | **4 to add**: `module.argocd[0].random_password.argocd_admin`, `module.argocd[0].time_static.argocd_admin_password`, `module.argocd[0].helm_release.argocd` and `module.argocd[0].helm_release.argocd_apps[0]`. 0 to change, 0 to destroy. **Needs a confirm.** |
 | `ac_app_staging_cluster_addons_layer` | Not queued (production's tfvars directory is not one of its trigger prefixes); 0 changes if a run happens for another reason. |
 | `ac_app_development_cluster_addons_layer` | No cluster; fails at `data.aws_eks_cluster` as before. |
 
@@ -187,12 +187,11 @@ module-level `depends_on` crept back onto `main_rails_app`) and a `1 to add` on
 
 ### 4.2 Merge and confirm
 
-Step 0, before merging anything: set the production admin password. Follow Phase 2 sections 4.1
-and 4.2 for `ac_app_production_cluster_addons_layer`: generate a **separate** password for
-production, store it in the password manager under the production ArgoCD entry, and set
-`argocd_admin_password_bcrypt_hash` (sensitive) and `argocd_admin_password_mtime` as Terraform
-variables on that workspace. Commit A's plan then carries the hash in `helm_release.argocd` (shown
-as `(sensitive value)`), and the chart never creates `argocd-initial-admin-secret` on production.
+There is no admin password step before the merge: the `argocd` module generates production's own
+password (`random_password.argocd_admin`, separate from staging's because each workspace has its
+own state) in the same apply that installs ArgoCD. Commit A's plan carries its hash in
+`helm_release.argocd` (shown as `(sensitive value)`), and the chart never creates
+`argocd-initial-admin-secret` on production.
 
 Merge Commit A (section 1: with Commit B reverted off the branch, or as the PR's first merge).
 Watch the production run from the moment it starts planning:
@@ -221,8 +220,8 @@ kubectl -n argocd get cm argocd-cmd-params-cm -o jsonpath='{.data.server\.insecu
 scripts/argocd_preflight.sh                                     # headroom now reflects ArgoCD's four pods; must still exit 0
 ```
 
-First login, exactly as Phase 2 section 4.3, against the production context. The password is
-the one generated for production in section 4.2 step 0 below and stored in the password manager.
+First login, exactly as Phase 2 section 4.2, against the production context. The password is the
+`argocd_admin_password` output of `ac_app_production_cluster_addons_layer` (Phase 2 section 4.1).
 In one terminal:
 
 ```bash
@@ -232,13 +231,13 @@ kubectl -n argocd port-forward svc/argocd-server 8080:80
 In another:
 
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret       # NotFound: the hash came from TFC
-argocd login localhost:8080 --username admin --plaintext        # password from the password manager
+kubectl -n argocd get secret argocd-initial-admin-secret       # NotFound: Terraform set the password
+argocd login localhost:8080 --username admin --plaintext        # password from the workspace output argocd_admin_password
 argocd version                                                  # server v3.5.6
 ```
 
-If the Secret exists, the workspace variables were not set before Commit A applied; follow Phase 2
-section 4.5 (set the variables, queue a run, confirm promptly, then delete the bootstrap Secret).
+If the Secret exists, the install did not receive the generated hash; stop and read the run's plan
+for `helm_release.argocd` before going on.
 
 The `argocd` CLI keeps one context per server address. If the staging port-forward is also on
 8080, the CLI cannot tell them apart; use `8081:80` for production and
@@ -449,7 +448,7 @@ Terraform ownership is a Helm re-install, and the rollback of a bad deploy is a 
 
 | Step | `ac_app_production_cluster_addons_layer` | `ac_app_staging_cluster_addons_layer` |
 |---|---|---|
-| Commit A, speculative and merge | 2 to add: `module.argocd[0].helm_release.argocd`, `module.argocd[0].helm_release.argocd_apps[0]`; **confirm promptly** | not queued / 0 changes |
+| Commit A, speculative and merge | 4 to add: `module.argocd[0].random_password.argocd_admin`, `module.argocd[0].time_static.argocd_admin_password`, `module.argocd[0].helm_release.argocd`, `module.argocd[0].helm_release.argocd_apps[0]`; **confirm promptly** | not queued / 0 changes |
 | after the first sync (5.3) | 0 changes | 0 changes |
 | Commit B speculative, release still in state (6, step 1) | **Error** `Instance cannot be destroyed` (prevent_destroy; the plan showed 1 to destroy). Do not merge. | n/a |
 | after `state rm` (6, step 3) | No changes | n/a |
@@ -586,10 +585,9 @@ production plan.
 
 - `scripts/argocd_soak_log.py status` was PASS on the day the phase started, and the preflight
   exited 0 on production (with whatever headroom change it needed applied first).
-- Commit A applied on production with exactly 2 resources added; `kubectl -n argocd get pods`
-  shows the four pods; the admin password hash and mtime were set on the production workspace
-  before the apply, the plaintext is in the password manager, and `argocd-initial-admin-secret`
-  does not exist.
+- Commit A applied on production with exactly 4 resources added; `kubectl -n argocd get pods`
+  shows the four pods; `argocd login` works with the workspace output `argocd_admin_password`, and
+  `argocd-initial-admin-secret` does not exist.
 - The section 5.1 diff showed only the tracking annotation; the 5.3 diffs show only annotations
   and `managedFields`; Deployment `generation`, Secret `resourceVersion` and sha256 unchanged;
   same pods, same ALB hostname; `/health` 200; `argocd app history` shows ID 0 at the `main` SHA.
