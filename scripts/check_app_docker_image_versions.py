@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Check that any app_version values added in this branch exist on Docker Hub.
+"""Check that any image tags added in this branch exist on Docker Hub.
 
-Diffs `<base>..HEAD` over the cluster-addons-layer terraform.tfvars files,
-extracts versions added on `+app_version` lines, and checks each tag against
-the Docker Hub registry API. Exits non-zero if any tag is missing.
+Diffs `<base>..HEAD` over the app Helm chart's values files
+(`helm/automation-calculator/values.yaml` and `values-<env>.yaml`), extracts
+versions added on `+  tag:` lines (the `image.tag` key), and checks each tag
+against the Docker Hub registry API. Exits non-zero if any tag is missing.
 
 Designed for CircleCI; runs on the standard library only.
 """
@@ -17,18 +18,23 @@ import sys
 import urllib.error
 import urllib.request
 
-TFVARS_PATHSPEC = "terraform/env/*/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-VAR_NAME = "app_version"
+VALUES_PATHSPECS = (
+    "helm/automation-calculator/values.yaml",
+    "helm/automation-calculator/values-*.yaml",
+)
+VAR_NAME = "image.tag"
 IMAGE_REPO = "automationcalculationsci/automation-calculator"
 DOCKER_HUB_TAG_URL = "https://hub.docker.com/v2/repositories/{repo}/tags/{tag}/"
 HTTP_TIMEOUT_SECONDS = 15
 
-ADDED_VERSION_RE = re.compile(rf'^\+\s*{re.escape(VAR_NAME)}\s*=\s*"([^"]+)"')
+# `image.tag` is the only `tag:` key in these values files. The value may be
+# bare or quoted; a trailing comment is tolerated.
+ADDED_VERSION_RE = re.compile(r'^\+\s+tag:\s*"?([^"\s#]+)"?\s*(?:#.*)?$')
 
 
 def git_diff(base: str) -> str:
     result = subprocess.run(
-        ["git", "diff", f"{base}..HEAD", "--", TFVARS_PATHSPEC],
+        ["git", "diff", f"{base}..HEAD", "--", *VALUES_PATHSPECS],
         check=True,
         capture_output=True,
         text=True,
