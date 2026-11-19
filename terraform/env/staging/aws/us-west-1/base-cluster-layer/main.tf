@@ -37,9 +37,11 @@ module "ci_iam_role" {
 # Gated off until the Google Workspace identity provider is connected and
 # the user is provisioned — manual console steps.
 module "sso_infra_eng" {
-  count            = var.enable_sso_infra_eng ? 1 : 0
-  environment_name = var.environment_name
-  source           = "../../../../../modules/aws/sso-infra-eng"
+  count                      = var.enable_sso_infra_eng ? 1 : 0
+  environment_name           = var.environment_name
+  expected_identity_store_id = var.expected_identity_store_id
+  expected_instance_id       = var.expected_identity_center_instance_id
+  source                     = "../../../../../modules/aws/sso-infra-eng"
   providers = {
     aws = aws.us_east_1
   }

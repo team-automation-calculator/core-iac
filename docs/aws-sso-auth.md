@@ -48,8 +48,11 @@ Two settings matter more than they look:
 - **Entity ID.** It carries the identity store id. If the Identity Center
   instance is ever deleted and re-enabled, the id changes and every sign-in
   fails. The `sso-infra-eng` module has a `check` that warns in a plan when
-  the live instance is not the expected one; it is skipped until
-  `expected_instance_id` and `expected_identity_store_id` are passed to it.
+  the live instance is not the expected one. The expected ids are not
+  committed: set `expected_identity_center_instance_id` and
+  `expected_identity_store_id` as Terraform variables on each
+  `ac_app_<env>_base_cluster_layer` workspace. While they are empty the check
+  is skipped.
 
 ## One-time setup
 
