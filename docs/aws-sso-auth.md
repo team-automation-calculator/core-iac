@@ -96,7 +96,9 @@ sets are provisioned, following the staging pattern above.
 ## Daily use
 
 ```bash
-aws sso login --profile infra-eng-staging   # one browser login covers all profiles
+# One browser login covers all profiles. The dual-stack variable is required
+# (see Troubleshooting); scripts/infra_eng_sso.py login sets it for you.
+AWS_USE_DUALSTACK_ENDPOINT=true aws sso login --profile infra-eng-staging
 
 AWS_PROFILE=ac-ci-staging aws sts get-caller-identity   # verify the chain
 AWS_PROFILE=ac-ci-staging terraform plan                # terraform against an env
@@ -173,14 +175,34 @@ replaces whichever persona that entry held before.
 credentials" during `aws sso login`.** The local config is usually not the
 problem: `aws sso login` builds the authorization URL from a client it
 registers fresh, and this error page comes from the AWS sign-in service later
-in the browser flow — stale Identity Center / AWS sign-in session state in the
-browser, or Google federating the wrong account. In order:
+in the browser flow. In order:
 
-1. Retry in a private/incognito window and pick your **Workspace** account in
-   the Google sign-in (not a personal Google account).
-2. If a normal window is needed, clear cookies for `awsapps.com`,
+1. **Log in over the dual-stack endpoints.** `scripts/infra_eng_sso.py` does
+   this itself; a bare `aws sso login` does not:
+
+   ```bash
+   AWS_USE_DUALSTACK_ENDPOINT=true aws sso login --sso-session automation-calculator
+   ```
+
+   Identity Center publishes two sets of SAML endpoints (Settings → Identity
+   source → Manage authentication, tabs **Dual-stack** and **IPv4-only**), and
+   the Google Workspace SAML app holds one ACS URL: the dual-stack one
+   (`https://us-east-1.sso.signin.aws/platform/saml/acs/...`). A login that
+   goes through the IPv4 endpoints sends Google a reply URL the app does not
+   have, Google denies it, and AWS shows this page. Seen 2026-11-18: the plain
+   CLI login and `https://d-9067be3c25.awsapps.com/start` failed, while the
+   `https://ssoins-<id>.portal.us-east-1.app.aws` portal and the command above
+   worked. Only the login needs the variable; the cached token then works for
+   every profile without it. The sign of this cause is a **Failed Login**,
+   "User is Unauthorized" (`REQUEST_DENIED`), in Google Admin → Reporting →
+   Audit and investigation → SAML log events, even though the app's User
+   access is ON for everyone.
+2. Retry in a private/incognito window and pick your **Workspace** account in
+   the Google sign-in (not a personal Google account). `--no-browser` prints
+   the URL to paste there.
+3. If a normal window is needed, clear cookies for `awsapps.com`,
    `signin.aws.amazon.com`, and `aws.amazon.com`, then retry.
-3. Only if it persists in a private window, re-check the config: `sso_start_url`
+4. Only if it persists in a private window, re-check the config: `sso_start_url`
    must be the access portal URL (`https://<subdomain>.awsapps.com/start` or
    `https://ssoins-<id>.portal.<region>.app.aws`) and `sso_region` must be the
    Identity Center home region (`us-east-1`).
