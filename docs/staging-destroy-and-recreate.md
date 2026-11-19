@@ -108,18 +108,26 @@ Left behind:
 
 ## Re-create
 
-1. `ac_app_staging_base_cluster_layer`: discard any waiting runs, start a new run, confirm the
+1. To bring the old data back, set `db_snapshot_identifier` in
+   `terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars` to the final
+   snapshot's name and merge that first. Skip this step for an empty database. Details are in
+   "Saving and restoring the database" below.
+
+   ```hcl
+   db_snapshot_identifier = "automation-calculator-staging-final"
+   ```
+
+2. `ac_app_staging_base_cluster_layer`: discard any waiting runs, start a new run, confirm the
    apply.
-2. The run trigger queues `ac_app_staging_cluster_addons_layer` when the base apply succeeds.
-   Confirm it promptly, for the same token reason as above. If no run was queued, start one.
-3. Refresh local access: `scripts/infra_eng_sso.py`, then check `/health` on
+3. The run trigger queues `ac_app_staging_cluster_addons_layer` when the base apply succeeds.
+   Check that the plan creates `aws_db_instance.automation_calculator_app` with the expected
+   `snapshot_identifier`, then confirm it promptly, for the same token reason as above. If no run
+   was queued, start one.
+4. Refresh local access: `scripts/infra_eng_sso.py`, then check `/health` on
    `staging.automation-calculations.io`.
 
 Notes for the re-create:
 
-- The database comes back empty. `main_rails_app` has no input for restoring from a snapshot, so
-  the final snapshot is not used. See "Saving and restoring the database" below if the old
-  staging data is wanted.
 - The database password and the Rails `secret_key_base` are regenerated, so existing sessions are
   invalid.
 - external-dns in staging uses the TXT prefix from `terraform.tfvars`, and the prefixed ownership
@@ -127,46 +135,60 @@ Notes for the re-create:
   read `docs/external-dns-txt-prefix-migration.md` before changing anything.
 - Staging does not enable the CloudWatch alarms (`cloudwatch_alarms_enabled` defaults to false and
   only production sets it), so there is no alarm bootstrap step.
-- Before destroying staging a second time, delete the earlier final snapshot or change
-  `final_snapshot_identifier`.
 - If staging should apply on merge again while it is up, set `auto_apply = true` and apply
   `tf_cloud`. Set it back to `false` before the next destroy.
 
 ## Saving and restoring the database
 
-Saving is already covered: the destroy takes the final snapshot. Restoring is not. These are the
-options, none of them implemented yet.
+Saving: the destroy takes the final snapshot, because staging has `skip_final_snapshot = false`.
 
-### Option 1: restore the final snapshot through Terraform (recommended if the data matters)
+Restoring: `main_rails_app` has a `db_snapshot_identifier` variable (default `null`), passed to
+`snapshot_identifier` on `aws_db_instance.automation_calculator_app`. The staging add-ons config
+exposes it; development and production do not. Not yet exercised: the first staging re-create is
+its first use.
 
-Add a `db_snapshot_identifier` variable (default `null`) to `main_rails_app`, pass it to
-`snapshot_identifier` on `aws_db_instance.automation_calculator_app`, and expose it in the staging
-add-ons config. To restore, set it in the staging `terraform.tfvars` to the final snapshot's name
-before the re-create.
+How it behaves, checked against the AWS provider source (`internal/service/rds/instance.go`,
+`main` on 2026-11-18):
 
-Checked against the AWS provider source (`internal/service/rds/instance.go`, `main` on
-2026-11-18): `snapshot_identifier` is `Optional`, `Computed` and `ForceNew`.
+- The value is read only when the instance is created. `snapshot_identifier` forces replacement
+  when it changes, so the resource has `lifecycle { ignore_changes = [snapshot_identifier] }`:
+  setting, editing or clearing the variable on a running database plans no change. Leaving the
+  value in `terraform.tfvars` after the restore is harmless, but clear it once it is stale so the
+  next re-create does not restore an old snapshot by accident.
+- The restored instance keeps the snapshot's master username and database name, which match the
+  config. After the restore the provider modifies the instance to the configured values,
+  including the newly generated password. The app's `DATABASE_URL` is built from that password,
+  so the app connects without further work.
+- That modify also sets `allocated_storage` to the configured 10 GB. If storage autoscaling grew
+  the instance past 10 GB before the destroy, the modify fails because RDS cannot shrink storage.
+  Check the snapshot's size before the re-create and raise `allocated_storage` in the module if
+  it is larger.
 
-- Setting it on an instance that already exists, or changing it to another snapshot, replaces the
-  instance. Add `lifecycle { ignore_changes = [snapshot_identifier] }` so the value only matters
-  at create time and a later edit cannot replace a live database. Production never sets it.
-- Because it is `Computed`, removing the value later does not plan a change.
-- The restored instance keeps the snapshot's master username and database name. Terraform
-  generates a new `random_password` and sets it on the restored instance, and the app's
-  `DATABASE_URL` is built from that, so the app connects without further work.
+  ```bash
+  aws rds describe-db-snapshots --profile ac-ci-production --region us-west-1 \
+    --db-snapshot-identifier automation-calculator-staging-final \
+    --query 'DBSnapshots[].[DBSnapshotIdentifier,AllocatedStorage,EngineVersion,Status]'
+  ```
+
+  The staging profiles are gone at that point, so this uses the production profile, which reads
+  the same account.
 - The snapshot is PostgreSQL 16.13. Keep `db_engine_version` at or above that when restoring. I
   have not checked whether a restore can cross a major version in one step; if staging is still
   down when the PostgreSQL 18 upgrade lands, restore on 16 first and upgrade after.
-- Final snapshot names collide on the second cycle: the instance restored from
-  `automation-calculator-staging-final` cannot write a final snapshot with that same name. Set
-  `final_snapshot_identifier` per cycle (for example `automation-calculator-staging-final-2026-11`)
-  and delete the older snapshot once the newer one exists.
+
+Final snapshot names collide on the second cycle: an instance restored from
+`automation-calculator-staging-final` cannot write a final snapshot with that same name on the
+next destroy. Before destroying staging again, set `final_snapshot_identifier` in the staging
+`terraform.tfvars` to a per-cycle name (for example `automation-calculator-staging-final-2027-01`)
+and apply it. Delete the older snapshot once the newer one exists.
 
 Cost of keeping the snapshot: manual and final snapshots are billed per GB-month of used storage
 and kept until deleted. The instance has 10 GB allocated, so this is small. I have not looked up
 the us-west-1 rate.
 
-### Option 2: logical dump and restore
+### Alternatives
+
+#### Logical dump and restore
 
 Before the destroy, `pg_dump` the database from a pod (`scripts/launch_psql_pod.sh`) and keep the
 file. After the re-create, load it with `pg_restore` into the new, empty instance.
@@ -176,13 +198,13 @@ file. After the re-create, load it with `pg_restore` into the new, empty instanc
   must be taken before the add-ons destroy, while the cluster and database still exist.
 - The final snapshot is still taken, so it remains as a fallback.
 
-### Option 3: start empty
+#### Start empty
 
 Re-create with an empty database and let the app set up its schema. No work now. I did not find a
 migration step in the Helm chart, so check how the schema gets created on a fresh database before
 relying on this.
 
-### Not suitable
+#### Not suitable
 
 - Retained automated backups (`delete_automated_backups = false`) with a point-in-time restore:
   they expire after the 7 day retention period, which is shorter than the pause.
