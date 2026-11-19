@@ -33,11 +33,12 @@ module "argocd" {
   ]
   # Phase 5: the Application's only Terraform-injected value. The reference
   # orders this module after the ACM certificate, not after the whole
-  # main_rails_app module (its Helm release stays independent).
+  # main_rails_app module (RDS, the namespace and the Secret are unrelated).
   app_certificate_arn = module.main_rails_app.automation_calculator_app_certificate_arn
   app_repo_url        = var.app_repo_url
-  # Phase 6: automated sync only once this env's Helm release is out of
-  # Terraform state and its Helm history is gone (runbook order).
+  # Phase 6/8: automated sync was enabled on staging only once its Helm release
+  # had left Terraform (Phase 9 removed the release from the module for good);
+  # production leaves all three at their false defaults: manual sync.
   application_automated_sync = var.argocd_application_automated_sync
   application_prune          = var.argocd_application_prune
   application_self_heal      = var.argocd_application_self_heal
@@ -47,28 +48,24 @@ module "argocd" {
 }
 
 module "main_rails_app" {
-  # Ordering only: the app Helm release waits for these add-on releases. Not a
-  # module-level depends_on, which would defer the module's data sources to
-  # apply time and plan the ACM validation records for replacement whenever
-  # cluster_addons has pending changes.
-  addons_dependency                             = module.cluster_addons.app_helm_release_dependencies
-  automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
-  automation_calculator_app_host                = var.automation_calculator_app_host
-  backup_retention_period                       = var.backup_retention_period
-  db_engine_version                             = var.db_engine_version
-  db_security_group_ids                         = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
-  db_subnet_group_ids                           = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
-  db_port                                       = 5432
-  environment_name                              = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
-  final_snapshot_identifier                     = var.final_snapshot_identifier
-  github_oauth_app_id                           = var.github_oauth_app_id
-  github_oauth_app_secret                       = var.github_oauth_app_secret
-  google_oauth_app_id                           = var.google_oauth_app_id
-  google_oauth_app_secret                       = var.google_oauth_app_secret
-  # Phase 6: false only after `terraform state rm` of the release in this
-  # workspace (docs/argocd-phase-6-retire-staging-release.md).
-  manage_helm_release = var.manage_app_helm_release
-  skip_final_snapshot = var.skip_final_snapshot
-  source              = "../../../../../modules/aws/main_rails_app"
-  vpc_id              = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
+  # No module-level depends_on (#404): it would defer this module's data
+  # sources to apply time and plan the ACM validation records for replacement
+  # whenever cluster_addons has pending changes. Since Phase 9 nothing in the
+  # module needs the add-ons; the ArgoCD Application (module.argocd, which
+  # does depend on cluster_addons) is what creates the Ingress.
+  automation_calculator_app_host = var.automation_calculator_app_host
+  backup_retention_period        = var.backup_retention_period
+  db_engine_version              = var.db_engine_version
+  db_security_group_ids          = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
+  db_subnet_group_ids            = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
+  db_port                        = 5432
+  environment_name               = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
+  final_snapshot_identifier      = var.final_snapshot_identifier
+  github_oauth_app_id            = var.github_oauth_app_id
+  github_oauth_app_secret        = var.github_oauth_app_secret
+  google_oauth_app_id            = var.google_oauth_app_id
+  google_oauth_app_secret        = var.google_oauth_app_secret
+  skip_final_snapshot            = var.skip_final_snapshot
+  source                         = "../../../../../modules/aws/main_rails_app"
+  vpc_id                         = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id
 }
