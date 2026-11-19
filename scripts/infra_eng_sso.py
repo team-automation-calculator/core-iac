@@ -32,12 +32,12 @@ Without eval, copy the printed export line, or print it again any time with:
     eval "$(scripts/infra_eng_sso.py export --environment staging)"
 
 First run needs --sso-start-url and --account-id; both are persisted in
-~/.aws/config and read back on later runs. The start URL must be the AWS
-access portal URL — https://<subdomain>.awsapps.com/start or the newer
-https://ssoins-<id>.portal.<region>.app.aws — not the Identity Center
-instance URL (https://identitycenter.amazonaws.com/ssoins-...) also shown
-in the console. Runs on the standard library plus the aws CLI (v2, for
-sso-session support).
+~/.aws/config and read back on later runs. The start URL must be the
+dual-stack AWS access portal URL, https://ssoins-<id>.portal.<region>.app.aws.
+The legacy https://<subdomain>.awsapps.com/start portal URL and the Identity
+Center instance URL (https://identitycenter.amazonaws.com/ssoins-...) also
+shown in the console are both rejected. Runs on the standard library plus the
+aws CLI (v2, for sso-session support).
 """
 
 from __future__ import annotations
@@ -63,34 +63,43 @@ AWS_CONFIG_PATH = Path.home() / ".aws" / "config"
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]+\]\s*$")
 
-# The documented sso_start_url value is the AWS access portal URL, in either
-# the legacy form (https://<subdomain>.awsapps.com/start) or the newer form
-# (https://ssoins-<id>.portal.<region>.app.aws). The Identity Center console
-# also shows an instance/issuer URL
-# (https://identitycenter.amazonaws.com/ssoins-...); logins with it can work,
-# but it is not the documented start URL and diverges from the profile
-# reference in docs/aws-sso-auth.md, so reject it before persisting.
-PORTAL_URL_RES = (
-    re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com/start/?$"),
-    re.compile(r"^https://ssoins-[a-z0-9]+\.portal\.[a-z0-9-]+\.app\.aws/?$"),
+# The only sso_start_url accepted is the dual-stack AWS access portal URL
+# (https://ssoins-<id>.portal.<region>.app.aws). Two other URLs are rejected
+# before they are persisted:
+# - The legacy IPv4 portal URL (https://<subdomain>.awsapps.com/start). The
+#   Google Workspace SAML app holds the dual-stack ACS URL only (see LOGIN_ENV
+#   below), and a sign-in through this portal failed on 2026-11-18.
+# - The instance/issuer URL the Identity Center console also shows
+#   (https://identitycenter.amazonaws.com/ssoins-...). It is not a portal URL.
+# tests/test_sso_saml_spec.py ties this to acs_endpoint_kind in
+# iac/specs/sso/google-workspace-saml.json: if the Google app ever moves to an
+# IPv4 ACS URL, this has to change with it.
+PORTAL_URL_RE = re.compile(
+    r"^https://ssoins-[a-z0-9]+\.portal\.[a-z0-9-]+\.app\.aws/?$"
 )
+LEGACY_PORTAL_URL_RE = re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com(/.*)?$")
 ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
 
 
 def validate_sso_start_url(sso_start_url: str) -> None:
-    if any(pattern.match(sso_start_url) for pattern in PORTAL_URL_RES):
+    if PORTAL_URL_RE.match(sso_start_url):
         return
-    message = f"error: {sso_start_url!r} is not an AWS access portal URL"
-    if "identitycenter.amazonaws.com" in sso_start_url:
+    message = f"error: {sso_start_url!r} is not the dual-stack AWS access portal URL"
+    if LEGACY_PORTAL_URL_RE.match(sso_start_url):
+        message += (
+            ":\nthis is the legacy IPv4 portal URL. The Google Workspace SAML app"
+            "\naccepts sign-ins through the dual-stack endpoints only"
+        )
+    elif "identitycenter.amazonaws.com" in sso_start_url:
         message += (
             ":\nthis is the Identity Center instance (issuer) URL, not the portal URL"
         )
     sys.exit(
         message
-        + "\nexpected form: https://<subdomain>.awsapps.com/start"
-        + "\n            or https://ssoins-<id>.portal.<region>.app.aws"
-        + "\n(Identity Center console -> Settings -> AWS access portal URL;"
-        + "\nre-run configure with --sso-start-url to replace a persisted value)"
+        + "\nexpected form: https://ssoins-<id>.portal.<region>.app.aws"
+        + "\n(Identity Center console -> Settings -> AWS access portal URL,"
+        + "\nthe Dual-stack one; re-run configure with --sso-start-url to"
+        + "\nreplace a persisted value)"
     )
 
 
@@ -372,9 +381,10 @@ def main() -> int:
     parser.add_argument(
         "--sso-start-url",
         help=(
-            "AWS access portal URL, https://<subdomain>.awsapps.com/start or "
-            "https://ssoins-<id>.portal.<region>.app.aws — not the "
-            "identitycenter.amazonaws.com instance URL (first run only)"
+            "dual-stack AWS access portal URL, "
+            "https://ssoins-<id>.portal.<region>.app.aws — not the legacy "
+            "awsapps.com/start URL or the identitycenter.amazonaws.com "
+            "instance URL (first run only)"
         ),
     )
     parser.add_argument("--account-id", help="AWS account id (first run only)")

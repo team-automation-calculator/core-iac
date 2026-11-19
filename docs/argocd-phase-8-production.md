@@ -81,16 +81,20 @@ git diff --stat docs/argocd-staging-soak-log.md   # commit the refreshed Gate se
 the first of them) and exits 1 on FAIL. Do not start this phase on a FAIL, and do not start it on
 a PASS that is older than today: re-run it so the committed log shows the evaluation date.
 
-Also confirm staging is still in its Phase 7 state, with the staging port-forward and login from
-`argocd-phase-2-install.md` section 4:
+Also confirm staging is still in its Phase 7 state, logged in through the `argocd` CLI's own
+port-forward (`argocd-phase-2-install.md` section 4.2):
 
 ```bash
 eval "$(scripts/infra_eng_sso.py up --environment staging)"
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'
+argocd login --username admin              # staging password
 scripts/argocd_staging_verify.sh           # Verify OK at the current values-staging.yaml tag
 ```
 
-Close that port-forward before section 3 (or use another local port there and set
-`ARGOCD_SERVER`), so a production command is never typed against the staging API.
+The CLI's port-forward goes to whatever cluster the current kubectl context points at, so check
+`kubectl config current-context` before every `argocd` command from here on, and log in again
+after every switch between staging and production: a production command must never be typed
+against the staging API, and a login made on one cluster is not valid on the other.
 
 ## 3. Production preflight (the Phase 0 checks, on production)
 
@@ -221,27 +225,25 @@ scripts/argocd_preflight.sh                                     # headroom now r
 ```
 
 First login, exactly as Phase 2 section 4.2, against the production context. The password is the
-`argocd_admin_password` output of `ac_app_production_cluster_addons_layer` (Phase 2 section 4.1).
-In one terminal:
+`argocd_admin_password` output of `ac_app_production_cluster_addons_layer` (Phase 2 section 4.1,
+read with `terraform output` from the production `cluster-addons-layer` directory). The CLI uses
+its own port-forward; do not point it at a `kubectl port-forward`:
 
 ```bash
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-```
-
-In another:
-
-```bash
+kubectl config current-context                                  # ac_app_production
 kubectl -n argocd get secret argocd-initial-admin-secret       # NotFound: Terraform set the password
-argocd login localhost:8080 --username admin --plaintext        # password from the workspace output argocd_admin_password
-argocd version                                                  # server v3.5.6
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'
+argocd version                                                  # needs no login; server v3.5.6
+argocd login --username admin                                   # the production password
 ```
 
 If the Secret exists, the install did not receive the generated hash; stop and read the run's plan
 for `helm_release.argocd` before going on.
 
-The `argocd` CLI keeps one context per server address. If the staging port-forward is also on
-8080, the CLI cannot tell them apart; use `8081:80` for production and
-`ARGOCD_SERVER=localhost:8081` for the verify script, or close the staging one first.
+The CLI's port-forward follows the current kubectl context, and a login made on staging is not
+valid on production (or the reverse). After every context switch, check
+`kubectl config current-context` and run `argocd login --username admin` again with that
+environment's password.
 
 ## 5. Adopt the production app in place (the Phase 5 checks)
 
@@ -470,11 +472,12 @@ replaced the TFC confirm.
 #    checked the tag exists on Docker Hub). Staging syncs itself within the polling interval.
 #    The production TFC run plans 0 changes and needs nothing.
 
-# 2. Production: SSO to the ac_ci_terraform_production role (docs/aws-sso-auth.md), port-forward, log in.
+# 2. Production: SSO to the ac_ci_terraform_production role (docs/aws-sso-auth.md), log in
+#    through the argocd CLI's own port-forward (not kubectl port-forward).
 eval "$(scripts/infra_eng_sso.py up --environment production)"
 kubectl config current-context                                   # ac_app_production
-kubectl -n argocd port-forward svc/argocd-server 8080:80         # in its own terminal
-argocd login localhost:8080 --username admin --plaintext
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'
+argocd login --username admin                                    # the production password
 
 # 3. Look before syncing. --refresh re-reads main now instead of at the next poll.
 argocd app get automation-calculator --refresh                   # OutOfSync on the Deployment
