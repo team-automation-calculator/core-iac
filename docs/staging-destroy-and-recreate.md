@@ -118,7 +118,8 @@ Left behind:
 Notes for the re-create:
 
 - The database comes back empty. `main_rails_app` has no input for restoring from a snapshot, so
-  the final snapshot is not used. Add one before re-creating if the old staging data is wanted.
+  the final snapshot is not used. See "Saving and restoring the database" below if the old
+  staging data is wanted.
 - The database password and the Rails `secret_key_base` are regenerated, so existing sessions are
   invalid.
 - external-dns in staging uses the TXT prefix from `terraform.tfvars`, and the prefixed ownership
@@ -130,3 +131,60 @@ Notes for the re-create:
   `final_snapshot_identifier`.
 - If staging should apply on merge again while it is up, set `auto_apply = true` and apply
   `tf_cloud`. Set it back to `false` before the next destroy.
+
+## Saving and restoring the database
+
+Saving is already covered: the destroy takes the final snapshot. Restoring is not. These are the
+options, none of them implemented yet.
+
+### Option 1: restore the final snapshot through Terraform (recommended if the data matters)
+
+Add a `db_snapshot_identifier` variable (default `null`) to `main_rails_app`, pass it to
+`snapshot_identifier` on `aws_db_instance.automation_calculator_app`, and expose it in the staging
+add-ons config. To restore, set it in the staging `terraform.tfvars` to the final snapshot's name
+before the re-create.
+
+Checked against the AWS provider source (`internal/service/rds/instance.go`, `main` on
+2026-11-18): `snapshot_identifier` is `Optional`, `Computed` and `ForceNew`.
+
+- Setting it on an instance that already exists, or changing it to another snapshot, replaces the
+  instance. Add `lifecycle { ignore_changes = [snapshot_identifier] }` so the value only matters
+  at create time and a later edit cannot replace a live database. Production never sets it.
+- Because it is `Computed`, removing the value later does not plan a change.
+- The restored instance keeps the snapshot's master username and database name. Terraform
+  generates a new `random_password` and sets it on the restored instance, and the app's
+  `DATABASE_URL` is built from that, so the app connects without further work.
+- The snapshot is PostgreSQL 16.13. Keep `db_engine_version` at or above that when restoring. I
+  have not checked whether a restore can cross a major version in one step; if staging is still
+  down when the PostgreSQL 18 upgrade lands, restore on 16 first and upgrade after.
+- Final snapshot names collide on the second cycle: the instance restored from
+  `automation-calculator-staging-final` cannot write a final snapshot with that same name. Set
+  `final_snapshot_identifier` per cycle (for example `automation-calculator-staging-final-2026-11`)
+  and delete the older snapshot once the newer one exists.
+
+Cost of keeping the snapshot: manual and final snapshots are billed per GB-month of used storage
+and kept until deleted. The instance has 10 GB allocated, so this is small. I have not looked up
+the us-west-1 rate.
+
+### Option 2: logical dump and restore
+
+Before the destroy, `pg_dump` the database from a pod (`scripts/launch_psql_pod.sh`) and keep the
+file. After the re-create, load it with `pg_restore` into the new, empty instance.
+
+- No Terraform change, and it works across PostgreSQL major versions.
+- It is manual on both sides, the dump has to be stored somewhere outside the cluster, and it
+  must be taken before the add-ons destroy, while the cluster and database still exist.
+- The final snapshot is still taken, so it remains as a fallback.
+
+### Option 3: start empty
+
+Re-create with an empty database and let the app set up its schema. No work now. I did not find a
+migration step in the Helm chart, so check how the schema gets created on a fresh database before
+relying on this.
+
+### Not suitable
+
+- Retained automated backups (`delete_automated_backups = false`) with a point-in-time restore:
+  they expire after the 7 day retention period, which is shorter than the pause.
+- Stopping the instance in place of destroying it: RDS starts a stopped instance again after 7
+  days, storage is still billed, and it cannot outlive the VPC, which the base destroy removes.
