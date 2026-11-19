@@ -3,8 +3,10 @@
 # Declare variables to be passed into your templates.
 #
 # Per-environment overrides live in values-<env>.yaml (image.tag, shortCommitHash,
-# ingress.host, ingress.albName). Terraform injects ingress.certificateArn and the
-# secrets.* values at release time; they have no usable default here on purpose.
+# ingress.host, ingress.albName, secrets.create: false). Terraform injects
+# ingress.certificateArn at release time and manages the app Secret itself
+# (ArgoCD migration Phase 4); the secrets.* defaults below exist for standalone
+# renders of the chart, such as the Phase 3 canary, and are unusable on purpose.
 
 affinity: {}
 fullnameOverride: automation-calculator
@@ -54,6 +56,9 @@ resources:
 secrets:
   # Render the Secret from the chart. Every value below is required when true;
   # `helm template` with these empty defaults fails on purpose (helm lint does not).
+  # The default stays true so a standalone render (the Phase 3 canary, a local
+  # `helm template` with placeholders) is self-contained; every values-<env>.yaml
+  # sets it to false because Terraform owns the real Secret since Phase 4.
   create: true
   databaseUrl: ""
   githubOAuthAppId: ""
