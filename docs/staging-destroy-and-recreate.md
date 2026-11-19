@@ -7,10 +7,11 @@ before the destroy, the steps, what stops working while staging is gone, and how
 Written 2026-11-18 from a read of the code at `9094061`. The steps have not been run yet; correct
 this document after the first destroy and the first re-create.
 
-## Why `auto_apply` is off for staging
+## Turn `auto_apply` off for staging before the destroy
 
-`terraform/env/staging/tf_cloud/terraform.tfvars` sets `auto_apply = false`. It was `true` until
-this plan.
+`terraform/env/staging/tf_cloud/terraform.tfvars` still sets `auto_apply = true`. It has to be
+`false` before staging is destroyed; that change is left to a later PR. The rest of this document
+assumes it has been made.
 
 The staging base workspace triggers on its own directory and on
 `terraform/modules/aws/networking` and `terraform/modules/aws/base-cluster-layer`. With
@@ -20,21 +21,21 @@ then queue the add-ons workspace, which would re-create the add-ons, the app and
 
 With auto-apply off, such a merge leaves a plan waiting for confirmation. Discard it.
 
-The setting lives in code, not only in the workspace UI, because the next apply of
+Make the change in code, not only in the workspace UI, because the next apply of
 `terraform/env/staging/tf_cloud` would otherwise turn auto-apply back on.
 
-Consequence while staging is up: staging applies need a confirm in the UI, as production applies
-already do.
+Consequence while staging is up with auto-apply off: staging applies need a confirm in the UI, as
+production applies already do.
 
 ## Before the destroy
 
-1. Merge the PR that sets `auto_apply = false`.
+1. Merge a PR that sets `auto_apply = false` in `terraform/env/staging/tf_cloud/terraform.tfvars`.
 2. Merging queues a run in the `ac_app_staging_tf_workspaces` workspace, which runs
    `terraform/env/staging/tf_cloud`. The plan should change `auto_apply` on the two staging
-   workspaces and nothing else (the plan on the PR showed "0 to add, 2 to change"). Confirm the
-   apply in the UI if that workspace does not auto-apply, then check that both staging workspaces
-   show auto-apply off under **Settings > General**. That workspace is not defined in this repo,
-   so whether it auto-applies is only visible in the UI.
+   workspaces and nothing else (a trial plan of that change on 2026-11-18 showed "0 to add, 2 to
+   change"). Confirm the apply in the UI if that workspace does not auto-apply, then check that
+   both staging workspaces show auto-apply off under **Settings > General**. That workspace is not
+   defined in this repo, so whether it auto-applies is only visible in the UI.
 3. Check that no RDS snapshot named `automation-calculator-staging-final` exists. Staging has
    `skip_final_snapshot = false`, so the destroy takes a final snapshot with that name and fails if
    the name is taken. Delete the old one, or set `final_snapshot_identifier` in the staging
