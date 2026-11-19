@@ -46,6 +46,12 @@ variable "db_engine_version" {
   type        = string
 }
 
+variable "db_snapshot_identifier" {
+  default     = null
+  description = "Name of an RDS snapshot to create the database from when staging is re-created after a destroy (docs/staging-destroy-and-recreate.md). Read only at instance creation; null creates an empty database."
+  type        = string
+}
+
 variable "external_dns_txt_prefix" {
   default     = ""
   description = "external-dns TXT registry prefix; empty leaves it unset. Set only after pre-creating the new-format TXT records, see docs/external-dns-txt-prefix-migration.md."
