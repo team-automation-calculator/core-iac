@@ -14,6 +14,8 @@ workspace `ac_app_production_google_cloud`).
 | Organization-level IAM grants | `organization_iam_members` in `terraform.tfvars`. Empty today | `terraform/modules/google_cloud/organization` |
 | The project: display name, parent, labels | **Imported**, then managed | `terraform/modules/google_cloud/project` |
 | The project's enabled APIs | `enabled_apis` in `terraform.tfvars` | `terraform/modules/google_cloud/project` |
+| The service accounts `terraform-google-cloud` and `terraform-google-workspace` | `service_accounts` in `terraform.tfvars`. **Imported**, then managed | `terraform/modules/google_cloud/project` |
+| Project roles of those service accounts (Owner for `terraform-google-cloud`) | `project_roles` on each entry. **Imported**, additive | `terraform/modules/google_cloud/project` |
 
 **The organization cannot be created or imported.** Google creates it the
 first time someone from the Workspace domain uses Google Cloud. No API
@@ -31,11 +33,22 @@ Not managed:
 
 - **Billing.** `billing_account` is ignored, so Terraform neither links nor
   unlinks billing and the billing account ID stays out of this public repo.
-- **Service accounts and their keys** (`terraform-google-workspace`, and the
-  one this workspace runs as). Still made by hand.
+- **Service account keys.** A key made by Terraform would put the private key
+  in state, so both keys are still made by hand.
+- **The Organization Viewer grant** of `terraform-google-cloud`. Managing it
+  would mean giving that account Organization Administrator.
 - **Organization policies and folders.** There are none to speak of.
 - **Disabling APIs.** Removing an API from `enabled_apis` stops managing it
   and leaves it on.
+
+**The service accounts are imported, not created.** Both were made by hand.
+An entry with `import_existing = true` gets an `import` block for the account
+and for each of its `project_roles`; an entry without it is created. To add a
+service account later, add an entry and leave `import_existing` unset.
+
+Do not take `roles/owner` off `terraform-google-cloud`. That grant is what
+lets the workspace manage the project, so removing it locks Terraform out
+until someone grants it again in the console.
 
 Organization IAM is additive on purpose. Each entry is one
 `google_organization_iam_member`; grants made elsewhere are left alone. The

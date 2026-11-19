@@ -42,3 +42,13 @@ variable "project_name" {
   description = "Display name of the project."
   type        = string
 }
+
+variable "service_accounts" {
+  default     = {}
+  description = "Service accounts in the project, keyed by account ID (the part of the email before the @). display_name defaults to the account ID. project_roles are granted to the account on this project, additively."
+  type = map(object({
+    description   = optional(string)
+    display_name  = optional(string)
+    project_roles = optional(set(string), [])
+  }))
+}

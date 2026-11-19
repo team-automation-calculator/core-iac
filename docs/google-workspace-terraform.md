@@ -75,7 +75,9 @@ can lock anyone out.
    `docs/google-cloud-terraform.md`.
 2. APIs & Services → Library → enable **Admin SDK API**.
 3. IAM & Admin → Service accounts → create `terraform-google-workspace`. It
-   needs no Google Cloud roles.
+   needs no Google Cloud roles. The account is now imported into Terraform
+   (`service_accounts` in `terraform/env/production/google_cloud`); its key is
+   not.
 4. Open the service account → Keys → Add key → JSON. Keep the file out of the
    repo.
 5. In Google Admin → Account → Admin roles → **Groups Admin** → Assign service
