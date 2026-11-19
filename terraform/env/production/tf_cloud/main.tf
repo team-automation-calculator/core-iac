@@ -22,3 +22,28 @@ module "tf_cloud_workspaces" {
   tfe_oauth_client_token_id              = tfe_oauth_client.github.oauth_token_id
   tfe_workspace_tf_version               = var.tfe_workspace_tf_version
 }
+
+# Terraform Cloud organization members. The organization is global, so it is
+# managed once, from production (like the GitHub organization). Runbook:
+# docs/tfc-org-members.md.
+module "tf_cloud_org_members" {
+  members           = { for key, member in var.tfc_organization_members : key => { email = member.email, owner = member.owner } }
+  organization_name = var.tf_cloud_organization_name
+  source            = "../../../modules/tf_cloud/tf_cloud_org_members"
+}
+
+# Members who were already in the organization before they were listed in
+# var.tfc_organization_members are adopted into state instead of re-invited.
+# An import block fails the plan if its target does not exist, so only entries
+# with import_existing = true get one. Import blocks must live in the root module.
+import {
+  for_each = { for key, member in var.tfc_organization_members : key => member if member.import_existing }
+  to       = module.tf_cloud_org_members.tfe_organization_membership.member[each.key]
+  id       = "${var.tf_cloud_organization_name}/${each.value.email}"
+}
+
+import {
+  for_each = { for key, member in var.tfc_organization_members : key => member if member.import_existing && member.owner }
+  to       = module.tf_cloud_org_members.tfe_team_organization_member.owner[each.key]
+  id       = "${var.tf_cloud_organization_name}/${each.value.email}/owners"
+}
