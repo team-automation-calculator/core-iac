@@ -6,8 +6,8 @@ description: Promote an app image through staging to production with a smoke-tes
 # Deploy an app image: baseline, deploy, retest, then production
 
 The app has no release process beyond this: a green `main` build pushes an
-image, a `core-iac` PR pins that image, ArgoCD (staging) and Terraform Cloud
-(production) roll it out. This skill is the verification wrapped around those steps so that every rollout
+image, a `core-iac` PR pins that image, ArgoCD rolls it out (automatically
+on staging, on a manual sync on production). This skill is the verification wrapped around those steps so that every rollout
 has a before/after comparison on both environments.
 
 Promotion order is always **staging first, then production**, and production
@@ -90,20 +90,26 @@ is only started after staging's retest matches its baseline.
     sync refuses it). With `CTX`, `argocd app get automation-calculator`
     (through the port-forward in `core-iac/docs/argocd-phase-2-install.md`)
     shows the synced revision;
-  - **production stops at "apply pending"** in Terraform Cloud and needs a
-    confirm in the UI. That confirm is the staging→production gate. The
-    user does it; this skill never does.
+  - **production waits for a manual `argocd app sync`** (since ArgoCD
+    migration Phase 8): the production `automation-calculator` Application
+    is on manual sync, so after the merge it shows `OutOfSync` on the pod
+    template and nothing rolls until the user runs `argocd app sync
+    automation-calculator` against the production ArgoCD (port-forward and
+    login as in `core-iac/docs/argocd-phase-8-production.md`). That sync is
+    the staging→production gate. The user does it with their own production
+    identity; this skill never does (Claude sessions are denied production
+    cluster writes). The production Terraform Cloud workspace no longer owns
+    the app release, so a bump merge queues no production apply to confirm.
 
-  Production run states show on the `core-iac` merge commit:
+  The Terraform Cloud runs a merge triggers still show on the `core-iac`
+  merge commit; for a bump PR every workspace should plan no app change:
 
   ```bash
   gh api repos/team-automation-calculator/core-iac/commits/main/status \
     --jq '.statuses[] | select(.context | startswith("Terraform Cloud")) | "\(.context) \(.state) \(.updated_at) \(.description)"'
   ```
 
-  Caveat: that status reflects the push-triggered run only. A manual run
-  started in the Terraform Cloud UI does not update it, so a "plan: N to
-  add" there can be stale. Trust `/health`, not the status, for what is live.
+  Trust `/health`, not a status or the ArgoCD UI, for what is live.
 
 - **Cluster access (optional).** Each environment is an EKS cluster named
   `ac_app_<env>` (`ac_app_staging`, `ac_app_production`) in `us-west-1`.
@@ -377,8 +383,9 @@ like any other regression.
    ask the user for the items only they can do.
 5. **Baseline production.** Only after staging matches. Same checks, on the
    production URL, while production is still on the previous image.
-6. **Deploy to production.** Tell the user the Terraform Cloud production
-   run is at "apply pending" and wait for them to confirm it. Watch
+6. **Deploy to production.** Tell the user production's Application is
+   `OutOfSync` on the candidate image and wait for them to run `argocd app
+   sync automation-calculator` against production. Watch
    production's `/health` the same way as staging, with the same optional
    cluster checks when `CTX` exists for production.
 7. **Retest production.** Same checks. Production assets should be
@@ -421,8 +428,9 @@ Then the PR checklists, one line per item:
 
 ## Rules
 
-- Never confirm a Terraform Cloud apply, never merge a bump PR, and never
-  push to `main` unless the user asks for that specific action.
+- Never confirm a Terraform Cloud apply, never run `argocd app sync` on
+  production, never merge a bump PR, and never push to `main` unless the
+  user asks for that specific action.
 - Never report a deploy as good because nothing failed loudly. A rollout is
   verified when the retest ran against the new hash and matched the
   baseline, and the report says so with the numbers.

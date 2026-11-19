@@ -4,6 +4,12 @@
 # a merged bump (or revert) PR reached the cluster through ArgoCD, and nothing
 # else did.
 #
+# Despite the name it is not staging-specific: --env production selects
+# values-production.yaml and runs the same checks against the production
+# context (ArgoCD migration Phase 8, docs/argocd-phase-8-production.md, and
+# every production deploy after it). Production stays on manual sync, so its
+# last operation is started by a user, which is reported but not a failure.
+#
 # Read-only. Against the current kubeconfig context and the argocd CLI login it
 # prints and checks:
 #   - the Application's sync status, health, sync policy, synced revision and
@@ -12,7 +18,10 @@
 #   - the image tag and the SHORT_COMMIT_HASH env var on the newest app pod
 #   - GET https://<ingress.host>/health (host from values-<env>.yaml)
 #   - the tail of `argocd app history`
-#   - `helm -n <namespace> list`, which must be empty after Phase 6
+#   - `helm -n <namespace> list`, which must be empty after Phase 6 (staging)
+#     and Phase 8 Commit B (production); --expect-helm-release inverts that
+#     check for the window on production between Commit A (ArgoCD adopts the
+#     app) and Commit B (Terraform forgets the release)
 #
 # Exits non-zero on any mismatch against the expected tag and hash, which
 # default to image.tag and shortCommitHash in helm/automation-calculator/
@@ -27,12 +36,16 @@
 #   scripts/argocd_staging_verify.sh                              # expect what values-staging.yaml says
 #   scripts/argocd_staging_verify.sh --expect-tag 0.9.7-981 --expect-hash a1b2c3d
 #   scripts/argocd_staging_verify.sh | tee tmp/phase7-cycle-1-verify.txt
+#   scripts/argocd_staging_verify.sh --env production --expect-helm-release   # Phase 8, after Commit A, before Commit B
+#   scripts/argocd_staging_verify.sh --env production                         # Phase 8 after Commit B, and every production deploy
 #
 # Options:
-#   --env NAME          environment (default staging); selects values-NAME.yaml
-#   --expect-tag TAG    image tag the cluster must run (default: image.tag in values-NAME.yaml)
-#   --expect-hash HASH  SHORT_COMMIT_HASH the newest pod must carry (default: shortCommitHash in values-NAME.yaml)
-#   --history-lines N   lines of `argocd app history` to show (default 5)
+#   --env NAME              environment (default staging); selects values-NAME.yaml
+#   --expect-tag TAG        image tag the cluster must run (default: image.tag in values-NAME.yaml)
+#   --expect-hash HASH      SHORT_COMMIT_HASH the newest pod must carry (default: shortCommitHash in values-NAME.yaml)
+#   --expect-helm-release   expect `helm list` to still show the Terraform-managed release
+#                           (default: expect it empty)
+#   --history-lines N       lines of `argocd app history` to show (default 5)
 #   -h, --help
 #
 # Environment:
@@ -51,6 +64,7 @@ CHART_DIR="${SCRIPT_DIR}/../helm/automation-calculator"
 ENV_NAME="staging"
 EXPECT_TAG=""
 EXPECT_HASH=""
+EXPECT_HELM_RELEASE="false"
 HISTORY_LINES=5
 
 usage() {
@@ -62,6 +76,7 @@ while [ $# -gt 0 ]; do
     --env) ENV_NAME="$2"; shift 2 ;;
     --expect-tag) EXPECT_TAG="$2"; shift 2 ;;
     --expect-hash) EXPECT_HASH="$2"; shift 2 ;;
+    --expect-helm-release) EXPECT_HELM_RELEASE="true"; shift ;;
     --history-lines) HISTORY_LINES="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -162,7 +177,11 @@ else
     fail "last sync operation phase is ${op_phase}, expected Succeeded"
   fi
   if [ -z "${automated_policy}" ]; then
-    echo "  note: sync policy is manual; Phase 6 left ${ENV_NAME} on automated sync" >&2
+    if [ "${ENV_NAME}" = "production" ]; then
+      echo "  note: sync policy is manual, as production stays (docs/argocd-phase-8-production.md)" >&2
+    else
+      echo "  note: sync policy is manual; Phase 6 left ${ENV_NAME} on automated sync" >&2
+    fi
   fi
 fi
 
@@ -255,7 +274,9 @@ else
   fail "argocd app history failed (is the port-forward up and argocd logged in?): ${history_out}"
 fi
 
-# 6. Helm must have forgotten the release (Phase 6 deleted its history).
+# 6. Helm must have forgotten the release (Phase 6 on staging, Phase 8 Commit B
+#    on production deleted its history), unless --expect-helm-release says the
+#    env is still in the window where Terraform owns the release.
 echo
 echo "helm -n ${APP_NAMESPACE} list:"
 if command -v helm >/dev/null 2>&1; then
@@ -264,11 +285,18 @@ else
   echo "  (helm not installed; checking Helm release Secrets with kubectl instead)"
   helm_releases="$(kubectl -n "${APP_NAMESPACE}" get secret -l owner=helm -o name 2>/dev/null || true)"
 fi
-if [ -z "${helm_releases}" ]; then
+if [ "${EXPECT_HELM_RELEASE}" = "true" ]; then
+  if [ -z "${helm_releases}" ]; then
+    fail "Helm has no release in ${APP_NAMESPACE} but --expect-helm-release was given; has Terraform already forgotten it?"
+  else
+    printf '%s\n' "${helm_releases}" | sed 's/^/  /'
+    echo "  present (ok: --expect-helm-release; Terraform still manages the release)"
+  fi
+elif [ -z "${helm_releases}" ]; then
   echo "  empty (ok)"
 else
   printf '%s\n' "${helm_releases}" | sed 's/^/  /'
-  fail "Helm still has a release in ${APP_NAMESPACE}; Phase 6 should have removed its history (never helm uninstall)"
+  fail "Helm still has a release in ${APP_NAMESPACE}; Phase 6 (staging) / Phase 8 Commit B (production) should have removed its history (never helm uninstall)"
 fi
 
 echo
