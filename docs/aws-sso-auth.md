@@ -25,7 +25,7 @@ and `terraform/modules/aws/ci-iam-role`, wired per environment in
 |---|---|
 | `InfraEng<Env>` and `InfraEng<Env>ReadOnly` permission sets, their policies, and their assignment to the engineer | Terraform: `terraform/modules/aws/sso-infra-eng` |
 | CI role trust policies | Terraform: `terraform/modules/aws/ci-iam-role` |
-| The Google group that may use the AWS app, and its members | Terraform, off until bootstrapped: `terraform/modules/google_workspace/aws-identity-center-access` (`docs/google-workspace-terraform.md`) |
+| The Google group that may use the AWS app, and its members | Terraform, no credentials until bootstrapped: `terraform/modules/google_workspace/aws-identity-center-access` (`docs/google-workspace-terraform.md`) |
 | The IAM Identity Center instance and its identity source (IdP metadata, certificate, SCIM) | Manual, AWS console. `sso-admin` has no operation for any of it |
 | The Identity Center user | Not Terraform: provisioned from Google or created by hand. The module only looks it up, so a plan fails if it is missing |
 | The Google **AWS Identity Center** SAML app (ACS URL, Entity ID, Start URL, certificate, Name ID) and its User access | Manual, Google Admin. Google has no API for SAML apps |

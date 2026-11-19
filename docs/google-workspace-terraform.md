@@ -52,9 +52,11 @@ the next apply. Every member must also exist as an IAM Identity Center user
 with the same userName, and needs the `InfraEng*` assignments from
 `terraform/modules/aws/sso-infra-eng`.
 
-The workspace is **off** until the steps below are done:
-`enable_google_workspace_workspace = false` in
-`terraform/env/production/tf_cloud/terraform.tfvars`.
+The workspace is created by `enable_google_workspace_workspace = true` in
+`terraform/env/production/tf_cloud/terraform.tfvars`. Until the steps below
+are done it has no credentials, so its runs fail at the plan with an
+authentication error and change nothing. Production workspaces do not
+auto-apply.
 
 ## Turning it on
 
@@ -76,9 +78,9 @@ one that can lock anyone out.
 
 ### 2. Terraform Cloud workspace
 
-1. Set `enable_google_workspace_workspace = true` in
-   `terraform/env/production/tf_cloud/terraform.tfvars` and apply
-   `terraform/env/production/tf_cloud`.
+1. Apply `terraform/env/production/tf_cloud` if the
+   `ac_app_production_google_workspace` workspace does not exist yet (the plan
+   shows one workspace to add).
 2. On the new `ac_app_production_google_workspace` workspace, add:
    - environment variable `GOOGLEWORKSPACE_CREDENTIALS` (sensitive): the
      contents of the JSON key
