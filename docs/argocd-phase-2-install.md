@@ -88,16 +88,26 @@ and every later `helm upgrade` would log every session out.
 
 ### 4.1 Read the password
 
-In the Terraform Cloud UI: workspace `ac_app_<env>_cluster_addons_layer`, **Outputs** tab,
-`argocd_admin_password`, reveal the sensitive value. `argocd_admin_password_mtime` beside it is the
-time it was generated.
+Read it with the Terraform CLI. The workspace's **Outputs** tab in the Terraform Cloud UI lists
+`argocd_admin_password` but masks it and has no control to reveal a sensitive value (seen on
+staging, 2026-11-19); it does show `argocd_admin_password_mtime`, the time the password was
+generated.
 
-With a `TFE_TOKEN` on a laptop, from `terraform/env/<env>/aws/us-west-1/cluster-addons-layer`:
+From `terraform/env/<env>/aws/us-west-1/cluster-addons-layer`, with a Terraform Cloud credential
+(`terraform login` stores a user token through the browser; an exported `TFE_TOKEN` also works):
 
 ```bash
+terraform login                                        # once per laptop; skip if TFE_TOKEN is set
 terraform init
-terraform output -raw argocd_admin_password
+terraform output -raw argocd_admin_password | pbcopy   # to the clipboard, not the terminal
 ```
+
+The account needs read access to the workspace's state outputs. Do not paste the password into a
+chat, a ticket or a PR.
+
+Last resort, if the CLI is not available: the workspace's **States** tab, latest state, JSON view,
+search for `argocd_admin_password`. That view also shows every other secret in the state (database
+password, Rails secret key base), so close it afterwards.
 
 Copying it into the team password manager is optional; the workspace output is the source of
 truth, and a copy goes stale at the next rotation.
