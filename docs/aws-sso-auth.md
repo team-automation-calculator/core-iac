@@ -49,10 +49,12 @@ Two settings matter more than they look:
   instance is ever deleted and re-enabled, the id changes and every sign-in
   fails. The `sso-infra-eng` module has a `check` that warns in a plan when
   the live instance is not the expected one. The expected ids are not
-  committed: set `expected_identity_center_instance_id` and
-  `expected_identity_store_id` as Terraform variables on each
-  `ac_app_<env>_base_cluster_layer` workspace. While they are empty the check
-  is skipped.
+  committed. Each environment's `tf_cloud` config takes them as the sensitive
+  variables `identity_center_instance_id` and
+  `identity_center_identity_store_id` (set on the `tf_cloud` workspace, or as
+  `TF_VAR_...` for a local apply, the same way as the GitHub token) and writes
+  them to the `ac_app_<env>_base_cluster_layer` workspace as sensitive
+  Terraform variables. While they are empty the check is skipped.
 
 ## One-time setup
 

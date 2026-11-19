@@ -12,6 +12,8 @@ module "tf_cloud_workspaces" {
   cluster_addons_layer_working_directory = var.cluster_addons_layer_working_directory
   enable_cluster_addons_run_trigger      = var.enable_cluster_addons_run_trigger
   environment_name                       = var.environment_name
+  identity_center_identity_store_id      = var.identity_center_identity_store_id
+  identity_center_instance_id            = var.identity_center_instance_id
   source                                 = "../../../modules/tf_cloud/tf_cloud_workspaces"
   tf_cloud_organization_name             = var.tf_cloud_organization_name
   tf_cloud_workspace_vcs_repo_identifier = var.tf_cloud_workspace_vcs_repo_identifier

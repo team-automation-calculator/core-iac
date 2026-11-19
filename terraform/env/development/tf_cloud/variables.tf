@@ -49,6 +49,20 @@ variable "tf_cloud_workspace_vcs_repo_identifier" {
   type        = string
 }
 
+variable "identity_center_identity_store_id" {
+  default     = ""
+  description = "IAM Identity Center identity store id (d-...) the Google Workspace SAML app is configured for. Set as a sensitive Terraform variable on this workspace (or TF_VAR_identity_center_identity_store_id for a local apply); never commit it. Empty string skips the base layer drift check."
+  sensitive   = true
+  type        = string
+}
+
+variable "identity_center_instance_id" {
+  default     = ""
+  description = "IAM Identity Center instance id (ssoins-...) the Google Workspace SAML app is configured for. Set as a sensitive Terraform variable on this workspace (or TF_VAR_identity_center_instance_id for a local apply); never commit it. Empty string skips the base layer drift check."
+  sensitive   = true
+  type        = string
+}
+
 variable "TF_VAR_GITHUB_TOKEN" {
   description = "Environment variable for the GitHub Personal Access Token to be used by Terraform Cloud to access the GitHub repository"
   type        = string
