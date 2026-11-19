@@ -24,8 +24,8 @@ Both scripts are read-only against the cluster.
   hash default to `image.tag` and `shortCommitHash` in `helm/automation-calculator/values-staging.yaml`
   of the checkout you run it from, so run it from `main` after pulling the merge. It exits
   non-zero on any mismatch. It needs `kubectl` (the staging context), `argocd` (logged in through
-  the port-forward), `yq` and `curl`; `ARGOCD_SERVER` and `ARGOCD_OPTS` default to
-  `localhost:8080` and `--plaintext`.
+  the CLI's own port-forward), `yq` and `curl`; `ARGOCD_OPTS` defaults to
+  `--port-forward --port-forward-namespace argocd --plaintext`.
 - `scripts/argocd_soak_log.py add ...` appends a cycle to `docs/argocd-staging-soak-log.md`;
   `scripts/argocd_soak_log.py status` evaluates the gate (section 7), rewrites the log's Gate
   section and exits 0 on PASS, 1 on FAIL. Commit the log after each cycle (its own small PR, or
@@ -35,12 +35,15 @@ Both scripts are read-only against the cluster.
 
 - Phase 6 "Done when" holds: `helm -n automation-calculator list` empty, Application on
   `Automated (Prune), Self Heal`, Synced, Healthy, a fresh staging plan shows 0 changes.
-- `main` and the cluster agree: with the port-forward and login from
-  `argocd-phase-2-install.md` section 4 open,
+- `main` and the cluster agree: logged in through the `argocd` CLI's own port-forward
+  (`argocd-phase-2-install.md` section 4.2; every `argocd` command in this runbook needs
+  `ARGOCD_OPTS` exported in its shell),
 
 ```bash
 eval "$(scripts/infra_eng_sso.py up --environment staging)"   # SSO login, kubeconfig, AWS_PROFILE
 kubectl config current-context                                # must be the ac_app_staging cluster
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'
+argocd login --username admin                                 # password: terraform output -raw argocd_admin_password
 git checkout main && git pull
 scripts/argocd_staging_verify.sh | tee tmp/phase7-00-baseline.txt   # Verify OK at the current tag
 argocd app history automation-calculator                      # note the latest ID: the next cycle is ID+1

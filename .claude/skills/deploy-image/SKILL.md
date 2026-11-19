@@ -88,13 +88,13 @@ is only started after staging's retest matches its baseline.
     run, if the merge triggers one, plans no app change. A rollback is a
     `git revert` of the bump on `main`, not `argocd app rollback` (automated
     sync refuses it). With `CTX`, `argocd app get automation-calculator`
-    (through the port-forward in `core-iac/docs/argocd-phase-2-install.md`)
+    (logged in through the CLI's own port-forward, `core-iac/docs/argocd-phase-2-install.md` section 4.2)
     shows the synced revision;
   - **production waits for a manual `argocd app sync`** (since ArgoCD
     migration Phase 8): the production `automation-calculator` Application
     is on manual sync, so after the merge it shows `OutOfSync` on the pod
     template and nothing rolls until the user runs `argocd app sync
-    automation-calculator` against the production ArgoCD (port-forward and
+    automation-calculator` against the production ArgoCD (CLI port-forward and
     login as in `core-iac/docs/argocd-phase-8-production.md`). That sync is
     the staging→production gate. The user does it with their own production
     identity; this skill never does (Claude sessions are denied production

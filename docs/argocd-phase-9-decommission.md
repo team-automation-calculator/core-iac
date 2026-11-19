@@ -87,7 +87,7 @@ eval "$(scripts/infra_eng_sso.py up --environment staging)"      # then again wi
 kubectl config current-context                                    # the right cluster
 helm -n automation-calculator list                                # empty
 kubectl -n automation-calculator get secret -l owner=helm,name=automation-calculator   # No resources found
-argocd app get automation-calculator                              # Synced, Healthy (port-forward and login as in the Phase 2 runbook)
+argocd app get automation-calculator                              # Synced, Healthy (CLI port-forward and login as in the Phase 2 runbook, section 4.2)
 scripts/argocd_staging_verify.sh                                  # staging: Verify OK
 scripts/argocd_staging_verify.sh --env production                 # production: Verify OK, without --expect-helm-release
 ```

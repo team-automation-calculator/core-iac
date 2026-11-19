@@ -13,6 +13,7 @@ Infrastructure as Code for the [automation-calculations.io](https://automation-c
 terraform/
   modules/
     tf_cloud/tf_cloud_workspaces/   # TFE workspace module
+    tf_cloud/tf_cloud_org_members/  # TFC organization memberships + owners team (applied from production tf_cloud; docs/tfc-org-members.md)
     aws/                            # Modules that create AWS resources (some also create the Kubernetes objects those resources need)
       base-cluster-layer/           # VPC, EKS cluster, IAM
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
@@ -22,6 +23,11 @@ terraform/
       argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application, argocd_application_{automated_sync,prune,self_heal}; docs/argocd-migration-plan.md)
     github/
       org-ci-access/                # GitHub org membership + team for the CI machine user
+    google_cloud/
+      organization/                 # Looks up the Google Cloud organization by domain (no API creates or imports one) and holds additive org-level IAM grants
+      project/                      # The Google Cloud project behind the Google service accounts, and its enabled APIs
+    google_workspace/
+      aws-identity-center-access/   # Google group (and members) that may use the AWS Identity Center SAML app
   env/              # Per-environment configs (development, staging, production)
     <env>/
       tf_cloud/     # TFE workspace bootstrap (apply this first)
@@ -30,16 +36,19 @@ terraform/
         cluster-addons-layer/
     production/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
+      google_cloud/       # Google Cloud organization lookup and the imported project (global; bootstrapped and first applied 2026-11-19, docs/google-cloud-terraform.md)
+      google_workspace/   # Google Workspace directory objects (global; workspace has no credentials until bootstrapped, docs/google-workspace-terraform.md)
 helm/
   automation-calculator/        # App Helm chart
 argocd/
   scratch/                      # Phase 3 dry-run AppProject + Application, applied by hand (docs/argocd-phase-3-dry-run.md)
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
-docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, external-dns, ArgoCD, arm64)
+docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, TFC organization members and the IBMid sign-in change, external-dns, ArgoCD, arm64)
   architecture/                 # Mermaid diagrams: AWS resources, request/response flows, PR validation and deploy
 scripts/                        # Python and Bash helpers
 tests/                          # pytest tests for the Python scripts
 iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
+iac/specs/sso/google-workspace-saml.json  # Expected hand-made SAML settings between Google Workspace and IAM Identity Center (no API on either side)
 version_dates/
   eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
   rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
@@ -120,7 +129,7 @@ helm template automation-calculator helm/automation-calculator/ \
 
 1. Bump the image: `scripts/bump_app_docker_image_version_branch.sh <tag> <short_commit_hash>` (or the watcher) edits the chart values files, pushes a branch and opens the PR; CI checks the tag exists on Docker Hub.
 2. Merge the PR. It queues **no** TFC run (the chart directory is not a trigger prefix). **Staging** (Phase 6) has automated sync, prune and self-heal: the merge rolls out within ArgoCD's polling interval (3 minutes), and a rollback is a git revert.
-3. **Production** (Phase 8) stays on **manual sync**: SSO to `ac_ci_terraform_production` (`docs/aws-sso-auth.md`), port-forward `svc/argocd-server`, `argocd app diff automation-calculator`, then `argocd app sync automation-calculator`. The exact steps and the rollback (`argocd app rollback`, then the revert PR) are in `docs/argocd-phase-8-production.md` section 8. Moving production to automated sync is a separate decision, not implied by any phase.
+3. **Production** (Phase 8) stays on **manual sync**: SSO to `ac_ci_terraform_production` (`docs/aws-sso-auth.md`), `argocd login` through the CLI's own port-forward (`docs/argocd-phase-2-install.md` section 4.2), `argocd app diff automation-calculator`, then `argocd app sync automation-calculator`. The exact steps and the rollback (`argocd app rollback`, then the revert PR) are in `docs/argocd-phase-8-production.md` section 8. Moving production to automated sync is a separate decision, not implied by any phase.
 
 Never run `helm uninstall automation-calculator` or `helm install`/`helm upgrade` of the app on any cluster, and never add a `helm_release` for the app back to Terraform: the live objects still carry Helm's `meta.helm.sh/*` annotations, so a `helm install` would silently adopt them and two controllers would then reconcile the same Deployment. The only way back to a Terraform-managed release is the last-resort path in `docs/argocd-phase-9-decommission.md` section 6.
 
@@ -169,18 +178,22 @@ scripts/pr_checklist.py                        # Lists the PRs an image contains
 | Provider | Module constraint | Env config constraint |
 |----------|------------------|-----------------------|
 | AWS | `~> 6.0` | `~> 6.0` |
-| Helm | `~> 2.9` | `~> 2.9` |
-| Kubernetes | `~> 2.16` | `~> 2.16` |
-| TFE | — | `0.68.2` (pinned exactly in all tf_cloud configs) |
+| Helm | `~> 3.3` (`cluster-addons-layer`, `main_rails_app`, `argocd`) | `~> 3.3` (cluster-addons-layer configs) |
+| Kubernetes | `~> 3.4` (`cluster-addons-layer`) | `~> 3.4` (cluster-addons-layer configs) |
+| TFE | `~> 0.82` (`tf_cloud_workspaces`, `tf_cloud_org_members`) | `~> 0.82` (all tf_cloud and cluster-addons-layer configs) |
 | GitHub | `~> 6.13` | `~> 6.13` |
+| Google Workspace (`macadmins/googleworkspace`) | `~> 1.5` | `~> 1.5` |
+| Google Cloud (`hashicorp/google`) | `~> 8.12` | `~> 8.12` |
 
-Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform). When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then commit the updated lock files alongside the `versions.tf` changes.
+Helm provider 3.x takes `set = [{ name = ..., value = ... }]` / `set_sensitive = [...]` list attributes and a `kubernetes = { ... }` attribute in the provider block, not the 2.x nested blocks. The Q4 2026 bumps are recorded in `docs/dependency-upgrade-plan-2026-q4.md`.
+
+Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform) and should carry `h1:` hashes for three platforms: `linux_amd64` (TFC and CI), `darwin_arm64` and `darwin_amd64`. When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then regenerate the platform hashes in the same directory with `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=darwin_amd64` (a plain `init` on one machine records only that machine's platform), and commit the updated lock files alongside the `versions.tf` changes.
 
 ## External-DNS Helm Registry
 
-External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`.
+External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`. Since chart 1.22.0 `policy` has no default and is required; the module sets `policy = upsert-only` explicitly (anything else lets external-dns delete records).
 
-**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `set` block is rendered. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
+**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `txtPrefix` entry is added to the release's `set` list. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
 
 ## Scratch Files
 
@@ -209,7 +222,11 @@ AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (se
 
 `GITHUB_TOKEN` for the `github` provider (`terraform/env/production/github/org`) is never set locally: it lives only as a sensitive environment variable on the `ac_app_production_github_org` TFC workspace. The GitHub CI machine user, its tokens, and the owner token that workspace uses are documented in `docs/github-ci-user.md`.
 
-The ArgoCD admin password is likewise never set locally and never written to a `terraform.tfvars`: each `ac_app_<env>_cluster_addons_layer` workspace holds `argocd_admin_password_bcrypt_hash` (sensitive Terraform variable, a bcrypt hash generated once with `argocd account bcrypt`) and `argocd_admin_password_mtime`. The plaintext lives only in the team password manager. Rotation is a variable update plus a run, never `argocd account update-password` (`docs/argocd-phase-2-install.md`, section 4).
+`GOOGLEWORKSPACE_CREDENTIALS` for the `googleworkspace` provider (`terraform/env/production/google_workspace`) follows the same rule: the service account key lives only as a sensitive environment variable on the `ac_app_production_google_workspace` TFC workspace. The bootstrap that created it is in `docs/google-workspace-terraform.md`. The SAML settings that link Google Workspace to IAM Identity Center have no API on either side; their expected values are in `iac/specs/sso/google-workspace-saml.json`, with instance identifiers as placeholders because the repo is public. Do not commit the Identity Center instance id, identity store id, portal URL or the Google IdP id.
+
+`GOOGLE_CREDENTIALS` for the `google` provider (`terraform/env/production/google_cloud`) follows the same rule, on the `ac_app_production_google_cloud` TFC workspace. The bootstrap that created it is in `docs/google-cloud-terraform.md`. The Google Cloud organization is looked up by domain because no API creates or imports one, and the project is imported, never created. The project ID and display name are Terraform variables on that workspace; do not commit them, the organization ID or the billing account ID.
+
+The ArgoCD admin password is never set by hand and never written to a `terraform.tfvars`: the `argocd` module generates it (`random_password`), so the plaintext lives only in the `ac_app_<env>_cluster_addons_layer` workspace state, readable as the sensitive output `argocd_admin_password` (`terraform output -raw argocd_admin_password`; the TFC Outputs tab cannot reveal it). Rotation is a change of `argocd_admin_password_rotation` in that environment's `terraform.tfvars` plus a run, never `argocd account update-password`. The `argocd` CLI logs in through its own port-forward (`ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'`), not through `kubectl port-forward` (`docs/argocd-phase-2-install.md`, section 4).
 
 ## AWS Authentication
 

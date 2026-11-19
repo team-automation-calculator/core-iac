@@ -92,16 +92,13 @@ kubectl -n automation-calculator get ingress automation-calculator -o jsonpath='
 
 ## 4. After the apply: inspect the Application, then its diff
 
-Port-forward and log in as in `argocd-phase-2-install.md`. In one terminal:
+Log in through the `argocd` CLI's own port-forward, as in `argocd-phase-2-install.md` section 4.2
+(not through `kubectl port-forward`, which exits on the CLI's first connection). Every `argocd`
+command below needs `ARGOCD_OPTS` exported in its shell:
 
 ```bash
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-```
-
-In another:
-
-```bash
-argocd login localhost:8080 --username admin --plaintext
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'
+argocd login --username admin               # password: terraform output -raw argocd_admin_password
 argocd proj get automation-calculator       # sources: this repo; destinations: automation-calculator only
 argocd app get automation-calculator        # Project automation-calculator, Sync OutOfSync, Health Healthy
 kubectl -n argocd get application.argoproj.io automation-calculator -o jsonpath='{.metadata.finalizers}'; echo   # empty

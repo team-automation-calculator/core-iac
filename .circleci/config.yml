@@ -117,6 +117,34 @@ jobs:
       - terraform/validate:
           path: ./terraform/modules/tf_cloud/tf_cloud_workspaces
 
+  validate_tf_cloud_org_members_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/tf_cloud/tf_cloud_org_members
+      - terraform/validate:
+          path: ./terraform/modules/tf_cloud/tf_cloud_org_members
+      - run:
+          name: Run the module tests (mocked provider, no TFE_TOKEN)
+          command: |
+            terraform -chdir=terraform/modules/tf_cloud/tf_cloud_org_members init -backend=false -input=false
+            terraform -chdir=terraform/modules/tf_cloud/tf_cloud_org_members test
+
+  validate_sso_infra_eng_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/aws/sso-infra-eng
+      - terraform/validate:
+          path: ./terraform/modules/aws/sso-infra-eng
+      - run:
+          name: Run the module tests (mocked provider, no AWS credentials)
+          command: |
+            terraform -chdir=terraform/modules/aws/sso-infra-eng init -backend=false -input=false
+            terraform -chdir=terraform/modules/aws/sso-infra-eng test
+
   validate_base_cluster_layer_module:
     executor: terraform
     steps:
@@ -198,6 +226,51 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/github/org
 
+  validate_aws_identity_center_access_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_workspace/aws-identity-center-access
+      - terraform/validate:
+          path: ./terraform/modules/google_workspace/aws-identity-center-access
+
+  validate_production_google_workspace:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/google_workspace
+      - terraform/validate:
+          path: ./terraform/env/production/google_workspace
+
+  validate_google_cloud_organization_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_cloud/organization
+      - terraform/validate:
+          path: ./terraform/modules/google_cloud/organization
+
+  validate_google_cloud_project_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_cloud/project
+      - terraform/validate:
+          path: ./terraform/modules/google_cloud/project
+
+  validate_production_google_cloud:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/google_cloud
+      - terraform/validate:
+          path: ./terraform/env/production/google_cloud
+
   validate_python:
     executor: python
     steps:
@@ -234,6 +307,8 @@ workflows:
       - validate_base_cluster_layer_module
       - validate_cluster_addons_module
       - validate_tf_cloud_workspaces_module
+      - validate_tf_cloud_org_members_module
+      - validate_sso_infra_eng_module
       - validate_development_aws_base_cluster_layer
       - validate_development_aws_cluster_addons_layer
       - validate_development_tf_cloud_env
@@ -250,6 +325,11 @@ workflows:
       - validate_production_aws_route53_domains
       - validate_org_ci_access_module
       - validate_production_github_org
+      - validate_aws_identity_center_access_module
+      - validate_production_google_workspace
+      - validate_google_cloud_organization_module
+      - validate_google_cloud_project_module
+      - validate_production_google_cloud
       - validate_python
       - validate_app_docker_image_versions:
           filters:

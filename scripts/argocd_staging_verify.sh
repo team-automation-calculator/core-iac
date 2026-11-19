@@ -31,8 +31,8 @@
 #
 # Usage:
 #   eval "$(scripts/infra_eng_sso.py up --environment staging)"
-#   kubectl -n argocd port-forward svc/argocd-server 8080:80 &   # see docs/argocd-phase-2-install.md
-#   argocd login localhost:8080 --username admin --plaintext
+#   export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'   # see docs/argocd-phase-2-install.md
+#   argocd login --username admin
 #   scripts/argocd_staging_verify.sh                              # expect what values-staging.yaml says
 #   scripts/argocd_staging_verify.sh --expect-tag 0.9.7-981 --expect-hash a1b2c3d
 #   scripts/argocd_staging_verify.sh | tee tmp/phase7-cycle-1-verify.txt
@@ -49,8 +49,12 @@
 #   -h, --help
 #
 # Environment:
-#   ARGOCD_SERVER     argocd API address (default localhost:8080, the port-forward)
-#   ARGOCD_OPTS       extra argocd CLI flags (default --plaintext, for server.insecure=true)
+#   ARGOCD_OPTS       argocd CLI flags (default: the CLI's own port-forward into
+#                     ARGOCD_NAMESPACE plus --plaintext, for server.insecure=true).
+#                     The CLI must not be pointed at a `kubectl port-forward`:
+#                     that forward exits on the CLI's first connection.
+#   ARGOCD_SERVER     argocd API address; unset by default, and only useful with
+#                     an ARGOCD_OPTS that does not contain --port-forward
 #   APP_NAME          Application and Deployment name (default automation-calculator)
 #   APP_NAMESPACE     app namespace (default automation-calculator)
 #   ARGOCD_NAMESPACE  namespace ArgoCD runs in (default argocd)
@@ -83,11 +87,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-export ARGOCD_SERVER="${ARGOCD_SERVER:-localhost:8080}"
-export ARGOCD_OPTS="${ARGOCD_OPTS:---plaintext}"
 APP_NAME="${APP_NAME:-automation-calculator}"
 APP_NAMESPACE="${APP_NAMESPACE:-automation-calculator}"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
+export ARGOCD_OPTS="${ARGOCD_OPTS:---port-forward --port-forward-namespace ${ARGOCD_NAMESPACE} --plaintext}"
 HEALTH_PATH="${HEALTH_PATH:-/health}"
 VALUES_FILE="${CHART_DIR}/values-${ENV_NAME}.yaml"
 
@@ -126,7 +129,7 @@ if [ -z "${host}" ] || [ "${host}" = "null" ]; then
 fi
 
 echo "Context:        $(kubectl config current-context)"
-echo "ArgoCD server:  ${ARGOCD_SERVER} (ARGOCD_OPTS: ${ARGOCD_OPTS})"
+echo "ArgoCD server:  ${ARGOCD_SERVER:-<CLI port-forward>} (ARGOCD_OPTS: ${ARGOCD_OPTS})"
 echo "Time:           $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Values file:    values-${ENV_NAME}.yaml (image.tag ${values_tag}, shortCommitHash ${values_hash})"
 echo "Expected:       tag ${EXPECT_TAG}, SHORT_COMMIT_HASH ${EXPECT_HASH:-<empty>}"
@@ -271,7 +274,7 @@ if history_out="$(argocd app history "${APP_NAME}" 2>&1)"; then
   latest_history_id="$(printf '%s\n' "${history_out}" | tail -n 1 | awk '{ print $1 }')"
   echo "  latest history id: ${latest_history_id:-?}"
 else
-  fail "argocd app history failed (is the port-forward up and argocd logged in?): ${history_out}"
+  fail "argocd app history failed (is argocd logged in through its own port-forward? see ARGOCD_OPTS): ${history_out}"
 fi
 
 # 6. Helm must have forgotten the release (Phase 6 on staging, Phase 8 Commit B
