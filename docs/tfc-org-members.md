@@ -102,5 +102,9 @@ is in the map.
   change it. A changed address shows as a replace (remove and re-invite).
 - The token the workspace runs with needs owner rights: an owner's user token,
   the owners team token, or the organization token.
+- The production `tf_cloud` workspace (`ac_app_production_tf_workspaces`) is
+  hand-made, so its Terraform version is set in the TFC UI (Settings → General),
+  not by this repo. It must be 1.7 or newer for the `import` blocks; keep it on
+  the same version as the workspaces it creates (`tfe_workspace_tf_version`).
 - If the production `tf_cloud` workspace does not start a run on a change to
   `terraform/modules/tf_cloud/tf_cloud_org_members`, queue one by hand.
