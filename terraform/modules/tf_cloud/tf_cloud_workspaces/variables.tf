@@ -40,6 +40,12 @@ variable "enable_github_org_workspace" {
   default     = false
 }
 
+variable "enable_google_cloud_workspace" {
+  description = "When true, creates a TFC workspace for the Google Cloud env config (the project behind the Google service accounts)."
+  type        = bool
+  default     = false
+}
+
 variable "enable_google_workspace_workspace" {
   description = "When true, creates a TFC workspace for the Google Workspace env config (the group that gates the AWS Identity Center SAML app)."
   type        = bool
@@ -70,14 +76,14 @@ variable "github_org_working_directory" {
 }
 
 variable "google_cloud_module_directories" {
-  default     = ["terraform/modules/google_cloud"]
-  description = "The list of module directories for the google cloud component of an environment"
+  default     = ["terraform/modules/google_cloud/organization", "terraform/modules/google_cloud/project"]
+  description = "Module directories that trigger a run in the Google Cloud workspace."
   type        = list(string)
 }
 
 variable "google_cloud_working_directory" {
   default     = ""
-  description = "The path to the google cloud folder for this environment"
+  description = "The path to the Google Cloud env config directory."
   type        = string
 }
 
