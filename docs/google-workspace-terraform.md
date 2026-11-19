@@ -65,9 +65,11 @@ one that can lock anyone out.
 
 ### 1. Service account (once, by hand)
 
-1. In the Google Cloud console, create a project (or pick an existing one) in
-   the `automation-calculations.net` organization.
-2. APIs & Services → Library → enable **Admin SDK API**.
+1. In the Google Cloud console, open the existing project in the
+   `automation-calculations.net` organization. The project and its enabled
+   APIs are managed by Terraform; see `docs/google-cloud-terraform.md`.
+2. APIs & Services → Library → enable **Admin SDK API** (already on once
+   `ac_app_production_google_cloud` has applied).
 3. IAM & Admin → Service accounts → create `terraform-google-workspace`. It
    needs no Google Cloud roles.
 4. Open the service account → Keys → Add key → JSON. Keep the file out of the
