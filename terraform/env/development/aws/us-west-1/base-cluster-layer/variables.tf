@@ -1,5 +1,5 @@
 variable "ami_type" {
-  default     = "AL2023_x86_64"
+  default     = "AL2023_ARM_64_STANDARD"
   description = "The AMI type to use for the EKS node group."
   type        = string
 }
@@ -44,7 +44,7 @@ variable "kubernetes_cluster_version" {
 }
 
 variable "node_group_instance_types" {
-  default     = ["t3.medium"]
+  default     = ["t4g.medium"]
   description = "The AWS EC2 instance types to use to create worker nodes with"
   type        = list(string)
 }
