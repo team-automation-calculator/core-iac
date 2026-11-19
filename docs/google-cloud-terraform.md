@@ -47,8 +47,8 @@ grant would lock people out.
 All three steps were done on 2026-11-19: the `terraform-google-cloud` service
 account has Owner on the project and Organization Viewer on the organization,
 and the first apply imported the project with no changes to it and added the
-four `google_project_service` resources. The steps are kept for a rebuild or a
-key rotation.
+four `google_project_service` resources. A second plan showed no changes. The
+steps are kept for a rebuild or a key rotation.
 
 The project is the one named `terraform-google-workspace`, made by hand the
 same day (`docs/google-workspace-terraform.md`). Its ID and display name are
