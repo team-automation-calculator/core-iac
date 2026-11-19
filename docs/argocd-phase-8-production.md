@@ -291,10 +291,10 @@ new pod, no Ingress change.
 
 ```bash
 scripts/argocd_canary_check.sh | tee tmp/phase8-03-synced.txt
-diff tmp/phase8-00-baseline.txt tmp/phase8-03-synced.txt    # Deployment and Ingress resourceVersion, the Time: line; generation and Secret lines identical
+diff tmp/phase8-00-baseline.txt tmp/phase8-03-synced.txt    # Deployment and Ingress resourceVersion, Deployment generation up by one (annotations bump it; seen on staging in Phase 5), the Time: line; Secret lines identical
 kubectl -n automation-calculator get deploy automation-calculator -o yaml > tmp/phase8-03-deploy.yaml
 kubectl -n automation-calculator get ingress automation-calculator -o yaml > tmp/phase8-03-ingress.yaml
-diff tmp/phase8-00-deploy.yaml tmp/phase8-03-deploy.yaml    # annotations, resourceVersion, a managedFields entry for argocd-controller; nothing under spec or status
+diff tmp/phase8-00-deploy.yaml tmp/phase8-03-deploy.yaml    # annotations, resourceVersion, a managedFields entry for argocd-controller, metadata.generation and status.observedGeneration up by one; nothing under spec
 diff tmp/phase8-00-ingress.yaml tmp/phase8-03-ingress.yaml  # same
 kubectl -n automation-calculator get pods -o wide            # same pod names, AGE and RESTARTS as tmp/phase8-00-pods.txt
 kubectl -n automation-calculator get ingress automation-calculator -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'; echo   # same ALB hostname as section 3
@@ -591,8 +591,9 @@ production plan.
 - Commit A applied on production with exactly 4 resources added; `kubectl -n argocd get pods`
   shows the four pods; `argocd login` works with the workspace output `argocd_admin_password`, and
   `argocd-initial-admin-secret` does not exist.
-- The section 5.1 diff showed only the tracking annotation; the 5.3 diffs show only annotations
-  and `managedFields`; Deployment `generation`, Secret `resourceVersion` and sha256 unchanged;
+- The section 5.1 diff showed only the tracking annotation; the 5.3 diffs show only annotations,
+  `managedFields` and the Deployment `generation` up by one; Deployment `.spec` and rollout
+  revision, Secret `resourceVersion` and sha256 unchanged;
   same pods, same ALB hostname; `/health` 200; `argocd app history` shows ID 0 at the `main` SHA.
 - Production state has no `helm_release.automation-calculator*`; Commit B's merge planned 0
   changes; `helm -n automation-calculator list` is empty; the four objects, the pods, the ALB

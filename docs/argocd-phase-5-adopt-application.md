@@ -79,9 +79,11 @@ kubectl -n automation-calculator get pods -o wide | tee tmp/phase5-00-pods.txt
 
 `CANARY_APP=automation-calculator` points the Phase 3 script's last block at the real Application
 (it prints "not found" until the apply). The "Real namespace" block is the baseline: the
-Deployment `generation`, the Secret `resourceVersion` and `data sha256` must never change in this
-phase. The Deployment and Ingress `resourceVersion`s **will** move once, at the first sync, when
-ArgoCD writes its annotations; the `-o yaml` captures are what you diff against to prove that is
+Secret `resourceVersion` and `data sha256` must never change in this phase. The Deployment and
+Ingress `resourceVersion`s **will** move once, at the first sync, when ArgoCD writes its
+annotations, and so will the Deployment `generation`, by exactly one: the API server bumps a
+Deployment's generation when its annotations change, not only when its spec does (staging,
+2026-11-19: 57 to 58 with `.spec` identical, rollout revision and pod unchanged); the `-o yaml` captures are what you diff against to prove that is
 all that moved.
 
 Also note the ALB hostname; it must be the same at the end:
@@ -174,9 +176,10 @@ CANARY_APP=automation-calculator scripts/argocd_canary_check.sh | tee tmp/phase5
 diff tmp/phase5-00-baseline.txt tmp/phase5-02-synced.txt
 ```
 
-Expected in that diff: the Deployment and Ingress `resourceVersion` lines (the annotation writes),
-the `Time:` line and the Application block (Synced / Healthy / Succeeded). The Deployment
-`generation`, the Secret `resourceVersion`, `data sha256` and `keys` must be identical.
+Expected in that diff: the Deployment and Ingress `resourceVersion` lines and the Deployment
+`generation` up by one with `observed` matching it (the annotation writes), the `Time:` line and
+the Application block (Synced / Healthy / Succeeded). The Secret `resourceVersion`, `data sha256`
+and `keys` must be identical.
 
 ```bash
 kubectl -n automation-calculator get deploy automation-calculator -o yaml > tmp/phase5-02-deploy.yaml
@@ -187,8 +190,10 @@ diff tmp/phase5-00-ingress.yaml tmp/phase5-02-ingress.yaml
 
 Expected in both diffs: `argocd.argoproj.io/tracking-id` and
 `kubectl.kubernetes.io/last-applied-configuration` added under `metadata.annotations`,
-`resourceVersion` changed, a new `managedFields` entry for `argocd-controller`. Nothing under
-`spec`, nothing under `status`.
+`resourceVersion` changed, a new `managedFields` entry for `argocd-controller`; on the Deployment
+also `metadata.generation` and `status.observedGeneration` up by one. Nothing under `spec`
+(`diff <(yq .spec before.yaml) <(yq .spec after.yaml)` prints nothing), and no new ReplicaSet:
+`deployment.kubernetes.io/revision` is unchanged.
 
 ```bash
 kubectl -n automation-calculator get pods -o wide                 # same pod names, AGE and RESTARTS as tmp/phase5-00-pods.txt
@@ -258,8 +263,8 @@ same object on their own:
 - `argocd app get automation-calculator`: project `automation-calculator`, Synced, Healthy; no
   finalizer on the Application; `argocd app history` shows ID 0 at the `main` SHA.
 - The section 4 diff showed only the tracking annotation; the section 6 diffs show only
-  annotations and `managedFields`; Deployment `generation`, Secret `resourceVersion` and sha256
-  unchanged; same pods, same ALB hostname; health endpoint 200; `helm status` deployed at the
+  annotations, `managedFields` and the Deployment `generation` up by one; Deployment `.spec` and
+  rollout revision, Secret `resourceVersion` and sha256 unchanged; same pods, same ALB hostname; health endpoint 200; `helm status` deployed at the
   same revision.
 - A fresh staging plan shows 0 changes.
 - The Application is on manual sync and this runbook's section 8 is understood by whoever merges
