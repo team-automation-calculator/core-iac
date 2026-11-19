@@ -212,7 +212,7 @@ Runbook with the pre-checks, expected plans and rollback: `docs/argocd-phase-4-s
 - In `main_rails_app`, add `kubernetes_namespace_v1.automation_calculator` and
   `kubernetes_secret_v1.app_secrets` (name `automation-calculator-app-secrets`, `type = "Opaque"`,
   `data` = the six values built from the same expressions the `set_sensitive` blocks use today).
-  Add `kubernetes ~> 2.16` to the module's `versions.tf`. The namespace ignores label and
+  Add `kubernetes ~> 3.4` to the module's `versions.tf`. The namespace ignores label and
   annotation changes (its metadata is not Terraform's) and carries `prevent_destroy` (deleting it
   deletes the Ingress and the ALB). The Secret declares the labels and annotations Helm left on the
   live object, including `meta.helm.sh/release-*`, so the import plans clean and a revert can
