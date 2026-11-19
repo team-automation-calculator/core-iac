@@ -92,12 +92,19 @@ resource "kubernetes_secret_v1" "app_secrets" {
   # secretKeyRef at pod start, so a changed value here takes effect on the
   # next rollout (an ArgoCD sync of a bump PR, or `kubectl rollout restart`),
   # not on apply.
+  #
+  # trimspace on the four OAuth variables reproduces what the chart did: its
+  # template rendered each value as an unquoted YAML scalar, so surrounding
+  # whitespace in a Terraform Cloud variable never reached the Secret. Without
+  # it the staging import planned a data change (2026-11-19: the staging
+  # google_oauth_app_secret variable carries one trailing whitespace
+  # character), which would have broken Google sign-in at the next pod start.
   data = {
     databaseUrl          = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
-    githubOAuthAppId     = var.github_oauth_app_id
-    githubOAuthAppSecret = var.github_oauth_app_secret
-    googleOAuthAppId     = var.google_oauth_app_id
-    googleOAuthAppSecret = var.google_oauth_app_secret
+    githubOAuthAppId     = trimspace(var.github_oauth_app_id)
+    githubOAuthAppSecret = trimspace(var.github_oauth_app_secret)
+    googleOAuthAppId     = trimspace(var.google_oauth_app_id)
+    googleOAuthAppSecret = trimspace(var.google_oauth_app_secret)
     secretKeyBase        = random_password.rails_app_secret_key_base.result
   }
 }
