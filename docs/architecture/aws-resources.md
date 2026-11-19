@@ -163,4 +163,4 @@ flowchart LR
     hr --> ks -->|secretKeyRef| env
 ```
 
-Values live only in Terraform state, TFC workspace variables, and the cluster Secret. `helm/automation-calculator/values.yaml` holds placeholders.
+Values live only in Terraform state, TFC workspace variables, and the cluster Secret. `helm/automation-calculator/values.yaml` holds empty `secrets.*` values that the chart marks `required`.

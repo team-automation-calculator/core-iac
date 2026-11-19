@@ -19,7 +19,7 @@ flowchart LR
         img[("automationcalculationsci/automation-calculator<br/>tag 0.9.6-&lt;CircleCI build&gt;")]
     end
     subgraph iac["core-iac repo"]
-        bump["Image bump PR<br/>app_version + short_commit_hash"]
+        bump["Image bump PR<br/>image.tag + shortCommitHash in values-&lt;env&gt;.yaml"]
         ipr["Infra PR (draft or ready)"]
         imain["merge to main"]
     end
@@ -80,7 +80,7 @@ sequenceDiagram
         CCI->>CCI: helm lint helm/automation-calculator --strict
         CCI->>CCI: terraform fmt + validate for every module and env config
         CCI->>CCI: validate_python: ./go lint (compile, Black, Ruff, bash -n) and ./go test (pytest)
-        CCI->>DH: validate_app_docker_image_versions: every added app_version tag exists (non-main only)
+        CCI->>DH: validate_app_docker_image_versions: every image.tag added to the chart values files exists (non-main only)
         CCI-->>GH: one ci/circleci status per job
     and Terraform Cloud
         GH->>TFC: VCS webhook

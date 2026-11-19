@@ -238,28 +238,45 @@ def configure(
     return ci_profile
 
 
-def aws(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
+def aws(
+    *args: str, capture: bool = False, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
+    env = {**os.environ, **extra_env} if extra_env else None
     if capture:
         return subprocess.run(
-            ["aws", *args], check=True, text=True, capture_output=True
+            ["aws", *args], check=True, text=True, capture_output=True, env=env
         )
     # Uncaptured aws output (login prompts, kubeconfig updates) goes to
     # stderr: stdout is reserved for the eval-able AWS_PROFILE export line.
-    return subprocess.run(["aws", *args], check=True, text=True, stdout=sys.stderr)
+    return subprocess.run(
+        ["aws", *args], check=True, text=True, stdout=sys.stderr, env=env
+    )
+
+
+# The Google Workspace SAML app holds one ACS URL, and it is Identity Center's
+# dual-stack one (https://us-east-1.sso.signin.aws/...). Without this the CLI
+# login goes through the IPv4 sign-in endpoints, Google denies the SAML request
+# ("User is Unauthorized" in its SAML log) and the browser shows "Something
+# doesn't compute". Only the login needs it: the cached token then works for
+# every profile on the default endpoints. Set on the login call alone rather
+# than as use_dualstack_endpoint in the profiles, which would move every
+# service call (EKS, STS, ...) to dual-stack endpoints too.
+LOGIN_ENV = {"AWS_USE_DUALSTACK_ENDPOINT": "true"}
 
 
 def login(ci_profile: str) -> None:
     try:
-        aws("sso", "login", "--sso-session", SSO_SESSION_NAME)
+        aws("sso", "login", "--sso-session", SSO_SESSION_NAME, extra_env=LOGIN_ENV)
     except subprocess.CalledProcessError as error:
         sys.exit(
             f"error: aws sso login exited with status {error.returncode}\n"
             "if the browser showed \"Something doesn't compute - We couldn't verify\n"
-            'your sign-in credentials", the local config is usually not the problem:\n'
-            "that page comes from stale AWS sign-in state in the browser or from\n"
-            "federating the wrong Google account. Retry in a private window and pick\n"
-            "your Workspace account, or clear cookies for awsapps.com and\n"
-            "signin.aws.amazon.com. See docs/aws-sso-auth.md#troubleshooting."
+            'your sign-in credentials", check Google Admin -> Reporting -> SAML log\n'
+            'events: a "User is Unauthorized" failure there means the Google app\'s\n'
+            "ACS URL does not match the endpoint the login used. Otherwise it is\n"
+            "stale AWS sign-in state in the browser or the wrong Google account:\n"
+            "retry in a private window with your Workspace account.\n"
+            "See docs/aws-sso-auth.md#troubleshooting."
         )
     identity = aws(
         "sts",
