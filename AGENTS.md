@@ -170,6 +170,7 @@ scripts/pr_checklist.py                        # Lists the PRs an image contains
 - **Project tag**: `automation_calculator`
 - **Kubernetes namespaces**: `automation-calculator` (app), `kube-system` (add-ons)
 - **AWS region**: `us-west-1` for all environments
+- **Worker node architecture**: arm64 (Graviton `t4g` instances, `AL2023_ARM_64_STANDARD` AMI) in all environments. The app image must stay multi-arch (`linux/amd64,linux/arm64`) or at least carry `linux/arm64`, or the pod fails with `exec format error`.
 - **Terraform backend**: Terraform Cloud, org `team-automation-calculator`
 
 ## Provider Versions
