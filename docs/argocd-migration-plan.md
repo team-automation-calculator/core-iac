@@ -332,7 +332,7 @@ first has to merge alone, as Phase 6 did with the automated-sync flip.
 - Gate: `scripts/argocd_soak_log.py status` prints PASS, and the Phase 0 preflight passes on
   production (`scripts/argocd_preflight.sh`). The ALB `replicaCount` reduction was never applied
   (staging had the headroom), so production may first need it or `desired_size = 2` in its own PR.
-- Commit A: set `argocd_enabled = true` in production's `terraform.tfvars` (2 to add in
+- Commit A: set `argocd_enabled = true` in production's `terraform.tfvars` (4 to add in
   `module.argocd[0]`; confirm promptly). The same `argocd_apps` release creates the production
   `AppProject` and `Application`, with `syncPolicy` manual: the module defaults
   (`argocd_manage_application` true, the three `argocd_application_*` variables false) do it, and
