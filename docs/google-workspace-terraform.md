@@ -75,7 +75,10 @@ can lock anyone out.
    `docs/google-cloud-terraform.md`.
 2. APIs & Services → Library → enable **Admin SDK API**.
 3. IAM & Admin → Service accounts → create `terraform-google-workspace`. It
-   needs no Google Cloud roles.
+   needs no Google Cloud roles for this workspace. The same account also runs
+   `ac_app_production_google_cloud`, with Owner on the project, and is
+   imported into Terraform there (`service_accounts` in
+   `terraform/env/production/google_cloud`); its keys are not.
 4. Open the service account → Keys → Add key → JSON. Keep the file out of the
    repo.
 5. In Google Admin → Account → Admin roles → **Groups Admin** → Assign service
@@ -125,6 +128,7 @@ log, set the organizational unit back to ON for everyone.
   checksums.
 - The service account key is a long-lived credential. It can do what the
   Groups Admin role can do: create, change and delete any group in the
-  Workspace.
+  Workspace. The same account is also Owner of the Google Cloud project
+  (`docs/google-cloud-terraform.md`).
 - Terraform cannot see whether step 4 was done. The group has no effect until
   the app is turned ON for it.
