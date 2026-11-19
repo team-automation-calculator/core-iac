@@ -285,7 +285,7 @@ recorded. Registering them the same way as kube-proxy is a follow-up.
 Rollout per env: apply `base-cluster-layer`; the control plane upgrades in place (needs five free
 IPs in the cluster subnets), then the managed node group rolls onto the 1.37 AL2023 AMI
 (`maxUnavailablePercentage: 33` on a one-node group means the node is replaced, so expect a few
-minutes of app downtime on the single `t3.medium`; schedule accordingly). The kube-proxy add-on
+minutes of app downtime on the single `t4g.medium`; schedule accordingly). The kube-proxy add-on
 updates in the same apply. Then update vpc-cni and CoreDNS by hand, `kubectl get nodes` shows
 1.37, `aws eks describe-addon --addon-name kube-proxy` shows `ACTIVE` at the new pin,
 `./go smoke <env>`. EKS now allows a rollback to 1.36
