@@ -1,0 +1,50 @@
+{
+  "description": "Expected settings of the hand-made SAML federation between Google Workspace (identity provider) and AWS IAM Identity Center (service provider). Neither side exposes an API for these settings, so this file is the record to compare the two consoles against. The repo is public, so instance identifiers are written as <placeholders>: the real values are in the two consoles and in ~/.aws/config. See docs/aws-sso-auth.md, section 'What is in code and what is not'.",
+  "recorded": "2026-11-18",
+  "aws_identity_center": {
+    "console_path": "IAM Identity Center (us-east-1) -> Settings -> Identity source -> Actions -> Manage authentication",
+    "region": "us-east-1",
+    "identity_source": "External identity provider",
+    "access_portal_urls": {
+      "dual_stack": "https://<instance-id>.portal.us-east-1.app.aws",
+      "ipv4": "https://<identity-store-id>.awsapps.com/start"
+    },
+    "service_provider": {
+      "acs_url_dual_stack": "https://us-east-1.sso.signin.aws/platform/saml/acs/<tenant-id>",
+      "issuer_url": "https://us-east-1.signin.aws.amazon.com/platform/saml/<identity-store-id>"
+    },
+    "identity_provider": {
+      "sign_in_url": "https://accounts.google.com/o/saml2/idp?idpid=<google-idp-id>",
+      "issuer_url": "https://accounts.google.com/o/saml2?idpid=<google-idp-id>"
+    },
+    "require_user_reauthentication": false
+  },
+  "google_workspace_saml_app": {
+    "console_path": "Google Admin -> Apps -> Web and mobile apps -> AWS Identity Center",
+    "name": "AWS Identity Center",
+    "acs_url": "https://us-east-1.sso.signin.aws/platform/saml/acs/<tenant-id>",
+    "acs_endpoint_kind": "dual-stack",
+    "entity_id": "https://us-east-1.signin.aws.amazon.com/platform/saml/<identity-store-id>",
+    "start_url": "",
+    "signed_response": false,
+    "certificate": {
+      "name": "Google_2031-7-5-121533_SAML2_0",
+      "expires": "2031-07-05"
+    },
+    "name_id_format": "EMAIL",
+    "name_id": "Basic Information > Primary email",
+    "user_access": "ON for everyone"
+  },
+  "cli_login": {
+    "requires_env": {
+      "AWS_USE_DUALSTACK_ENDPOINT": "true"
+    },
+    "reason": "The Google app holds one ACS URL and it is the dual-stack one, so the login must use the dual-stack endpoints. scripts/infra_eng_sso.py sets this. If acs_endpoint_kind above ever changes to an IPv4 kind, remove it there."
+  },
+  "not_recorded": [
+    "The Google app's attribute mapping.",
+    "Whether Google auto-provisioning (SCIM) to Identity Center is active, or the Identity Center user was created by hand.",
+    "The IPv4-only ACS URLs on the AWS Manage authentication page.",
+    "The IdP certificate held by Identity Center (it should be the Google certificate named above)."
+  ]
+}

@@ -19,6 +19,41 @@ the CI roles are managed in Terraform (`terraform/modules/aws/sso-infra-eng`
 and `terraform/modules/aws/ci-iam-role`, wired per environment in
 `terraform/env/<env>/aws/us-west-1/base-cluster-layer`).
 
+## What is in code and what is not
+
+| Piece | Where it lives |
+|---|---|
+| `InfraEng<Env>` and `InfraEng<Env>ReadOnly` permission sets, their policies, and their assignment to the engineer | Terraform: `terraform/modules/aws/sso-infra-eng` |
+| CI role trust policies | Terraform: `terraform/modules/aws/ci-iam-role` |
+| The Google group that may use the AWS app, and its members | Terraform, no credentials until bootstrapped: `terraform/modules/google_workspace/aws-identity-center-access` (`docs/google-workspace-terraform.md`) |
+| The IAM Identity Center instance and its identity source (IdP metadata, certificate, SCIM) | Manual, AWS console. `sso-admin` has no operation for any of it |
+| The Identity Center user | Not Terraform: provisioned from Google or created by hand. The module only looks it up, so a plan fails if it is missing |
+| The Google **AWS Identity Center** SAML app (ACS URL, Entity ID, Start URL, certificate, Name ID) and its User access | Manual, Google Admin. Google has no API for SAML apps |
+
+The manual settings on both sides are recorded in
+`iac/specs/sso/google-workspace-saml.json`. Compare the two consoles against
+it when sign-in breaks, and update it in the same pull request as any console
+change. Instance identifiers are placeholders there because the repo is
+public. `tests/test_sso_saml_spec.py` checks that the two sides of the spec
+agree and that `scripts/infra_eng_sso.py` logs in over the endpoint kind the
+Google app accepts.
+
+Two settings matter more than they look:
+
+- **ACS URL.** Google's app takes one, and Identity Center publishes three
+  kinds (dual-stack, IPv4, alternative IPv4). A sign-in that starts on an
+  endpoint of a different kind is denied by Google. The app holds the
+  dual-stack URL, which is why the CLI login sets
+  `AWS_USE_DUALSTACK_ENDPOINT=true` (see Troubleshooting).
+- **Entity ID.** It carries the identity store id. If the Identity Center
+  instance is ever deleted and re-enabled, the id changes and every sign-in
+  fails. The `sso-infra-eng` module guards against that without the ids
+  being committed: its first apply records the live instance ARN and identity
+  store id in Terraform state (`terraform_data.identity_center_pin`), and a
+  `check` warns in every later plan when the live instance is no longer the
+  recorded one. After an intended change of instance, fix the Google app and
+  re-record with `terraform apply -replace` on that resource.
+
 ## One-time setup
 
 Requires AWS CLI v2. Either run the wizard:
@@ -190,7 +225,7 @@ in the browser flow. In order:
    (`https://us-east-1.sso.signin.aws/platform/saml/acs/...`). A login that
    goes through the IPv4 endpoints sends Google a reply URL the app does not
    have, Google denies it, and AWS shows this page. Seen 2026-11-18: the plain
-   CLI login and `https://d-9067be3c25.awsapps.com/start` failed, while the
+   CLI login and `https://<identity-store-id>.awsapps.com/start` failed, while the
    `https://ssoins-<id>.portal.us-east-1.app.aws` portal and the command above
    worked. Only the login needs the variable; the cached token then works for
    every profile without it. The sign of this cause is a **Failed Login**,

@@ -1,3 +1,4 @@
+| Google Workspace (`macadmins/googleworkspace`) | `~> 1.5` | `~> 1.5` |
 # AGENTS.md
 
 Guidance here is for any coding agent or person working in the repo. Anything specific to
@@ -22,6 +23,8 @@ terraform/
       networking/                   # VPC/subnet resources
     github/
       org-ci-access/                # GitHub org membership + team for the CI machine user
+    google_workspace/
+      aws-identity-center-access/   # Google group (and members) that may use the AWS Identity Center SAML app
   env/              # Per-environment configs (development, staging, production)
     <env>/
       tf_cloud/     # TFE workspace bootstrap (apply this first)
@@ -30,6 +33,7 @@ terraform/
         cluster-addons-layer/
     production/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
+      google_workspace/   # Google Workspace directory objects (global; workspace has no credentials until bootstrapped, docs/google-workspace-terraform.md)
 helm/
   automation-calculator/        # App Helm chart
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
@@ -38,6 +42,7 @@ docs/                           # Runbooks, setup guides and migration plans (AW
 scripts/                        # Python and Bash helpers
 tests/                          # pytest tests for the Python scripts
 iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
+iac/specs/sso/google-workspace-saml.json  # Expected hand-made SAML settings between Google Workspace and IAM Identity Center (no API on either side)
 version_dates/
   eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
   rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
@@ -189,6 +194,8 @@ AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (se
 ```
 
 `GITHUB_TOKEN` for the `github` provider (`terraform/env/production/github/org`) is never set locally: it lives only as a sensitive environment variable on the `ac_app_production_github_org` TFC workspace. The GitHub CI machine user, its tokens, and the owner token that workspace uses are documented in `docs/github-ci-user.md`.
+
+`GOOGLEWORKSPACE_CREDENTIALS` for the `googleworkspace` provider (`terraform/env/production/google_workspace`) follows the same rule: the service account key lives only as a sensitive environment variable on the `ac_app_production_google_workspace` TFC workspace. That workspace has no credentials, and its runs fail at the plan, until the bootstrap in `docs/google-workspace-terraform.md` is done. The SAML settings that link Google Workspace to IAM Identity Center have no API on either side; their expected values are in `iac/specs/sso/google-workspace-saml.json`, with instance identifiers as placeholders because the repo is public. Do not commit the Identity Center instance id, identity store id, portal URL or the Google IdP id.
 
 ## AWS Authentication
 

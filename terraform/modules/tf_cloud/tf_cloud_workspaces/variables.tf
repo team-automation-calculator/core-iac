@@ -40,6 +40,12 @@ variable "enable_github_org_workspace" {
   default     = false
 }
 
+variable "enable_google_workspace_workspace" {
+  description = "When true, creates a TFC workspace for the Google Workspace env config (the group that gates the AWS Identity Center SAML app)."
+  type        = bool
+  default     = false
+}
+
 variable "enable_route53_domains_workspace" {
   description = "When true, creates a TFC workspace for the route53-domains env config."
   type        = bool
@@ -72,6 +78,18 @@ variable "google_cloud_module_directories" {
 variable "google_cloud_working_directory" {
   default     = ""
   description = "The path to the google cloud folder for this environment"
+  type        = string
+}
+
+variable "google_workspace_module_directories" {
+  default     = ["terraform/modules/google_workspace/aws-identity-center-access"]
+  description = "Module directories that trigger a run in the Google Workspace workspace."
+  type        = list(string)
+}
+
+variable "google_workspace_working_directory" {
+  default     = ""
+  description = "The path to the Google Workspace env config directory."
   type        = string
 }
 
