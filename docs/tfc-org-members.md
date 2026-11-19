@@ -67,6 +67,54 @@ so the addresses are too; that was accepted (2026-11-18). Do not also set an
 HCL variable named `tfc_organization_members` on the workspace: it would
 override the file.
 
+## The token the workspace runs with
+
+Managing members needs owner rights. The shared `TFE_TOKEN` variable set does
+not have them (a plan with it fails with `could not find team
+team-automation-calculator/owners`), so `ac_app_production_tf_workspaces` runs
+with its own **owners team token**, created and stored by Terraform
+(`terraform/env/production/tf_cloud/owner_token.tf`):
+
+- `tfe_team_token.tf_workspaces`: a token on the `owners` team, expiring at
+  `tfc_owner_token_expired_at`.
+- `tfe_variable.tf_workspaces_tfe_token`: that token as a sensitive
+  workspace-level `TFE_TOKEN` environment variable. A workspace variable
+  overrides the variable set, so the staging and development `tf_workspaces`
+  workspaces keep the weaker shared token.
+
+The token belongs to the team, not to a person, so nobody's sign-in method or
+departure can strand it. Its value is in this workspace's state, which every
+organization owner can read.
+
+Because this workspace plans pull requests with an owner token, keep
+speculative plans for pull requests from forks **off** (Organization settings →
+General); this repository is public.
+
+### Bootstrap (once, and again if the token ever expires or is revoked)
+
+Terraform cannot create its first owner credential with a token that is not an
+owner's, so the first run borrows one:
+
+1. Organization settings → API tokens → Team tokens: create a token for the
+   `owners` team, description `bootstrap`, expiry one day.
+2. On `ac_app_production_tf_workspaces` → Variables, add a **Terraform**
+   variable `tfc_bootstrap_token`, sensitive, with that value. Do not name it
+   `TFE_TOKEN` and do not make it an environment variable: it must not collide
+   with the variable Terraform is about to create.
+3. Queue a plan and apply it. It creates the managed token and the
+   workspace-level `TFE_TOKEN`.
+4. Delete the `tfc_bootstrap_token` variable and revoke the `bootstrap` token.
+5. Queue another plan. It now runs on the managed token and must show no
+   changes.
+
+### Rotate
+
+Change `tfc_owner_token_expired_at` in `terraform.tfvars` to a later date and
+apply. The new token is created and stored first, and the old one is deleted
+last, all in one run authenticated by the old token. Do this before the expiry
+date; HCP Terraform emails the owners 30 and 7 days ahead. After the expiry the
+workspace cannot authenticate at all and needs the bootstrap again.
+
 ## Adopt the current members (first apply)
 
 1. In the TFC UI, Organization settings → Users, note each member's email and
@@ -99,8 +147,6 @@ is in the map.
   the key.
 - An account's email cannot be changed through Terraform; only its owner can
   change it. A changed address shows as a replace (remove and re-invite).
-- The token the workspace runs with needs owner rights: an owner's user token,
-  the owners team token, or the organization token.
 - The production `tf_cloud` workspace (`ac_app_production_tf_workspaces`) is
   hand-made, so its Terraform version is set in the TFC UI (Settings → General),
   not by this repo. It must be 1.7 or newer for the `import` blocks; keep it on

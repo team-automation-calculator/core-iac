@@ -12,4 +12,5 @@ tfc_organization_members = {
     owner           = true
   }
 }
-tfe_workspace_tf_version = "1.17"
+tfc_owner_token_expired_at = "2027-11-18T00:00:00Z"
+tfe_workspace_tf_version   = "1.17"
