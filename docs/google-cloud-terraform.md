@@ -44,8 +44,11 @@ grant would lock people out.
 
 ## Turning it on
 
-Nothing here has been applied yet. The project ID, name and organization ID
-are not in the repo; the first two are set on the workspace.
+Nothing here has been applied yet. The project is the one named
+`terraform-google-workspace`, made by hand on 2026-11-19
+(`docs/google-workspace-terraform.md`). Its ID and display name are set on the
+workspace rather than committed, because the ID Google assigned can differ
+from the name.
 
 ### 1. Service account (once, by hand)
 
@@ -78,7 +81,9 @@ are not in the repo; the first two are set on the workspace.
    add, `ac_app_production_google_cloud`.
 2. On that workspace, add:
    - environment variable `GOOGLE_CREDENTIALS` (sensitive): the contents of
-     the JSON key
+     the JSON key on one line. Terraform Cloud rejects an environment variable
+     that contains newlines, so collapse the downloaded key first:
+     `jq -c . <key-file>.json | pbcopy`
    - Terraform variable `google_cloud_project_id`: the project ID (Cloud
      console → project picker, the ID column, not the name or the number)
    - Terraform variable `google_cloud_project_name`: the project's display
