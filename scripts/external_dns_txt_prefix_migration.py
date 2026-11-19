@@ -84,9 +84,19 @@ def env_hosts(environment: str) -> list[str]:
     return [host, f"www.{host}"]
 
 
+OCTAL_ESCAPE_RE = re.compile(r"\\([0-7]{3})")
+
+
 def normalize(name: str) -> str:
-    """Lowercase and strip the trailing dot Route 53 puts on names."""
-    return name.lower().rstrip(".")
+    """Decode Route 53's \\NNN octal escapes, lowercase, and strip the trailing dot.
+
+    Route 53 returns special characters in names as three-digit octal escapes,
+    e.g. `\\052` for the `*` of a wildcard. An escaped dot inside a label
+    (`\\056`) decodes to a plain `.` and becomes indistinguishable from a label
+    separator; no record this script handles has one.
+    """
+    decoded = OCTAL_ESCAPE_RE.sub(lambda m: chr(int(m.group(1), 8)), name)
+    return decoded.lower().rstrip(".")
 
 
 def to_txt_name(dns_name: str, token: str, prefix: str) -> str:
@@ -142,6 +152,11 @@ def is_ownership_value(value: str) -> bool:
 def owner_of(value: str) -> str | None:
     match = re.search(r"external-dns/owner=([^,\"]+)", value)
     return match.group(1) if match else None
+
+
+def owned_value(record: TxtRecord) -> str | None:
+    """The first of the record's ownership values whose owner is OWNER_ID."""
+    return next((v for v in record.ownership_values if owner_of(v) == OWNER_ID), None)
 
 
 @dataclass
@@ -228,9 +243,7 @@ def build_plan(records: list[dict], hosts: list[str]) -> list[HostPlan]:
         new = {to_txt_name(host, t, TXT_PREFIX): None for t in tokens}
         for name in new:
             new[name] = txt.get(name)
-        source = next(
-            (r for r in old if owner_of(r.ownership_values[0]) == OWNER_ID), None
-        )
+        source = next((r for r in old if owned_value(r) is not None), None)
         plans.append(HostPlan(host, tokens, old, new, source))
     return plans
 
@@ -241,7 +254,7 @@ def new_value(plan: HostPlan) -> str:
             f"error: no ownership TXT record with owner={OWNER_ID} found for "
             f"{plan.host}; refusing to invent one"
         )
-    return plan.source.ownership_values[0]
+    return owned_value(plan.source)
 
 
 def print_plan(environment: str, plans: list[HostPlan]) -> None:
