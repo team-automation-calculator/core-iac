@@ -70,7 +70,9 @@ can lock anyone out.
 1. In the Google Cloud console, create a project in the
    `automation-calculations.net` organization (the organization had none; the
    one in use is `terraform-google-workspace`). APIs can only be enabled with
-   a project selected, not at the organization level.
+   a project selected, not at the organization level. That project is imported
+   into Terraform, which then keeps its APIs enabled; see
+   `docs/google-cloud-terraform.md`.
 2. APIs & Services → Library → enable **Admin SDK API**.
 3. IAM & Admin → Service accounts → create `terraform-google-workspace`. It
    needs no Google Cloud roles.

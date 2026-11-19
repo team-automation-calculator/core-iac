@@ -244,6 +244,33 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/google_workspace
 
+  validate_google_cloud_organization_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_cloud/organization
+      - terraform/validate:
+          path: ./terraform/modules/google_cloud/organization
+
+  validate_google_cloud_project_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_cloud/project
+      - terraform/validate:
+          path: ./terraform/modules/google_cloud/project
+
+  validate_production_google_cloud:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/google_cloud
+      - terraform/validate:
+          path: ./terraform/env/production/google_cloud
+
   validate_python:
     executor: python
     steps:
@@ -300,6 +327,9 @@ workflows:
       - validate_production_github_org
       - validate_aws_identity_center_access_module
       - validate_production_google_workspace
+      - validate_google_cloud_organization_module
+      - validate_google_cloud_project_module
+      - validate_production_google_cloud
       - validate_python
       - validate_app_docker_image_versions:
           filters:
