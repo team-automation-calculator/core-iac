@@ -29,9 +29,12 @@ already do.
 ## Before the destroy
 
 1. Merge the PR that sets `auto_apply = false`.
-2. Apply `terraform/env/staging/tf_cloud` locally. That config has no remote backend, so it is
-   applied from a machine that has its state and the environment variables listed in `AGENTS.md`.
-   The plan should change `auto_apply` on the two staging workspaces and nothing else.
+2. Merging queues a run in the `ac_app_staging_tf_workspaces` workspace, which runs
+   `terraform/env/staging/tf_cloud`. The plan should change `auto_apply` on the two staging
+   workspaces and nothing else (the plan on the PR showed "0 to add, 2 to change"). Confirm the
+   apply in the UI if that workspace does not auto-apply, then check that both staging workspaces
+   show auto-apply off under **Settings > General**. That workspace is not defined in this repo,
+   so whether it auto-applies is only visible in the UI.
 3. Check that no RDS snapshot named `automation-calculator-staging-final` exists. Staging has
    `skip_final_snapshot = false`, so the destroy takes a final snapshot with that name and fails if
    the name is taken. Delete the old one, or set `final_snapshot_identifier` in the staging
@@ -135,8 +138,8 @@ Notes for the re-create:
   read `docs/external-dns-txt-prefix-migration.md` before changing anything.
 - Staging does not enable the CloudWatch alarms (`cloudwatch_alarms_enabled` defaults to false and
   only production sets it), so there is no alarm bootstrap step.
-- If staging should apply on merge again while it is up, set `auto_apply = true` and apply
-  `tf_cloud`. Set it back to `false` before the next destroy.
+- If staging should apply on merge again while it is up, set `auto_apply = true` in the staging
+  `tf_cloud` tfvars. Set it back to `false` before the next destroy.
 
 ## Saving and restoring the database
 
