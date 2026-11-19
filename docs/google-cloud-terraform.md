@@ -14,8 +14,14 @@ workspace `ac_app_production_google_cloud`).
 | Organization-level IAM grants | `organization_iam_members` in `terraform.tfvars`. Empty today | `terraform/modules/google_cloud/organization` |
 | The project: display name, parent, labels | **Imported**, then managed | `terraform/modules/google_cloud/project` |
 | The project's enabled APIs | `enabled_apis` in `terraform.tfvars` | `terraform/modules/google_cloud/project` |
-| The service accounts `terraform-google-cloud` and `terraform-google-workspace` | `service_accounts` in `terraform.tfvars`. **Imported**, then managed | `terraform/modules/google_cloud/project` |
-| Project roles of those service accounts (Owner for `terraform-google-cloud`) | `project_roles` on each entry. **Imported**, additive | `terraform/modules/google_cloud/project` |
+| The service account `terraform-google-workspace` | `service_accounts` in `terraform.tfvars`. **Imported**, then managed | `terraform/modules/google_cloud/project` |
+| Its project role, Owner | `project_roles` on its entry. **Imported**, additive | `terraform/modules/google_cloud/project` |
+
+**One service account does both jobs.** `terraform-google-workspace` is the
+only service account in the project. Both Terraform Cloud workspaces hold a
+key for it: `ac_app_production_google_workspace` uses its Groups Admin role in
+Google Workspace, and `ac_app_production_google_cloud` uses its Owner role on
+the project. There is no separate `terraform-google-cloud` account.
 
 **The organization cannot be created or imported.** Google creates it the
 first time someone from the Workspace domain uses Google Cloud. No API
@@ -34,19 +40,19 @@ Not managed:
 - **Billing.** `billing_account` is ignored, so Terraform neither links nor
   unlinks billing and the billing account ID stays out of this public repo.
 - **Service account keys.** A key made by Terraform would put the private key
-  in state, so both keys are still made by hand.
-- **The Organization Viewer grant** of `terraform-google-cloud`. Managing it
-  would mean giving that account Organization Administrator.
+  in state, so keys are still made by hand.
+- **The service account's Organization Viewer grant.** Managing it would mean
+  giving the account Organization Administrator.
 - **Organization policies and folders.** There are none to speak of.
 - **Disabling APIs.** Removing an API from `enabled_apis` stops managing it
   and leaves it on.
 
-**The service accounts are imported, not created.** Both were made by hand.
-An entry with `import_existing = true` gets an `import` block for the account
-and for each of its `project_roles`; an entry without it is created. To add a
+**The service account is imported, not created.** It was made by hand. An
+entry with `import_existing = true` gets an `import` block for the account and
+for each of its `project_roles`; an entry without it is created. To add a
 service account later, add an entry and leave `import_existing` unset.
 
-Do not take `roles/owner` off `terraform-google-cloud`. That grant is what
+Do not take `roles/owner` off `terraform-google-workspace`. That grant is what
 lets the workspace manage the project, so removing it locks Terraform out
 until someone grants it again in the console.
 
@@ -57,8 +63,9 @@ grant would lock people out.
 
 ## Turning it on
 
-All three steps were done on 2026-11-19: the `terraform-google-cloud` service
-account has Owner on the project and Organization Viewer on the organization,
+All three steps were done on 2026-11-19: the `terraform-google-workspace`
+service account has Owner on the project and Organization Viewer on the
+organization,
 and the first apply imported the project with no changes to it and added the
 four `google_project_service` resources. A second plan showed no changes. The
 steps are kept for a rebuild or a key rotation.
@@ -77,7 +84,10 @@ differ from the name.
    - Service Usage API
    - Cloud Billing API (the provider reads the project's billing link on every
      refresh)
-2. IAM & Admin → Service accounts → create `terraform-google-cloud`.
+   - Identity and Access Management (IAM) API (the provider reads the service
+     account)
+2. Use the `terraform-google-workspace` service account that
+   `docs/google-workspace-terraform.md` creates.
 3. Grant it, **on the project** (IAM & Admin → IAM, with the project selected):
    - **Owner**. Reading the project and its APIs needs less (Viewer plus
      Service Usage Admin), but changing the project's name, labels or parent
@@ -132,9 +142,10 @@ After the apply, a second plan should show no changes.
 
 ## Limits
 
-- The service account key is a long-lived credential with Owner on the
-  project. Anyone holding it can create keys for the other service accounts in
-  the project, including the one with Groups Admin in Google Workspace.
+- The service account key is a long-lived credential, and the one account
+  carries both Owner on the project and Groups Admin in Google Workspace.
+  Anyone holding a key for it can do both. Splitting the two roles across two
+  accounts is left for the move to keyless sign-in.
 - The lookup by domain returns the organization only if the service account
   can see it. Without Organization Viewer the plan fails with an "organization
   not found" error.
