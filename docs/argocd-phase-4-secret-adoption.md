@@ -15,7 +15,10 @@ the Secret. Pods are not restarted, the Secret's data does not change, the Ingre
   - `kubernetes_secret_v1.app_secrets`: `automation-calculator-app-secrets`, `type = "Opaque"`, the
     six keys the chart's `templates/secret.yaml` rendered (`databaseUrl`, `githubOAuthAppId`,
     `githubOAuthAppSecret`, `googleOAuthAppId`, `googleOAuthAppSecret`, `secretKeyBase`) built from
-    the exact expressions the six `set_sensitive` blocks used. Its labels and annotations mirror
+    the exact expressions the six `set_sensitive` blocks used, with `trimspace` on the four OAuth
+    variables (the chart rendered them as unquoted YAML scalars, which dropped surrounding
+    whitespace; staging's `google_oauth_app_secret` variable has one trailing whitespace
+    character). Its labels and annotations mirror
     what Helm left on the live object (chart labels, `app.kubernetes.io/managed-by: Helm`,
     `helm.sh/resource-policy: keep`, `meta.helm.sh/release-name` and `-namespace`) so the import
     plans clean. The two `meta.helm.sh` annotations also let a revert re-adopt the Secret into the
@@ -24,7 +27,7 @@ the Secret. Pods are not restarted, the Secret's data does not change, the Ingre
     the namespace and the Secret (next to `terraform_data.cluster_addons`, main's #404 add-on
     ordering) so a fresh environment creates them first. `create_namespace` stays `true` (a no-op
     now) so this phase's release diff is only the removed blocks.
-  - `versions.tf`: `kubernetes ~> 2.16`; the lock file gains the kubernetes provider block. The
+  - `versions.tf`: `kubernetes ~> 3.4`; the lock file gains the kubernetes provider block. The
     env configs already declare the `kubernetes` provider (`provider.tf`) and pass it implicitly.
 - `terraform/env/{staging,production}/aws/us-west-1/cluster-addons-layer/imports_argocd_phase4.tf`:
   the two `import` blocks. **Not in development**: its cluster is unprovisioned, so there is nothing
@@ -103,9 +106,12 @@ with `TFE_TOKEN` set (it runs remotely and streams the output).
 
 | Workspace | Expected plan |
 |---|---|
-| `ac_app_staging_cluster_addons_layer` | **2 to import**: `module.main_rails_app.kubernetes_namespace_v1.automation_calculator`, `module.main_rails_app.kubernetes_secret_v1.app_secrets`. **1 to change**: `module.main_rails_app.helm_release.automation-calculator` in place, only the `set_sensitive` blocks removed (`values` unchanged). 0 to add, 0 to destroy. Auto-applies on merge. |
+| `ac_app_staging_cluster_addons_layer` | **2 to import**: `module.main_rails_app.kubernetes_namespace_v1.automation_calculator`, `module.main_rails_app.kubernetes_secret_v1.app_secrets`. **2 to change**: `module.main_rails_app.helm_release.automation-calculator` in place (the `set_sensitive` blocks removed and `secrets.create: false` added to the env values file), and the imported Secret in place with exactly one line, `+ wait_for_service_account_token = true` (a provider default the import leaves unset; nothing on the cluster changes). 0 to add, 0 to destroy. The TFC status line does not count imports and reads "0 to add, 2 to change, 0 to destroy". Auto-applies on merge. |
 | `ac_app_production_cluster_addons_layer` | Same. Needs a confirm. |
 | `ac_app_development_cluster_addons_layer` | No cluster: the plan fails at `data.aws_eks_cluster` as it did before this PR, or, if it ever runs, 2 to add. No imports. |
+
+Seen on both workspaces on 2026-11-19 (speculative plans on the PR): exactly the above, with no
+`~ data` line on the Secret.
 
 Acceptable in addition: an in-place update of the imported Secret that only touches
 `metadata.labels` / `metadata.annotations` (section 2 told you which), and an in-place update of
