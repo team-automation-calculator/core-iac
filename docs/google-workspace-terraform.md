@@ -53,20 +53,24 @@ with the same userName, and needs the `InfraEng*` assignments from
 `terraform/modules/aws/sso-infra-eng`.
 
 The workspace is created by `enable_google_workspace_workspace = true` in
-`terraform/env/production/tf_cloud/terraform.tfvars`. Until the steps below
-are done it has no credentials, so its runs fail at the plan with an
-authentication error and change nothing. Production workspaces do not
-auto-apply.
+`terraform/env/production/tf_cloud/terraform.tfvars`. Without the two
+variables from step 2 its runs fail at the plan and change nothing. Production
+workspaces do not auto-apply.
 
 ## Turning it on
 
-Nothing here has been run yet. Do the steps in order; the last one is the only
-one that can lock anyone out.
+Steps 1 to 3 were done on 2026-11-19: the service account lives in the Google
+Cloud project `terraform-google-workspace`, and the group exists. Step 4 has
+not been done, so the app is still ON for everyone. The steps are kept for a
+rebuild or a key rotation. Do them in order; the last one is the only one that
+can lock anyone out.
 
 ### 1. Service account (once, by hand)
 
-1. In the Google Cloud console, create a project (or pick an existing one) in
-   the `automation-calculations.net` organization.
+1. In the Google Cloud console, create a project in the
+   `automation-calculations.net` organization (the organization had none; the
+   one in use is `terraform-google-workspace`). APIs can only be enabled with
+   a project selected, not at the organization level.
 2. APIs & Services → Library → enable **Admin SDK API**.
 3. IAM & Admin → Service accounts → create `terraform-google-workspace`. It
    needs no Google Cloud roles.
@@ -83,7 +87,10 @@ one that can lock anyone out.
    shows one workspace to add).
 2. On the new `ac_app_production_google_workspace` workspace, add:
    - environment variable `GOOGLEWORKSPACE_CREDENTIALS` (sensitive): the
-     contents of the JSON key
+     contents of the JSON key on one line. Terraform Cloud rejects an
+     environment variable that contains newlines, and the downloaded key is
+     pretty-printed, so collapse it first:
+     `jq -c . <key-file>.json | pbcopy`
    - Terraform variable `google_workspace_customer_id`: the customer ID from
      Google Admin → Account → Account settings
 3. Delete the local copy of the key.
