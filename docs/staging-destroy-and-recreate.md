@@ -4,7 +4,8 @@ Staging is destroyed when nothing needs validating and re-created when it does. 
 re-create are both run from the Terraform Cloud UI. This document records what has to be true
 before the destroy, the steps, what stops working while staging is gone, and how to bring it back.
 
-Written 2026-11-18 from a read of the code at `9094061`. The steps have not been run yet; correct
+Written 2026-11-18 from a read of the code, re-checked after the ArgoCD phase 1 and 2 merges. The
+steps have not been run yet; correct
 this document after the first destroy and the first re-create.
 
 ## Turn `auto_apply` off for staging before the destroy
@@ -80,7 +81,7 @@ the AWS credentials needed to re-create staging.
 
 ## What is gone, and what stays
 
-Destroyed with the add-ons layer: the app and add-on Helm releases, the RDS instance and its
+Destroyed with the add-ons layer: the app, add-on and ArgoCD Helm releases, the RDS instance and its
 automated backups, the ACM certificate and its validation records, the IRSA roles.
 
 Destroyed with the base layer: the EKS cluster and node group, the VPC, subnets, NAT gateway and
@@ -102,8 +103,9 @@ Left behind:
   profile.
 - Every pull request touching the staging add-ons paths gets a failed
   `ac_app_staging_cluster_addons_layer` plan status. That includes every app image bump, because
-  the bump scripts edit the staging `terraform.tfvars`. Terraform Cloud statuses are not required
-  checks on `main`, so merges are not blocked. Keep bumping staging so its tfvars are current when
+  the bump scripts edit `helm/automation-calculator/values-staging.yaml` and the chart directory
+  triggers that workspace. Terraform Cloud statuses are not required
+  checks on `main`, so merges are not blocked. Keep bumping staging so its values file is current when
   it comes back.
 - Pull requests touching the base paths get a staging plan that adds everything. After merge the
   same plan waits for confirmation in the workspace. Discard it.
