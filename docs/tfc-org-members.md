@@ -86,9 +86,10 @@ The token belongs to the team, not to a person, so nobody's sign-in method or
 departure can strand it. Its value is in this workspace's state, which every
 organization owner can read.
 
-Because this workspace plans pull requests with an owner token, keep
-speculative plans for pull requests from forks **off** (Organization settings →
-General); this repository is public.
+This workspace plans pull requests with an owner token and the repository is
+public. HCP Terraform does not run speculative plans for pull requests from
+forks, and has no setting to turn that on (the option exists only in Terraform
+Enterprise), so only branches pushed to this repository get a plan.
 
 ### Bootstrap (once, and again if the token ever expires or is revoked)
 
