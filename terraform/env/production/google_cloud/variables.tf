@@ -39,3 +39,14 @@ variable "organization_iam_members" {
     role   = string
   }))
 }
+
+variable "service_accounts" {
+  default     = {}
+  description = "Service accounts in the project, keyed by account ID (the part of the email before the @). project_roles are granted on this project, additively. Set import_existing = true for an account that was made by hand, so it and its listed roles are imported instead of created."
+  type = map(object({
+    description     = optional(string)
+    display_name    = optional(string)
+    import_existing = optional(bool, false)
+    project_roles   = optional(set(string), [])
+  }))
+}

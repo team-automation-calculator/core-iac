@@ -24,7 +24,7 @@ terraform/
       org-ci-access/                # GitHub org membership + team for the CI machine user
     google_cloud/
       organization/                 # Looks up the Google Cloud organization by domain (no API creates or imports one) and holds additive org-level IAM grants
-      project/                      # The Google Cloud project behind the Google service accounts, and its enabled APIs
+      project/                      # The Google Cloud project, its enabled APIs, and its one service account (terraform-google-workspace, used by both Google workspaces) with its project roles (keys stay hand-made)
     google_workspace/
       aws-identity-center-access/   # Google group (and members) that may use the AWS Identity Center SAML app
   env/              # Per-environment configs (development, staging, production)
