@@ -53,6 +53,24 @@ resource "tfe_workspace" "github_org_tfe_workspace" {
   working_directory = var.github_org_working_directory
 }
 
+# Google Workspace directory objects (the group that gates the AWS Identity
+# Center SAML app). The service account key is a sensitive environment
+# variable set on the workspace by hand; see docs/google-workspace-terraform.md.
+resource "tfe_workspace" "google_workspace_tfe_workspace" {
+  count             = var.enable_google_workspace_workspace ? 1 : 0
+  name              = "ac_app_${var.environment_name}_google_workspace"
+  organization      = var.tf_cloud_organization_name
+  auto_apply        = var.auto_apply
+  tag_names         = local.shared_workspace_tags
+  terraform_version = var.tfe_workspace_tf_version
+  trigger_prefixes  = concat([var.google_workspace_working_directory], var.google_workspace_module_directories)
+  vcs_repo {
+    identifier     = var.tf_cloud_workspace_vcs_repo_identifier
+    oauth_token_id = var.tfe_oauth_client_token_id
+  }
+  working_directory = var.google_workspace_working_directory
+}
+
 resource "tfe_workspace" "cluster_addons_tfe_workspace" {
   name              = "ac_app_${var.environment_name}_cluster_addons_layer"
   organization      = var.tf_cloud_organization_name

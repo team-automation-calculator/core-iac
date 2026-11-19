@@ -198,6 +198,24 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/github/org
 
+  validate_aws_identity_center_access_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_workspace/aws-identity-center-access
+      - terraform/validate:
+          path: ./terraform/modules/google_workspace/aws-identity-center-access
+
+  validate_production_google_workspace:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/google_workspace
+      - terraform/validate:
+          path: ./terraform/env/production/google_workspace
+
   validate_python:
     executor: python
     steps:
@@ -250,6 +268,8 @@ workflows:
       - validate_production_aws_route53_domains
       - validate_org_ci_access_module
       - validate_production_github_org
+      - validate_aws_identity_center_access_module
+      - validate_production_google_workspace
       - validate_python
       - validate_app_docker_image_versions:
           filters:

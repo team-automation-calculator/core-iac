@@ -26,6 +26,12 @@ variable "enable_github_org_workspace" {
   default     = false
 }
 
+variable "enable_google_workspace_workspace" {
+  description = "When true, creates a TFC workspace for the Google Workspace env config (the group that gates the AWS Identity Center SAML app)."
+  type        = bool
+  default     = false
+}
+
 variable "enable_route53_domains_workspace" {
   description = "When true, creates a TFC workspace for the route53-domains env config."
   type        = bool
@@ -39,6 +45,12 @@ variable "environment_name" {
 
 variable "github_org_working_directory" {
   description = "The path to the GitHub organization env config directory."
+  type        = string
+  default     = ""
+}
+
+variable "google_workspace_working_directory" {
+  description = "The path to the Google Workspace env config directory."
   type        = string
   default     = ""
 }

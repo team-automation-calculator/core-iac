@@ -4,8 +4,33 @@ data "aws_caller_identity" "current" {}
 # provider passed to this module must target the instance's primary region
 # (us-east-1 for this organization) — ssoadmin/identitystore APIs only
 # respond there. Connecting the external identity provider is a manual
-# console step with no AWS API.
+# console step with no AWS API (sso-admin has no operation for the identity
+# source, the IdP metadata or SCIM), so the expected values of that link are
+# recorded in iac/specs/sso/google-workspace-saml.json.
 data "aws_ssoadmin_instances" "this" {}
+
+# The Google Workspace SAML app is configured by hand for one specific
+# Identity Center instance: its Entity ID carries the identity store id and
+# the access portal URL carries the instance id. If the instance is ever
+# deleted and re-enabled, both ids change, every sign-in fails, and nothing
+# else in a plan would say why. A check only warns; it never blocks an apply.
+check "identity_center_instance_matches_saml_spec" {
+  assert {
+    condition = (
+      var.expected_instance_id == ""
+      || endswith(local.instance_arn, "/${var.expected_instance_id}")
+    )
+    error_message = "IAM Identity Center instance is ${local.instance_arn}, not ${var.expected_instance_id}. The Google Workspace SAML app and ~/.aws/config point at the old instance: update the app's ACS URL and Entity ID in Google Admin and the expected id passed to this module."
+  }
+
+  assert {
+    condition = (
+      var.expected_identity_store_id == ""
+      || local.identity_store_id == var.expected_identity_store_id
+    )
+    error_message = "IAM Identity Center identity store is ${local.identity_store_id}, not ${var.expected_identity_store_id}. The Google Workspace SAML app's Entity ID carries the old id: update it in Google Admin and the expected id passed to this module."
+  }
+}
 
 locals {
   instance_arn      = tolist(data.aws_ssoadmin_instances.this.arns)[0]
