@@ -5,4 +5,11 @@ enable_route53_domains_workspace       = true
 environment_name                       = "production"
 github_org_working_directory           = "terraform/env/production/github/org"
 route53_domains_working_directory      = "terraform/env/production/aws/us-east-1/route53-domains"
-tfe_workspace_tf_version               = "1.17"
+tfc_organization_members = {
+  steven_uray = {
+    email           = "steven.uray@automation-calculations.io"
+    import_existing = true
+    owner           = true
+  }
+}
+tfe_workspace_tf_version = "1.17"

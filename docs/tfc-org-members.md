@@ -61,12 +61,11 @@ tfc_organization_members = {
   invitee: an import of something that does not exist fails the plan. The flag
   can stay `true` after the import has been applied.
 
-The variable defaults to `{}`, which manages nobody. This repository is
-public, so decide where the addresses live: in `terraform.tfvars` (tracked in
-git, visible to everyone) or as an HCL variable named
-`tfc_organization_members` on the production `tf_cloud` workspace (private,
-reviewed in the TFC UI instead of a pull request). A workspace variable
-overrides `terraform.tfvars`.
+The member list lives in `terraform/env/production/tf_cloud/terraform.tfvars`,
+so every change to it is a reviewed pull request. This repository is public,
+so the addresses are too; that was accepted (2026-11-18). Do not also set an
+HCL variable named `tfc_organization_members` on the workspace: it would
+override the file.
 
 ## Adopt the current members (first apply)
 
