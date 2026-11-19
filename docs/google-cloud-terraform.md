@@ -44,11 +44,16 @@ grant would lock people out.
 
 ## Turning it on
 
-Nothing here has been applied yet. The project is the one named
-`terraform-google-workspace`, made by hand on 2026-11-19
-(`docs/google-workspace-terraform.md`). Its ID and display name are set on the
-workspace rather than committed, because the ID Google assigned can differ
-from the name.
+All three steps were done on 2026-11-19: the `terraform-google-cloud` service
+account has Owner on the project and Organization Viewer on the organization,
+and the first apply imported the project with no changes to it and added the
+four `google_project_service` resources. The steps are kept for a rebuild or a
+key rotation.
+
+The project is the one named `terraform-google-workspace`, made by hand the
+same day (`docs/google-workspace-terraform.md`). Its ID and display name are
+set on the workspace rather than committed, because the ID Google assigned can
+differ from the name.
 
 ### 1. Service account (once, by hand)
 

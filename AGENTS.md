@@ -35,7 +35,7 @@ terraform/
         cluster-addons-layer/
     production/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
-      google_cloud/       # Google Cloud organization lookup and the imported project (global; workspace has no credentials until bootstrapped, docs/google-cloud-terraform.md)
+      google_cloud/       # Google Cloud organization lookup and the imported project (global; bootstrapped and first applied 2026-11-19, docs/google-cloud-terraform.md)
       google_workspace/   # Google Workspace directory objects (global; workspace has no credentials until bootstrapped, docs/google-workspace-terraform.md)
 helm/
   automation-calculator/        # App Helm chart
@@ -202,7 +202,7 @@ AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (se
 
 `GOOGLEWORKSPACE_CREDENTIALS` for the `googleworkspace` provider (`terraform/env/production/google_workspace`) follows the same rule: the service account key lives only as a sensitive environment variable on the `ac_app_production_google_workspace` TFC workspace. The bootstrap that created it is in `docs/google-workspace-terraform.md`. The SAML settings that link Google Workspace to IAM Identity Center have no API on either side; their expected values are in `iac/specs/sso/google-workspace-saml.json`, with instance identifiers as placeholders because the repo is public. Do not commit the Identity Center instance id, identity store id, portal URL or the Google IdP id.
 
-`GOOGLE_CREDENTIALS` for the `google` provider (`terraform/env/production/google_cloud`) follows the same rule, on the `ac_app_production_google_cloud` TFC workspace; bootstrap in `docs/google-cloud-terraform.md`. The Google Cloud organization is looked up by domain because no API creates or imports one, and the project is imported, never created. The project ID and display name are Terraform variables on that workspace; do not commit them, the organization ID or the billing account ID.
+`GOOGLE_CREDENTIALS` for the `google` provider (`terraform/env/production/google_cloud`) follows the same rule, on the `ac_app_production_google_cloud` TFC workspace. The bootstrap that created it is in `docs/google-cloud-terraform.md`. The Google Cloud organization is looked up by domain because no API creates or imports one, and the project is imported, never created. The project ID and display name are Terraform variables on that workspace; do not commit them, the organization ID or the billing account ID.
 
 ## AWS Authentication
 
