@@ -3,6 +3,27 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "argocd_admin_password_bcrypt_hash" {
+  default     = null
+  description = "Sensitive TFC workspace variable: bcrypt hash of the ArgoCD admin password (docs/argocd-phase-2-install.md, section 4). Never set in terraform.tfvars."
+  nullable    = true
+  sensitive   = true
+  type        = string
+}
+
+variable "argocd_admin_password_mtime" {
+  default     = null
+  description = "TFC workspace variable: RFC 3339 UTC time of the last ArgoCD admin password change. Set together with argocd_admin_password_bcrypt_hash."
+  nullable    = true
+  type        = string
+}
+
+variable "argocd_enabled" {
+  default     = false
+  description = "Set to true to install ArgoCD into this environment's cluster (docs/argocd-migration-plan.md, Phase 2)."
+  type        = bool
+}
+
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
