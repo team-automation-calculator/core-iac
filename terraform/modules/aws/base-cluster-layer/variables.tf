@@ -29,7 +29,7 @@ variable "environment_name" {
 }
 
 variable "kube_proxy_addon_version" {
-  description = "Version of the kube-proxy EKS managed add-on, e.g. v1.36.0-eksbuild.58. Pin the defaultVersion that `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <cluster_version>` reports for the region, and bump it together with cluster_version."
+  description = "Version of the kube-proxy EKS managed add-on, e.g. v1.37.0-eksbuild.39. Pin the defaultVersion that `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <cluster_version>` reports for the region, and bump it together with cluster_version."
   type        = string
 }
 
