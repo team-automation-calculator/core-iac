@@ -26,13 +26,16 @@ Before then every account needs IBMid or GitHub added as a sign-in method
 
 Per account, once, by hand:
 
-1. Create the IBMid at <https://www.ibm.com/account/reg/signup-id> with exactly
-   the email of the existing HCP Terraform account. Password and MFA secret go
-   in the team password manager.
-2. Sign in at <https://app.terraform.io> with **Continue with IBMid** and
-   confirm the account lands in `team-automation-calculator` with its
-   workspaces, not in a new empty account.
-3. From then on sign in with IBMid only.
+1. Sign in at <https://app.terraform.io> the existing way and confirm the
+   account's email under Account settings.
+2. Sign out. On the sign-in page choose the IBMid option and its link to create
+   an IBMid. Register with exactly the email of the existing HCP Terraform
+   account. Password and MFA secret go in the team password manager.
+3. Sign in at <https://app.terraform.io> with IBMid and confirm the account
+   lands in `team-automation-calculator` with its workspaces, not in a new
+   empty account. If it is empty, the emails did not match: sign back in the
+   old way and treat the IBMid account as a new member (below).
+4. From then on sign in with IBMid only.
 
 ## Configuration
 
