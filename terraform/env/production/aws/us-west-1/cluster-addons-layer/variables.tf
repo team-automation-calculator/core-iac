@@ -3,6 +3,12 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "argocd_admin_password_rotation" {
+  default     = "1"
+  description = "Rotation key for the generated ArgoCD admin password. Change it in terraform.tfvars (for example to the date) to generate a new password and log every session out (docs/argocd-phase-2-install.md, section 4)."
+  type        = string
+}
+
 variable "argocd_application_automated_sync" {
   default     = false
   description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). Only after this env's workspace has forgotten the Helm release (manage_app_helm_release = false, applied) and its Helm history is deleted: until then two controllers would reconcile the same Deployment. Runbook: docs/argocd-phase-6-retire-staging-release.md."
@@ -19,21 +25,6 @@ variable "argocd_application_self_heal" {
   default     = false
   description = "syncPolicy.automated.selfHeal on the app's ArgoCD Application. Read only with argocd_application_automated_sync."
   type        = bool
-}
-
-variable "argocd_admin_password_bcrypt_hash" {
-  default     = null
-  description = "Sensitive TFC workspace variable: bcrypt hash of the ArgoCD admin password (docs/argocd-phase-2-install.md, section 4). Never set in terraform.tfvars."
-  nullable    = true
-  sensitive   = true
-  type        = string
-}
-
-variable "argocd_admin_password_mtime" {
-  default     = null
-  description = "TFC workspace variable: RFC 3339 UTC time of the last ArgoCD admin password change. Set together with argocd_admin_password_bcrypt_hash."
-  nullable    = true
-  type        = string
 }
 
 variable "argocd_enabled" {

@@ -29,7 +29,9 @@ scripts/argocd_preflight.sh
 
 The script prints allocatable pods per node, the current pod count, the headroom after ArgoCD's
 four pods, the ALB controller replica count, and whether `helm` and `argocd` are on `PATH`. It
-exits non-zero if the headroom after ArgoCD would be under 4 pods or a CLI is missing.
+exits non-zero if the headroom after ArgoCD would be under 4 pods or a CLI is missing. ArgoCD pods
+already running in the `argocd` namespace are counted once, as part of the current pod count, so
+the script gives the same headroom before the Phase 2 install and after it.
 
 What the numbers mean on today's layout (one `t3.medium`, 17 allocatable pods, roughly 9 to 10
 pods running):

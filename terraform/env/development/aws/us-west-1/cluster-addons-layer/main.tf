@@ -25,9 +25,8 @@ module "cluster_addons" {
 }
 
 module "argocd" {
-  argocd_admin_password_bcrypt_hash = var.argocd_admin_password_bcrypt_hash
-  argocd_admin_password_mtime       = var.argocd_admin_password_mtime
-  count                             = var.argocd_enabled ? 1 : 0
+  argocd_admin_password_rotation = var.argocd_admin_password_rotation
+  count                          = var.argocd_enabled ? 1 : 0
   depends_on = [
     module.cluster_addons
   ]
