@@ -65,9 +65,11 @@ aws configure sso   # start URL: your Identity Center portal URL; SSO region: us
 or paste the config below into `~/.aws/config`, filling in the account ID and
 start URL (find them in the Identity Center console or ask an existing infra
 engineer — this repo is public, so they are not committed here). The start URL
-is the **AWS access portal URL**, which comes in two forms depending on the
-instance: `https://<subdomain>.awsapps.com/start` or the newer
-`https://ssoins-<id>.portal.<region>.app.aws`.
+is the **dual-stack AWS access portal URL**,
+`https://ssoins-<id>.portal.<region>.app.aws`. The console also shows a legacy
+IPv4 portal URL, `https://<subdomain>.awsapps.com/start`. Do not use it: the
+Google app accepts sign-ins through the dual-stack endpoints only, and
+`scripts/infra_eng_sso.py` rejects it.
 
 ```ini
 # One SSO session shared by all profiles: a single login covers everything.
@@ -238,8 +240,9 @@ in the browser flow. In order:
 3. If a normal window is needed, clear cookies for `awsapps.com`,
    `signin.aws.amazon.com`, and `aws.amazon.com`, then retry.
 4. Only if it persists in a private window, re-check the config: `sso_start_url`
-   must be the access portal URL (`https://<subdomain>.awsapps.com/start` or
-   `https://ssoins-<id>.portal.<region>.app.aws`) and `sso_region` must be the
+   must be the dual-stack access portal URL
+   (`https://ssoins-<id>.portal.<region>.app.aws`, not the legacy
+   `https://<subdomain>.awsapps.com/start`) and `sso_region` must be the
    Identity Center home region (`us-east-1`).
 
 ## What is NOT used
