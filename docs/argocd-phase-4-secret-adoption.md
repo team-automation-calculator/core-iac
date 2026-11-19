@@ -33,7 +33,7 @@ the Secret. Pods are not restarted, the Secret's data does not change, the Ingre
 - `helm/automation-calculator/values-{development,staging,production}.yaml`: `secrets.create:
   false`. `values.yaml` keeps the default `true` so standalone renders (the Phase 3 canary passes
   `secrets.create=true` as a parameter and its own Secret name) are self-contained.
-- `CLAUDE.md`: secrets no longer come through `set_sensitive`.
+- `AGENTS.md`: secrets no longer come through `set_sensitive`.
 
 The Secret survives the Helm upgrade that drops it from the manifest because of
 `helm.sh/resource-policy: keep` on the **live** object (section 2 checks it). There is no window
