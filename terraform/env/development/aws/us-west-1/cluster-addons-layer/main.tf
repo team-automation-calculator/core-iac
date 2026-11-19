@@ -31,7 +31,6 @@ module "main_rails_app" {
   # cluster_addons has pending changes.
   addons_dependency                             = module.cluster_addons.app_helm_release_dependencies
   automation_calculator_helm_release_local_path = "../../../../../../helm/automation-calculator"
-  app_version                                   = var.app_version
   automation_calculator_app_host                = var.automation_calculator_app_host
   backup_retention_period                       = var.backup_retention_period
   db_engine_version                             = var.db_engine_version
@@ -44,7 +43,6 @@ module "main_rails_app" {
   github_oauth_app_secret                       = var.github_oauth_app_secret
   google_oauth_app_id                           = var.google_oauth_app_id
   google_oauth_app_secret                       = var.google_oauth_app_secret
-  short_commit_hash                             = var.short_commit_hash
   skip_final_snapshot                           = var.skip_final_snapshot
   source                                        = "../../../../../modules/aws/main_rails_app"
   vpc_id                                        = data.tfe_outputs.base_layer_state.nonsensitive_values.vpc_id

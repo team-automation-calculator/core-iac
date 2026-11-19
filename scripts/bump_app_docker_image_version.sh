@@ -2,16 +2,23 @@
 
 set -euo pipefail
 
-# This script is used to bump the version of the docker image used by the helm chart/terraform
+# Bump the app Docker image tag (and the short commit hash baked into the pods)
+# in the Helm chart's values files. These files are the single source of truth
+# for what is deployed: Terraform reads values-<env>.yaml at release time and
+# ArgoCD will read the same files once the migration lands.
 
 # Usage: ./bump_app_docker_image_version.sh <new_version> <short_commit_hash>
 # Example: ./bump_app_docker_image_version.sh 1.2.3 a1b2c3d
 # This script assumes that the docker image has already been pushed to the registry
 
-HELM_VALUES_FILE="../helm/automation-calculator/values.yaml"
-DEV_TFVARS="../terraform/env/development/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-STAGING_TFVARS="../terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-PROD_TFVARS="../terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHART_DIR="${SCRIPT_DIR}/../helm/automation-calculator"
+VALUES_FILES=(
+    "${CHART_DIR}/values.yaml"
+    "${CHART_DIR}/values-development.yaml"
+    "${CHART_DIR}/values-staging.yaml"
+    "${CHART_DIR}/values-production.yaml"
+)
 
 if [ $# -ne 2 ]; then
     echo "Usage: $0 <new_version> <short_commit_hash>"
@@ -21,18 +28,10 @@ fi
 NEW_VERSION=${1}
 NEW_HASH=${2}
 
-ls ${HELM_VALUES_FILE}
-ls ${DEV_TFVARS}
-ls ${STAGING_TFVARS}
-ls ${PROD_TFVARS}
+for VALUES_FILE in "${VALUES_FILES[@]}"; do
+    ls "${VALUES_FILE}"
+done
 
-YQ_EXPRESSION=".image.tag=\"${NEW_VERSION}\""
-
-OLD_TAG_VALUE=$(yq -r .image.tag ${HELM_VALUES_FILE})
-
-yq -i ${HELM_VALUES_FILE} --expression ${YQ_EXPRESSION}
-
-for TFVARS_FILE in "${DEV_TFVARS}" "${STAGING_TFVARS}" "${PROD_TFVARS}"; do
-    sed -i '' "s/${OLD_TAG_VALUE}/${NEW_VERSION}/g" "${TFVARS_FILE}"
-    sed -i '' -E "s/^(short_commit_hash[[:space:]]*=[[:space:]]*)\"[^\"]*\"/\1\"${NEW_HASH}\"/" "${TFVARS_FILE}"
+for VALUES_FILE in "${VALUES_FILES[@]}"; do
+    yq -i ".image.tag = \"${NEW_VERSION}\" | .shortCommitHash = \"${NEW_HASH}\"" "${VALUES_FILE}"
 done
