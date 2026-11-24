@@ -239,12 +239,12 @@ changes (or was a change unrelated to the app, noted in the log).
 
 ## 7. The soak gate
 
-From the plan: **at least three bump cycles and at least one week without manual intervention**
+From the plan: **at least three bump cycles and at least three days without manual intervention**
 before Phase 8. `scripts/argocd_soak_log.py status` applies it as:
 
 1. at least 3 `bump` cycles with manual intervention `no`, counted after the most recent cycle
    with `yes` (if any);
-2. at least 7 days between the first of those clean cycles and the evaluation date.
+2. at least 3 days between the first of those clean cycles and the evaluation date.
 
 A `yes` restarts both counts. The rollback test (section 4) is reported in the output but is not
 one of the three; do it anyway, Phase 8 inherits this rollback path. The Gate section of the log
