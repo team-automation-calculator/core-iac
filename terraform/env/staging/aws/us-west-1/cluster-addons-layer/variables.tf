@@ -3,6 +3,12 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "app_logs_enabled" {
+  default     = false
+  description = "Ship the app pods' logs to the CloudWatch Logs group /ac/<environment>/app (plans/app-log-persistence.md). Setting it back to false deletes the group and its contents."
+  type        = bool
+}
+
 variable "argocd_admin_password_rotation" {
   default     = "1"
   description = "Rotation key for the generated ArgoCD admin password. Change it in terraform.tfvars (for example to the date) to generate a new password and log every session out (docs/argocd-phase-2-install.md, section 4)."
