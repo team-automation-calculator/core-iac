@@ -324,9 +324,10 @@ Runbook with the exact commands, the failure triage and the definition of "manua
   that merge.
 - Test the real rollback path: a revert PR, synced by ArgoCD. (`argocd app rollback` is refused
   while automated sync is on.)
-- Soak gate before production: at least three bump cycles and at least one week without manual
-  intervention. `scripts/argocd_soak_log.py add` records each cycle and
-  `scripts/argocd_soak_log.py status` evaluates the gate and writes the result into the log.
+- Soak gate before production: at least three bump cycles and at least three days without manual
+  intervention (reduced from one week on 2026-11-24). `scripts/argocd_soak_log.py add` records
+  each cycle and `scripts/argocd_soak_log.py status` evaluates the gate and writes the result
+  into the log.
 
 ### Phase 8: production
 
