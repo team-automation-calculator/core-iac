@@ -100,9 +100,9 @@ Ingress and the ALB. Written from a read of the code, not yet run:
   load balancer controller remove the ALB as before. Do not merge anything that queues a staging
   add-ons run between the `state rm` and the destroy: the next plan would try to create the
   namespace again and fail because it exists.
-- **Re-create.** An `import` block whose object does not exist fails the plan. The staging
-  `imports_argocd_phase4.tf` must be deleted (Phase 4 runbook, section 6) before staging is
-  re-created; Terraform then creates the namespace and the Secret itself.
+- **Re-create.** Nothing extra. The Phase 4 `import` blocks, which would have failed the plan
+  on a cluster without the objects, were deleted once both environments had applied them (Phase 4
+  runbook, section 6); Terraform creates the namespace and the Secret itself.
 
 ## What is gone, and what stays
 
