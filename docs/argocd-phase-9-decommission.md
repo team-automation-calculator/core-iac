@@ -50,9 +50,9 @@ the merge, not watched after.
   - `variables.tf`: `manage_app_helm_release` is deleted; the `argocd_application_automated_sync`
     description no longer refers to it.
   - `terraform.tfvars` (staging and production): `manage_app_helm_release = false` is deleted.
-  - `imports_argocd_phase4.tf` (staging and production) is deleted. Both import blocks were
-    applied in Phase 4 (section 2 checks that the two objects are in state); an `import` block is
-    a no-op once its object is in state, and a hazard whenever the object is missing.
+  - `imports_argocd_phase4.tf` (staging and production) is not part of this PR: #463 deleted
+    both files on 2026-11-19, once both envs had applied the Phase 4 imports (section 2 still
+    checks that the two objects are in state).
 - `terraform/modules/tf_cloud/tf_cloud_workspaces/variables.tf` and
   `terraform/env/development/tf_cloud/variables.tf`: `helm/automation-calculator` leaves
   `cluster_addons_layer_module_directories`. **`terraform/modules/aws/main_rails_app` stays** in
@@ -119,10 +119,10 @@ If the release **is** in state in an env, stop: that env has not run its Phase 6
 `state rm`. Run that runbook to completion first (the `state rm`, the toggle merge, the history
 deletion), then come back. Never merge this PR to "fix" it.
 
-If either Phase 4 object is **missing** from a state, stop: deleting `imports_argocd_phase4.tf`
-would make the next plan try to **create** the namespace and the Secret, and the apply would fail
-on the existing objects (or, worse, overwrite the Secret's data on a provider that allows it).
-Re-run the Phase 4 runbook for that env, or keep that env's import file in this PR.
+If either Phase 4 object is **missing** from a state, stop: with `imports_argocd_phase4.tf`
+gone since #463, the next plan would try to **create** the namespace and the Secret, and the apply
+would fail on the existing objects (or, worse, overwrite the Secret's data on a provider that
+allows it). Re-run the Phase 4 runbook for that env, restoring its import file first.
 
 ### 2.3 The speculative plans say so too
 
@@ -208,7 +208,7 @@ a bad deploy is a git revert of the bump (synced by ArgoCD) or, on production,
 workspaces (that flip is an in-place `helm upgrade` with unchanged values): the revert brings the
 resource block back with `count = var.manage_helm_release ? 1 : 0` *and* brings back
 `manage_app_helm_release = false` in both tfvars, so the count is 0 and the state still has no
-release. The import files come back as no-ops (the objects are in state) and the chart directory
+release. The chart directory
 goes back onto the trigger prefixes (three `tf_cloud` runs, 1 to change each). That is the whole
 revert; it only restores dead code.
 
