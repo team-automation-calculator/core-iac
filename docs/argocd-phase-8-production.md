@@ -11,7 +11,12 @@ any point; the only cluster writes are ArgoCD's tracking annotations and the del
 own history records. Those writes, the `argocd app sync` and the `terraform state rm` are the
 user's to run with their own production identity: the `ac_app_production-ro` kube context is
 read-only, and Claude Code sessions are denied production cluster writes. A Claude session can
-run the read-only checks (preflight, canary check, diffs, alarm history) alongside.
+run only part of the read-only checks alongside: the `_read_only` kube role reads pods,
+Deployments, Ingresses and nodes (the preflight, the pod and YAML captures) and the alarm history,
+but it cannot read Secrets or ArgoCD `Application` objects and cannot open the `argocd` CLI's
+port-forward (seen on staging in Phases 6 and 7). So `helm list`, the Secret lines of
+`scripts/argocd_canary_check.sh`, every `argocd` command and `scripts/argocd_staging_verify.sh`
+need the user's own identity too.
 
 The rules are the ones from Phases 5 and 6, with the production twist from the plan's Risks:
 
@@ -46,7 +51,7 @@ blocking) or, with the guard gone, an ALB deletion.
   manual-sync note is worded for production. The name is historical (Phase 7 wrote it for the
   staging soak); `--env production` has always selected `values-production.yaml`, and the
   production Application and Deployment have the same names as staging's, so no other flag is
-  needed. It is not renamed here to keep the stacked Phase 7 PR and its runbook stable.
+  needed. It is not renamed here, so the Phase 7 runbook and the soak log keep pointing at it.
 - This runbook, the plan's Phase 8 section, and the `AGENTS.md` script line.
 
 **Commit B, "retire the Terraform release on production":**
@@ -64,10 +69,17 @@ it as a follow-up PR when section 6 reaches step 4. Since `main` was merged in, 
 of Commit B conflicts on production's `terraform.tfvars` (the neighbouring lines moved). Do it by
 hand instead: delete the `manage_app_helm_release = false` line from that file, restore the
 production-on-TFC wording in the `AGENTS.md` paragraph and the two skills (`git diff` them against
-the parent of Commit B and the Phase 7 branch), commit and push.
-That is how Phase 6 landed the automated-sync flip. If both commits are merged together by
+`main`, which still has that wording), commit and push.
+That is how Phase 6 landed the automated-sync flip (its own PR, #464, merged after the staging
+Helm history was deleted). If both commits are merged together by
 mistake, the production plan errors with `Instance cannot be destroyed` (section 6 explains why);
 nothing is applied, and the fix is to run section 6 from step 2 and re-queue the run.
+
+For the same reason the PR's `Terraform Cloud/.../ac_app_production_cluster_addons_layer` status
+is red ("Terraform plan errored") for as long as both commits are on the branch: the speculative
+plan is `4 to add, 0 to change, 1 to destroy` and then `Instance cannot be destroyed` on
+`module.main_rails_app.helm_release.automation-calculator[0]` (seen on 2026-11-24). That is the
+guard, not a build failure. It turns green (4 to add) once Commit B is off the branch.
 
 ## 2. Gate: the staging soak has passed
 
@@ -77,7 +89,7 @@ scripts/argocd_soak_log.py status          # Gate: PASS as of <today>; exit 0
 git diff --stat docs/argocd-staging-soak-log.md   # commit the refreshed Gate section if it changed
 ```
 
-`status` applies the Phase 7 gate (at least three clean bump cycles and at least seven days since
+`status` applies the Phase 7 gate (at least three clean bump cycles and at least three days since
 the first of them) and exits 1 on FAIL. Do not start this phase on a FAIL, and do not start it on
 a PASS that is older than today: re-run it so the committed log shows the evaluation date.
 
@@ -183,8 +195,8 @@ terraform plan | tee ../../../../../../tmp/phase8-01-production-commit-a.txt
 
 **Stop and do not merge** if the production plan shows anything on `module.main_rails_app` (the
 release, the namespace, the Secret, RDS, ACM), on `module.cluster_addons`, or an import: none of
-that is this commit. The Phase 4 `import` blocks in `imports_argocd_phase4.tf` are inert once the
-objects are in state and do not appear. Two artifacts that older production plans showed are now
+that is this commit. The Phase 4 `import` blocks are gone (`imports_argocd_phase4.tf` was deleted
+by #463 on 2026-11-19), so no import can legitimately appear. Two artifacts that older production plans showed are now
 findings, not noise: a replacement of the ACM validation records (fixed by #404; it means a
 module-level `depends_on` crept back onto `main_rails_app`) and a `1 to add` on
 `aws_sns_topic_subscription.alarms_email` (fixed by #420).
@@ -523,8 +535,8 @@ undoing is the hand-over, and the cheap way back depends on how far it got.
 Terraform's release owns everything; the Application is a second observer that has written
 nothing. Through a PR, either `argocd_manage_application = false` in production's tfvars (1 to
 destroy, `module.argocd[0].helm_release.argocd_apps[0]`; the two CRs are uninstalled; no finalizer,
-so nothing cascades) or `argocd_enabled = false` (2 to destroy, the `argocd` namespace goes with
-them, the CRDs stay). Confirm promptly either way. By hand, right now:
+so nothing cascades) or `argocd_enabled = false` (4 to destroy, the four resources Commit A added;
+the `argocd` namespace goes with them, the CRDs stay). Confirm promptly either way. By hand, right now:
 `argocd app delete automation-calculator --cascade=false -y`, then the tfvars PR. **Never omit
 `--cascade=false`**, and in the UI only "Non-cascading" is safe (Phase 5 section 7).
 
