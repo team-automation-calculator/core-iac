@@ -20,8 +20,14 @@ staging's diff matches the expectation.
 - **Which workspace applies what.** Each environment has
   `ac_app_<env>_base_cluster_layer` and `ac_app_<env>_cluster_addons_layer`
   in Terraform Cloud org `team-automation-calculator`. The add-ons workspace
-  also owns the app's Helm release, RDS, the ACM certificate and its Route 53
-  validation records (module `main_rails_app`). Development is intentionally
+  also owns RDS, the ACM certificate and its Route 53 validation records, the
+  app namespace and Secret (module `main_rails_app`), and ArgoCD with the
+  app's `Application` (module `argocd`). The app's Helm release left the
+  staging workspace in ArgoCD migration Phase 6: on staging the app is
+  synced by ArgoCD from `main`, `helm list` shows no `automation-calculator`
+  release (only `argocd` and `argocd-apps` in namespace `argocd`), and a
+  missing app release in a staging snapshot is expected. Production still
+  owns the release until Phase 8. Development is intentionally
   unprovisioned: its config is validated by CircleCI only and never applies.
   Merging to `main` triggers a run in every workspace whose files changed:
   - **staging auto-applies**, usually 3–5 minutes after merge;
