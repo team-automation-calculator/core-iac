@@ -8,9 +8,10 @@ locals {
 # app from git alone without a secret value ever entering the repo.
 #
 # Both objects were created by Helm on the live clusters (create_namespace and
-# the chart's templates/secret.yaml) and adopted into each env's state with
-# `import` blocks in Phase 4 (runbook: docs/argocd-phase-4-secret-adoption.md;
-# the import files were deleted in Phase 9 once both envs had applied them).
+# the chart's templates/secret.yaml). Staging and production adopted them on
+# 2026-11-19 with `import` blocks (imports_argocd_phase4.tf, deleted once both
+# had applied) instead of recreating them. Runbook:
+# docs/argocd-phase-4-secret-adoption.md.
 # Since Phase 9 this module manages only these two objects, RDS and ACM: the
 # app's Helm release left Terraform in Phases 6 (staging) and 8 (production)
 # and the ArgoCD Application in terraform/modules/aws/argocd deploys the chart
