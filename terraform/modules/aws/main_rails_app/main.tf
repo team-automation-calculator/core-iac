@@ -7,11 +7,11 @@ locals {
 # (secrets.create is false in every values-<env>.yaml), so ArgoCD can deploy
 # the app from git alone later without a secret value ever entering the repo.
 #
-# Both objects already exist on the live clusters: Helm created the namespace
-# through create_namespace and rendered the Secret until this phase. Each env's
-# cluster-addons-layer adopts them with `import` blocks
-# (imports_argocd_phase4.tf) instead of recreating them. Runbook with the
-# expected plan and checks: docs/argocd-phase-4-secret-adoption.md.
+# Both objects already existed on the live clusters: Helm created the namespace
+# through create_namespace and rendered the Secret until this phase. Staging
+# and production adopted them on 2026-11-19 with `import` blocks
+# (imports_argocd_phase4.tf, deleted once both had applied) instead of
+# recreating them. Runbook: docs/argocd-phase-4-secret-adoption.md.
 resource "kubernetes_namespace_v1" "automation_calculator" {
   metadata {
     name = "automation-calculator"

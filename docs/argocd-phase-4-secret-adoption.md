@@ -177,6 +177,10 @@ Open a small PR that deletes both `imports_argocd_phase4.tf` files; it plans 0 c
 Do this promptly rather than waiting for Phase 9: an `import` block whose object is ever missing
 fails the plan.
 
+Done on 2026-11-19, after staging and production had both applied the imports: the two files are
+gone from `main`. An environment provisioned from scratch creates the namespace and the Secret
+itself.
+
 ## 7. Rollback
 
 Nothing on the cluster changed except the release manifest, so most problems are fixed forward (the
