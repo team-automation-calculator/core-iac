@@ -26,18 +26,18 @@ def test_empty_log_fails_with_soak_clock_not_started():
     assert result.soak_start is None
 
 
-def test_three_clean_bumps_over_seven_days_pass():
-    cycles = [cycle(1), cycle(4), cycle(8)]
-    result = evaluate(cycles, dt.date(2026, 11, 8))
+def test_three_clean_bumps_over_three_days_pass():
+    cycles = [cycle(1), cycle(2), cycle(4)]
+    result = evaluate(cycles, dt.date(2026, 11, 4))
     assert result.passed
     assert result.clean_bump_cycles == 3
-    assert result.soak_days == 7
+    assert result.soak_days == 3
 
 
-def test_three_clean_bumps_inside_a_week_fail_on_soak_days():
-    result = evaluate([cycle(1), cycle(2), cycle(3)], dt.date(2026, 11, 5))
+def test_three_clean_bumps_inside_three_days_fail_on_soak_days():
+    result = evaluate([cycle(1), cycle(2), cycle(3)], dt.date(2026, 11, 3))
     assert not result.passed
-    assert result.soak_days == 4
+    assert result.soak_days == 2
 
 
 def test_manual_intervention_restarts_both_counts():

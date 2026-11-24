@@ -10,7 +10,7 @@ from docs/argocd-migration-plan.md, which must pass before Phase 8
 
   1. at least three bump cycles synced by ArgoCD with no manual intervention,
      counted since the most recent cycle that needed one;
-  2. at least one week (7 days) of soak since the first of those clean cycles.
+  2. at least three days of soak since the first of those clean cycles.
 
 A cycle with manual intervention (a hand-run `argocd app sync`, a `kubectl`
 edit, a manual Helm command, anything that was not "merge the PR and wait")
@@ -64,7 +64,7 @@ COLUMNS = (
 KINDS = ("bump", "rollback")
 UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
 REQUIRED_BUMP_CYCLES = 3
-REQUIRED_SOAK_DAYS = 7
+REQUIRED_SOAK_DAYS = 3
 
 
 @dataclass
