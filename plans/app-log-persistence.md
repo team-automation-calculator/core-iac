@@ -32,11 +32,12 @@ confirmed from a public page, the API or this repo.
   the same way.
 - **Logs stay private.** They never leave the AWS account, access is IAM only, CloudWatch Logs
   encrypts at rest by default, and no third party is involved.
-- **Cost: about $3 per month for both environments at list price ($41 per year), and under $1
+- **Cost: about $3 per month for both environments at list price ($35 per year), and under $1
   per month if the account's CloudWatch free tier applies (verify).** Maintenance is about one
   day to set up and one to two hours per quarter for the chart bump.
 - **An error alarm comes with it.** A metric filter counts the app's `Completed 5xx` lines and
-  alarms to the existing `ac-app-<env>-alarms` SNS topic on the first one. The ALB 5xx alarm
+  alarms to the existing `ac-app-<env>-alarms` SNS topic on the first one. It exists only where
+  that topic does: production (`cloudwatch_alarms_enabled`), not staging. The ALB 5xx alarm
   needs more than 10 errors a minute for two minutes; this one catches a single failure.
 - **More than half of the volume is noise, and removing it is an app change, not this repo's.**
   `config/environments/production.rb` in the app sets `config.log_level = :debug`, and every
@@ -173,15 +174,15 @@ Insights $0.0067 per GB scanned, custom metric $0.30, standard alarm $0.10.
 | Ingestion | 2.5 GB and 0.7 GB | $1.70 | $0.50 | $2.10 |
 | Storage, 90 days | 7.5 GB and 2.1 GB retained, priced uncompressed as the upper bound (CloudWatch bills the compressed size) | $0.20 | $0.10 | $0.30 |
 | Insights queries | one full 90-day scan of each group per month | $0.10 | $0.00 | $0.10 |
-| Error metric and alarm | 1 metric, 1 alarm per environment | $0.40 | $0.40 | $0.80 |
-| **Total** | | **$2.40** | **$1.00** | **$3.40** ($41 per year) |
+| Error metric and alarm | 1 metric, 1 alarm, production only (staging has no alarms or SNS topic) | $0.40 | $0.00 | $0.40 |
+| **Total** | | **$2.40** | **$0.60** | **$2.90** ($35 per year) |
 
 Columns are rounded separately, so they do not add exactly.
 
 - **With the free tier** (5 GB of ingestion, 5 GB of storage, 10 custom metrics and 10 alarms
-  per month, account-wide; verify that it applies to this account and what the existing four
-  alarms per environment already use): ingestion and storage are $0 and the total is the $0.80
-  for the metrics and alarms, or less.
+  per month, account-wide; verify that it applies to this account and what production's four
+  existing alarms already use): ingestion and storage are $0 and the total is the $0.40 for
+  the metric and alarm, or less.
 - **If the metadata stripping were dropped** (`logKey` unset): about 3.5 times the bytes, so
   about $8 per month. This is the one setting that matters for cost.
 - **After the app-side noise cut** below: about 40% of today's volume, so about $1.80 per month
@@ -190,7 +191,7 @@ Columns are rounded separately, so they do not add exactly.
   storage. Real user traffic is a small fraction of the health-check baseline today.
 - **Compute:** none added. The collector's 50m CPU and 50 Mi requests fit on the existing node
   (requests today total 820m of about 1,930m allocatable on production).
-- **Staging while destroyed:** $0 ingestion; the alarm and metric go with the workspace.
+- **Staging while destroyed:** $0; the group goes with the workspace.
 
 ## Maintenance cost
 
@@ -226,8 +227,8 @@ Shipping first and cutting second is deliberate: the stored logs are how the cut
 
 | Option | $ per month | Why not |
 |---|---|---|
-| **Fluent Bit to CloudWatch Logs** (chosen) | $3.40 | |
-| `amazon-cloudwatch-observability` EKS add-on | $3.40 plus Container Insights, roughly $10 or more per node (verify) | bundles the CloudWatch agent and Container Insights metrics nobody asked for; two DaemonSets instead of one |
+| **Fluent Bit to CloudWatch Logs** (chosen) | $2.90 | |
+| `amazon-cloudwatch-observability` EKS add-on | $2.90 plus Container Insights, roughly $10 or more per node (verify) | bundles the CloudWatch agent and Container Insights metrics nobody asked for; two DaemonSets instead of one |
 | Loki in the cluster, chunks in S3 | about $1 of S3 | 2 to 4 more pods on a 17-pod node, an upgrade path to own, and agent access through a `kubectl port-forward` instead of IAM; the `-ro` role cannot port-forward |
 | SaaS (Grafana Cloud, Datadog, Better Stack, Sentry for errors) | $0 on free tiers at this volume | logs leave the account, and every reader including each agent needs a stored API token: a new secret to hold, scope and rotate |
 | Firehose to S3, queried with Athena | under $1 | minutes of delivery latency, so useless for watching a deploy; nothing to save at 3 GB |
@@ -242,9 +243,9 @@ waits for a confirm in Terraform Cloud.
 |---|---|---|---|---|
 | 0 | this plan | nothing | none | |
 | 1 | `logs:FilterLogEvents`, `logs:StartQuery`, `logs:StopQuery` on the CI read-only policy and both InfraEng permission sets | `ac_app_<env>_base_cluster_layer`, all provisioned environments | 3 to change per environment (one IAM policy, two permission set inline policies), plus the known node group AMI `release_version` drift | `aws logs filter-log-events` under `ac-ci-<env>-ro` and `infra-eng-<env>-ro` stops returning AccessDenied |
-| 2 | `cluster-addons-layer`: log group, IRSA role, service account, Fluent Bit release, 5xx metric filter and alarm, all behind `app_logs_enabled`; `true` in staging's tfvars | `ac_app_staging_cluster_addons_layer` (production and development plan no changes) | staging: the new resources to add, nothing to change or destroy | DaemonSet ready, streams appear in `/ac/staging/app` within a minute, alarm in `OK` |
+| 2 | `cluster-addons-layer`: log group, IRSA role, service account, Fluent Bit release, 5xx metric filter and alarm (only where `cloudwatch_alarms_enabled`, so not on staging), all behind `app_logs_enabled`; `true` in staging's tfvars | `ac_app_staging_cluster_addons_layer` (production and development plan no changes) | staging: the new resources to add, nothing to change or destroy | DaemonSet ready, streams named `app-<pod>` appear in `/ac/staging/app` within a minute |
 | 3 | `scripts/app_logs.py`, tests, `docs/app-logs.md`, `AGENTS.md`, the two rollout skills | nothing (no Terraform) | none | `./go validate`; the script against staging |
-| 4 | `app_logs_enabled = true` in production's tfvars | `ac_app_production_cluster_addons_layer` | the same additions as staging | as stage 2, on production, through `validate-infra-rollout` |
+| 4 | `app_logs_enabled = true` in production's tfvars | `ac_app_production_cluster_addons_layer` | the same additions as staging, plus the metric filter and the alarm | as stage 2, plus the alarm in `OK`, through `validate-infra-rollout` |
 | 5 | app repository: log level and health-check silencing | image bump | none here | bytes per day in the group before and after |
 
 **Stage 1 and the node roll.** Every `base-cluster-layer` plan currently carries one extra
