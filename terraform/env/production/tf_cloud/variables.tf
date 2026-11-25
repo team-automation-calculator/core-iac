@@ -120,7 +120,7 @@ variable "tfc_owner_token_expired_at" {
 
 variable "trigger_on_shared_code" {
   default     = false
-  description = "False for production: its cluster workspaces run only for changes to production's own files (the two working directories and helm/automation-calculator/values-production.yaml), so a shared module or chart change applies on staging at merge and reaches production with the next production pull request (docs/promotion.md)."
+  description = "False for production: its cluster workspaces run only for changes to production's own files (the two working directories), so a shared module change applies on staging at merge and reaches production with the next production pull request (docs/promotion.md)."
   type        = bool
 }
 
