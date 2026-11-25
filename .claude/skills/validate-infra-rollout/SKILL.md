@@ -96,7 +96,7 @@ staging's diff matches the expectation.
   `promoted_ref` or since production's last run); if so, say which PR it
   came from and let the user decide to promote it together. If not, stop.
 
-- **Timing an RDS modify.** The repo's `scripts/rds_status_poll.py <env> <log>` (run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with a 2 s `curl` loop on `/health` to bound an outage; the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
+- **Timing an RDS modify.** The repo's `scripts/rds_status_poll.py <env> <log>` (run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with `python3 -I scripts/health_poll.py <env> <log> --interval 2` to bound an outage (one line per change of `/health`, then a summary with the longest non-200 stretch); the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
 
 - **What a snapshot is.** The repo's `scripts/env_snapshot.py` (run from
   the repo root) captures, read-only, everything the morning's rollouts were
@@ -289,7 +289,9 @@ staging's diff matches the expectation.
    verified, what the production plan contains, and that merging this PR
    applies to production at once; merge it only when asked to merge that
    PR. After the merge, `wait_commit_status.py <merge sha>`, watch
-   `/health` and take `production-after`, then `diff`, with the same
+   `/health` (`python3 -I scripts/health_poll.py production
+   tmp/<pr>/health.log` in the background, started before the merge) and
+   take `production-after`, then `diff`, with the same
    expectation as staging. Then read the production alarm history for the
    window from the baseline time to the after-snapshot time and compare it
    with what the change type predicts (the alarms fact above); for a node
