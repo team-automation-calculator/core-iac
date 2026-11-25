@@ -159,10 +159,76 @@ def audit(*args):
     run(sys.executable, "-I", str(script), *(args or ["."]))
 
 
+# Every file in scripts/ is a ./go command named after it (argocd_preflight.sh is
+# `./go argocd-preflight`); the arguments go to the script unchanged. The one
+# exception is check_app_docker_image_versions.py, which is `./go check-images`.
+# tests/test_go.py fails when a script has no entry here.
+SCRIPTS = {
+    "infra_eng_sso.py": "SSO login and kubectl setup: AWS profiles, aws sso login, kubeconfig.",
+    "update_kubeconfigs.sh": "Refresh the kubeconfig for every environment.",
+    "launch_psql_pod.sh": "Launch a psql pod to connect to RDS.",
+    "bump_app_docker_image_version.sh": "Bump image.tag and shortCommitHash for staging (default) or production.",
+    "bump_app_docker_image_version_branch.sh": "Bump the app image on a new branch and open that target's PR.",
+    "promote_to_production.sh": "Write the staging-verified main commit to promoted_ref for a production PR.",
+    "watch_app_docker_image_versions.py": "Watch Docker Hub for a new app image tag and open the staging bump PR.",
+    "argocd_phase1_render_diff.sh": "Diff the chart render at a git ref against the working tree, per env.",
+    "sort_tfvars.sh": "Sort the terraform.tfvars files alphabetically.",
+    "install_tf.sh": "Install a specific Terraform version.",
+    "delete_first_eks_cluster.sh": "Delete the first EKS cluster (dev utility, destructive).",
+    "external_dns_txt_prefix_migration.py": "Plan, create or delete external-dns TXT ownership records (dry run unless --apply).",
+    "argocd_preflight.sh": "Read-only ArgoCD preflight: pod headroom, ALB replicas, helm/argocd CLIs.",
+    "argo_helm_chart_versions.py": "Latest stable argo-cd / argocd-apps chart versions from the argo-helm index.",
+    "argocd_canary_check.sh": "Read-only ArgoCD Phase 3 canary check on the current kubectl context.",
+    "argocd_staging_verify.sh": "Read-only check that a merged bump reached an env through ArgoCD.",
+    "argocd_soak_log.py": "Add cycles to the ArgoCD staging soak log and evaluate the soak gate.",
+    "watch_addon_rollout.sh": "Wait for a kube-system add-on Deployment to roll past a baseline generation.",
+    "wait_commit_status.py": "Poll a commit's GitHub statuses (Terraform Cloud runs) until none is pending.",
+    "env_snapshot.py": "Read-only before/after snapshot of an environment, and a diff of two.",
+    "tfc_workspace_inventory.py": "Read-only Terraform Cloud workspace inventory.",
+    "ec2_worker_node_utilization.py": "Read-only CloudWatch CPU and burst-credit summary for a node group.",
+    "ec2_worker_node_pricing.py": "us-west-1 rates for candidate node types from downloaded price files.",
+    "rds_utilization_summary.py": "Read-only CloudWatch summary for every RDS instance.",
+    "rds_status_poll.py": "Read-only poll of an env's RDS instances, one line per change.",
+    "health_poll.py": "Poll an env's /health during a rollout, one log line per change.",
+    "rds_price_list_extract.py": "Offline filter over the public AWS Price List CSV for RDS.",
+    "alb_alarm_window.py": "Read-only replay of the app's CloudWatch alarms over an ALB metrics window.",
+    "app_logs.py": "Read the app pods' stored logs in CloudWatch Logs (read-only).",
+    "db_read_only_psql.py": "psql on an env's app database as a read-only role (--as infra-eng or ci).",
+    "pr_checklist.py": "List the PRs an image contains and tick their test-plan items through gh.",
+}
+# Scripts reached through a command of another name.
+SCRIPTS_WITH_OWN_COMMAND = {"check_app_docker_image_versions.py": "check-images"}
+
+
+def script_command_name(filename):
+    """argocd_preflight.sh -> argocd-preflight."""
+    return Path(filename).stem.replace("_", "-")
+
+
+def script_command(filename, summary):
+    """The ./go command that runs scripts/<filename> with the arguments given.
+
+    The script runs in the caller's working directory, exactly as it does when
+    run by its path, and ./go exits with its status.
+    """
+    script = REPO_ROOT / "scripts" / filename
+    interpreter = [sys.executable, "-I"] if filename.endswith(".py") else []
+
+    def command(*args):
+        sys.exit(
+            subprocess.run([*interpreter, str(script), *args], check=False).returncode
+        )
+
+    command.__doc__ = summary
+    return command
+
+
 def usage():
     width = max(len(name) for name in COMMANDS)
     lines = ["usage: ./go <command> [args...]", ""]
     for name, function in COMMANDS.items():
+        if name == FIRST_SCRIPT_COMMAND:
+            lines += ["", "scripts/ (arguments go to the script; try --help):", ""]
         lines.append(f"  {name:<{width}}  {function.__doc__.splitlines()[0]}")
     return "\n".join(lines)
 
@@ -171,6 +237,12 @@ def help_command(*args):
     """List the commands."""
     print(usage())
 
+
+SCRIPT_COMMANDS = {
+    script_command_name(filename): script_command(filename, summary)
+    for filename, summary in SCRIPTS.items()
+}
+FIRST_SCRIPT_COMMAND = next(iter(SCRIPT_COMMANDS))
 
 COMMANDS = {
     "init": init,
@@ -185,6 +257,7 @@ COMMANDS = {
     "check-images": check_images,
     "audit": audit,
     "help": help_command,
+    **SCRIPT_COMMANDS,
 }
 
 
@@ -201,7 +274,10 @@ def main():
         sys.exit(0 if tools_present else 1)
     if sys.argv[1] not in COMMANDS:
         sys.exit(f"unknown command: {sys.argv[1]}\n\n{usage()}")
-    COMMANDS[sys.argv[1]](*sys.argv[2:])
+    try:
+        COMMANDS[sys.argv[1]](*sys.argv[2:])
+    except KeyboardInterrupt:
+        sys.exit(130)
 
 
 if __name__ == "__main__":

@@ -12,8 +12,8 @@ For looking at the data during a deploy or an incident without the master passwo
 Two roles so that the PostgreSQL log says who ran what. An agent always uses `--as ci`.
 
 ```bash
-python3 -I scripts/db_read_only_psql.py staging --as infra-eng                  # interactive psql
-python3 -I scripts/db_read_only_psql.py staging --as ci -- -c "select count(*) from users"
+./go db-read-only-psql staging --as infra-eng                  # interactive psql
+./go db-read-only-psql staging --as ci -- -c "select count(*) from users"
 ```
 
 The script needs `aws`, `kubectl`, `psql` (macOS: `brew install libpq`) and an `aws sso login`.

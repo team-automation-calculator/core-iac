@@ -14,7 +14,7 @@ locals {
 # docs/argocd-phase-4-secret-adoption.md.
 # Since Phase 9 this module manages only these two objects, RDS and ACM: the
 # app's Helm release left Terraform in Phases 6 (staging) and 8 (production)
-# and the ArgoCD Application in terraform/modules/aws/argocd deploys the chart
+# and the ArgoCD Application in terraform/modules/kubernetes/argocd deploys the chart
 # (docs/argocd-phase-9-decommission.md).
 resource "kubernetes_namespace_v1" "automation_calculator" {
   metadata {

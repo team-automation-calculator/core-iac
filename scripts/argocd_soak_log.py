@@ -39,10 +39,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import logging
+import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
@@ -281,10 +285,11 @@ def cmd_add(args: argparse.Namespace) -> int:
     )
     for existing in cycles:
         if existing.history_id == cycle.history_id:
-            print(
-                f"ArgoCD history id {cycle.history_id} is already recorded"
-                f" (PR #{existing.pr}, {existing.date})",
-                file=sys.stderr,
+            logger.error(
+                "ArgoCD history id %s is already recorded (PR #%s, %s)",
+                cycle.history_id,
+                existing.pr,
+                existing.date,
             )
             return 2
     lines.insert(insert_at, cycle.to_row())
@@ -366,10 +371,15 @@ def main(argv: list[str] | None = None) -> int:
     status.set_defaults(func=cmd_status)
 
     args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
     try:
         return args.func(args)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        logger.error("%s", exc)
         return 2
 
 
