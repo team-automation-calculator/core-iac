@@ -27,15 +27,19 @@ The rules are the ones from Phases 5 and 6, with the production twist from the p
   into a plan error; the fix is always the `state rm`, never removing the guard.
 - **Two controllers must never reconcile the same Deployment.** The Application is manual, and
   `argocd app sync` is only run after `argocd app diff` has been read, until Commit B is applied.
-- **Production plans go stale.** The EKS token is fetched at plan time and lasts 15 minutes. Every
-  production run in this phase is planned fresh and confirmed within minutes, with you watching it.
+- **Production applies on merge.** Since #477 (`docs/promotion.md`) the production cluster
+  workspaces auto-apply: there is no confirm in Terraform Cloud, and the old risk of a plan-time
+  EKS token expiring while a run waited is gone with it. The review is the speculative plan on
+  each of the two PRs, read before the merge, and each merge needs the owner's explicit go-ahead.
 
 ## 1. What the PR changes
 
-One branch, two commits, two separate merges. They are on one PR so the review sees the whole
-cutover, but **Commit B must not be merged together with Commit A**: it needs the `state rm`
-between them (section 6), and merged early it is a plan error on production (harmless but
-blocking) or, with the guard gone, an ALB deletion.
+Two PRs, merged in this order, each one a production deploy on merge (`docs/promotion.md`):
+**Commit A** is this PR (#386, branch `argocd-phase-8`) and **Commit B** is the PR stacked on it
+(branch `argocd-phase-8-commit-b`). They were one branch until 2026-11-25; the names are kept
+because the rest of this runbook uses them. **Commit B must not be merged before the `state rm`
+of section 6**: merged early it is a plan error on production (harmless but blocking) or, with
+the guard gone, an ALB deletion.
 
 **Commit A, "install ArgoCD and the production Application":**
 
@@ -64,24 +68,27 @@ blocking) or, with the guard gone, an ALB deletion.
   release (added when `main` was merged into the stack on 2026-11-07, in a later commit than
   Commit B, but part of it).
 
-If the PR is approved as a whole, merge it only after taking Commit B off the branch, and re-land
-it as a follow-up PR when section 6 reaches step 4. Since `main` was merged in, `git revert <sha>`
-of Commit B conflicts on production's `terraform.tfvars` (the neighbouring lines moved). Do it by
-hand instead: delete the `manage_app_helm_release = false` line from that file, restore the
-production-on-TFC wording in the `AGENTS.md` paragraph and the two skills (`git diff` them against
-`main`, which still has that wording), commit and push.
-That is how Phase 6 landed the automated-sync flip (its own PR, #464, merged after the staging
-Helm history was deleted). If both commits are merged together by
-mistake, the production plan errors with `Instance cannot be destroyed` (section 6 explains why);
+Commit B was taken off the `argocd-phase-8` branch on 2026-11-25 (one commit that deletes the
+`manage_app_helm_release = false` line and restores the production-on-TFC wording in `AGENTS.md`
+and the two skills) and put back by its revert on `argocd-phase-8-commit-b`. That is how Phase 6
+landed the automated-sync flip (its own PR, #464, merged after the staging Helm history was
+deleted). Phase 9 (#387) stacks on the Commit B branch.
+
+The Commit B PR's `Terraform Cloud/.../ac_app_production_cluster_addons_layer` status, when its
+base is `main`, is red ("Terraform plan errored") until the `state rm`: the speculative plan
+shows `1 to destroy` and then `Instance cannot be destroyed` on
+`module.main_rails_app.helm_release.automation-calculator[0]`. That is the guard, not a build
+failure. If Commit B is merged in that state by mistake, the production run errors the same way,
 nothing is applied, and the fix is to run section 6 from step 2 and re-queue the run.
 
-For the same reason the PR's `Terraform Cloud/.../ac_app_production_cluster_addons_layer` status
-is red ("Terraform plan errored") for as long as both commits are on the branch: the speculative
-plan is `4 to add, 0 to change, 1 to destroy` and then `Instance cannot be destroyed` on
-`module.main_rails_app.helm_release.automation-calculator[0]` (seen on 2026-11-24). That is the
-guard, not a build failure. It turns green (4 to add) once Commit B is off the branch.
+## 2. Gate: the staging soak
 
-## 2. Gate: the staging soak has passed
+**Waived on the day count, 2026-11-25.** The owner started this phase with the gate at
+`FAIL`: four clean bump cycles and the rollback test were recorded (three needed), but only one
+day had passed since the first of them (three needed). The reason given was that staging had
+taken a good number of deploys through ArgoCD without intervention. `status` therefore exits 1
+below and that alone is not a stop; a failed cycle count, or a cycle with manual intervention,
+still is.
 
 ```bash
 git checkout main && git pull
@@ -90,8 +97,8 @@ git diff --stat docs/argocd-staging-soak-log.md   # commit the refreshed Gate se
 ```
 
 `status` applies the Phase 7 gate (at least three clean bump cycles and at least three days since
-the first of them) and exits 1 on FAIL. Do not start this phase on a FAIL, and do not start it on
-a PASS that is older than today: re-run it so the committed log shows the evaluation date.
+the first of them) and exits 1 on FAIL. Re-run it on the day the phase starts so the committed
+log shows the evaluation date.
 
 Also confirm staging is still in its Phase 7 state, logged in through the `argocd` CLI's own
 port-forward (`argocd-phase-2-install.md` section 4.2):
@@ -123,9 +130,9 @@ scripts/argocd_preflight.sh | tee tmp/phase8-00-preflight.txt
 
 **Pod headroom.** The Phase 0 table applies unchanged: one arm64 `t4g.medium` (since #410) allows 17 pods; ArgoCD adds
 4 (controller, repo-server, server, redis; the ApplicationSet controller is scaled to 0); the
-script fails when fewer than 4 slots would be left afterwards. Expect production's count to be
-close to staging's before Phase 2 (the add-ons are the same; the app is one pod), plus one during a
-rollout.
+script fails when fewer than 4 slots would be left afterwards. Production on 2026-11-25: 11 pods (two app pods since #474, two ALB controller pods, Fluent Bit
+since #470), so 6 free slots, 2 after ArgoCD, and one of those is used during a rollout
+(`maxSurge 1`). Staging has run that same set since Phase 7.
 
 **The ALB `replicaCount` reduction was not applied in Phase 0.** Staging had the headroom, so
 `terraform/modules/aws/cluster-addons-layer/main.tf` still does not set `replicaCount` on
@@ -135,8 +142,9 @@ Phase 0 options **in its own PR, applied and verified before Commit A**:
 
 1. `replicaCount = 1` on the ALB controller (one freed slot at no cost: the second replica is a
    standby on a single node). It is a shared-module change, so it is a cluster-addons run on
-   **both** staging (auto-applied) and production (confirm promptly; it is a `helm upgrade` of the
-   controller, no ALB change). Re-run `scripts/argocd_preflight.sh` on both afterwards.
+   **both** staging (applied at merge) and production (applied by its promotion PR,
+   `scripts/promote_to_production.sh addons`; it is a `helm upgrade` of the controller, no ALB
+   change). Re-run `scripts/argocd_preflight.sh` on both afterwards.
 2. `desired_size = 2` in `terraform/env/production/aws/us-west-1/base-cluster-layer/main.tf`. The
    production node group is already `desired_size = 1, max_size = 2, min_size = 1` (the env
    overrides the module default of `max_size = 1`), so this is one number, a base-cluster-layer run
@@ -161,14 +169,16 @@ kubectl -n automation-calculator get deploy automation-calculator -o yaml > tmp/
 kubectl -n automation-calculator get ingress automation-calculator -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'; echo   # note the ALB hostname
 ```
 
-If the live tag and `values-production.yaml` disagree, a bump is pending on production (a TFC run
-waiting for a confirm, or discarded). Resolve that first: either confirm that run, or revert the
-values file. The adoption in section 5 requires `main` and the cluster to render the same
-Deployment.
+If the live tag and `values-production.yaml` disagree, a production bump did not apply (an
+errored or discarded run). Resolve that first: re-queue the run, or revert the values file. The
+adoption in section 5 requires `main` and the cluster to render the same Deployment.
 
-**The workspace is idle.** In the TFC UI, `ac_app_production_cluster_addons_layer` has no run
-planning or waiting for confirmation, and its last applied run planned 0 changes (or the Phase 6
-move only). An unconfirmed run blocks everything that follows.
+**The workspace is idle and has nothing waiting.** In the TFC UI,
+`ac_app_production_cluster_addons_layer` has no run planning or applying, and its latest run
+applied or planned no changes. Production applies shared code only when a production PR merges
+(`docs/promotion.md`), so Commit A's plan also carries every module and chart change on `main`
+that production has not applied yet. Promote those first (their own PR) so that Commit A's plan
+is the four resources of 4.1 and nothing else.
 
 **Tools:** `helm`, `argocd`, `yq`, `curl` on `PATH` (the preflight script checks the first two),
 `TFE_TOKEN` exported for section 6, and the `argocd` CLI version at or above the server's
@@ -178,8 +188,10 @@ move only). An unconfirmed run blocks everything that follows.
 
 ### 4.1 Expected plans
 
-Preview before merging, from the PR branch checkout, with `TFE_TOKEN` set (a speculative remote
-run; nothing is applied, and no local AWS credentials are used):
+The plan to read is the speculative one Terraform Cloud posts on the PR (the
+`ac_app_production_cluster_addons_layer` status). The same plan from the PR branch checkout, with
+`TFE_TOKEN` set or a `terraform login` session (a speculative remote run; nothing is applied, and
+no local AWS credentials are used):
 
 ```bash
 cd terraform/env/production/aws/us-west-1/cluster-addons-layer
@@ -189,7 +201,7 @@ terraform plan | tee ../../../../../../tmp/phase8-01-production-commit-a.txt
 
 | Workspace | Expected plan for Commit A |
 |---|---|
-| `ac_app_production_cluster_addons_layer` | **4 to add**: `module.argocd[0].random_password.argocd_admin`, `module.argocd[0].time_static.argocd_admin_password`, `module.argocd[0].helm_release.argocd` and `module.argocd[0].helm_release.argocd_apps[0]`. 0 to change, 0 to destroy. **Needs a confirm.** |
+| `ac_app_production_cluster_addons_layer` | **4 to add**: `module.argocd[0].random_password.argocd_admin`, `module.argocd[0].time_static.argocd_admin_password`, `module.argocd[0].helm_release.argocd` and `module.argocd[0].helm_release.argocd_apps[0]`. 0 to change, 0 to destroy. **Applies on merge, no confirm.** |
 | `ac_app_staging_cluster_addons_layer` | Not queued (production's tfvars directory is not one of its trigger prefixes); 0 changes if a run happens for another reason. |
 | `ac_app_development_cluster_addons_layer` | No cluster; fails at `data.aws_eks_cluster` as before. |
 
@@ -201,7 +213,7 @@ findings, not noise: a replacement of the ACM validation records (fixed by #404;
 module-level `depends_on` crept back onto `main_rails_app`) and a `1 to add` on
 `aws_sns_topic_subscription.alarms_email` (fixed by #420).
 
-### 4.2 Merge and confirm
+### 4.2 Merge (the merge is the apply)
 
 There is no admin password step before the merge: the `argocd` module generates production's own
 password (`random_password.argocd_admin`, separate from staging's because each workspace has its
@@ -209,22 +221,20 @@ own state) in the same apply that installs ArgoCD. Commit A's plan carries its h
 `helm_release.argocd` (shown as `(sensitive value)`), and the chart never creates
 `argocd-initial-admin-secret` on production.
 
-Merge Commit A (section 1: with Commit B reverted off the branch, or as the PR's first merge).
-Watch the production run from the moment it starts planning:
+Merge the Commit A PR only once its speculative plan is the one in 4.1 and the owner has said
+to merge it. The production run plans and applies by itself; watch it
+(`python3 -I scripts/wait_commit_status.py` on the merge commit):
 
-- The plan must be the one in 4.1. Confirm it **immediately**: the plan-time EKS token is what the
-  apply uses, and `helm install argo-cd` runs with `wait = true` (up to 15 minutes, normally a
-  few) and then `helm install argocd-apps`. The quicker the confirm, the more of the token's 15
-  minutes the apply has.
+- The run's plan must again be the one in 4.1. `helm install argo-cd` runs with `wait = true`
+  (up to 15 minutes, normally a few; about 5 on staging) and then `helm install argocd-apps`.
 - If the apply fails with a credentials error (`the server has asked for the client to provide
-  credentials`), the token expired. The ArgoCD release stays on the cluster in whatever state it
-  reached (`atomic = false`, `cleanup_on_fail = false`; see `argocd-phase-2-install.md` section 2).
-  Inspect `helm -n argocd list` and `kubectl -n argocd get pods`, then queue a new run from the UI
-  and confirm it the moment it is planned; it completes or repairs the install. Do not
-  `helm uninstall argocd` by hand unless you are abandoning the install (Terraform would then point
-  at a release that no longer exists).
-- If the plan has gone stale before you confirm, discard it and queue a new run. Never confirm a
-  production plan that is more than a few minutes old.
+  credentials`), the plan-time EKS token (15 minutes) expired, which now only happens when the
+  run sat queued behind another workspace's run. The ArgoCD release stays on the cluster in
+  whatever state it reached (`atomic = false`, `cleanup_on_fail = false`; see
+  `argocd-phase-2-install.md` section 2). Inspect `helm -n argocd list` and
+  `kubectl -n argocd get pods`, then queue a new run from the UI; it auto-applies and completes
+  or repairs the install. Do not `helm uninstall argocd` by hand unless you are abandoning the
+  install (Terraform would then point at a release that no longer exists).
 
 ### 4.3 Verify the install (Phase 2 section 3, on production)
 
@@ -334,10 +344,11 @@ AWS_PROFILE=ac-ci-staging-ro python3 -I scripts/alb_alarm_window.py --env produc
 Repeat the same read after Commit B (section 6, step 5) over its window.
 
 Production is now in the Phase 5 end state: two controllers know about the app, ArgoCD on manual
-sync. **A bump PR merged from here until section 6 step 4 is applied by Terraform** (the production
-run, confirmed by a human, as today), after which ArgoCD shows `OutOfSync` on the pod template
-until someone syncs it (Phase 5 section 8). Avoid it: do not merge bump PRs between Commit A and
-Commit B, and keep the gap short (same day is fine; the adoption checks take under an hour).
+sync. **A production bump PR merged from here until section 6 step 4 is applied by Terraform**
+(the production run, auto-applied, as today), after which ArgoCD shows `OutOfSync` on the pod
+template until someone syncs it (Phase 5 section 8). Avoid it: do not merge production PRs
+between Commit A and Commit B, and keep the gap short (same day is fine; the adoption checks take
+under an hour). Staging bump PRs change no production file and are safe to merge throughout.
 
 ## 6. Commit B: retire the Terraform release on production
 
@@ -348,10 +359,10 @@ the release at `module.main_rails_app.helm_release.automation-calculator[0]`. (S
 `state rm` before applying that PR, which is why its runbook used the un-indexed address.) Quote
 the brackets in zsh.
 
-Run steps 1 to 5 in one sitting, in this order, with Commit B (or its follow-up PR) reviewed and
-approved before step 2, and no other merge touching the production addons workspace between step 2
-and step 4. Unlike staging, production does not auto-apply; the merge in step 4 plans 0 changes and
-finishes on its own, so there is nothing to confirm, but the window is still a window.
+Run steps 1 to 5 in one sitting, in this order, with the Commit B PR reviewed and approved
+before step 2, and no other merge touching the production addons workspace between step 2 and
+step 4. Production auto-applies, like staging did in Phase 6: the merge in step 4 plans 0 changes
+and finishes on its own, and any other production run inside the window applies without asking.
 
 ### Step 0: pre-checks
 
@@ -368,7 +379,8 @@ argocd app diff automation-calculator       # no output, exit 0
 
 ### Step 1: the speculative plan before the `state rm` (what "wrong" looks like)
 
-From the branch with Commit B:
+From the Commit B branch (`argocd-phase-8-commit-b`), after Commit A has merged and the branch
+has been brought up to `main`:
 
 ```bash
 cd terraform/env/production/aws/us-west-1/cluster-addons-layer
@@ -399,9 +411,9 @@ as in step 0. If `state list` shows the un-indexed address instead, production d
 Phase 6 move; `state rm` that address instead and note it in the PR.
 
 From here until step 4 completes the window of Phase 6 section 2 is open: a production run in it
-would plan `helm_release.automation-calculator[0] will be created` and, if confirmed, fail on
-`cannot re-use a name that is still in use` because the Helm history still exists. It fails safe;
-still, merge nothing else.
+would plan `helm_release.automation-calculator[0] will be created` and, with nobody to stop it,
+start applying and fail on `cannot re-use a name that is still in use` because the Helm history
+still exists. It fails safe; still, merge nothing else and queue no run by hand.
 
 ### Step 3: the speculative plan after the `state rm`
 
@@ -415,10 +427,11 @@ the `state rm` did not land (wrong workspace?); do not merge.
 
 ### Step 4: merge Commit B
 
-Merge Commit B (the follow-up PR, or the branch with only Commit B left on it). Expected runs:
+Merge the Commit B PR (re-run its speculative plan first if step 3 was read from a local plan:
+the PR status must be green and say no changes). Expected runs:
 
 - `ac_app_production_cluster_addons_layer`: `Plan: 0 to add, 0 to change, 0 to destroy`, planned
-  and finished, no apply and no confirm. Open the run and check it says exactly that.
+  and finished, no apply. Open the run and check it says exactly that.
 - `ac_app_staging_cluster_addons_layer`: not queued (production's tfvars directory is not one of
   its trigger prefixes); 0 changes if a run happens for another reason.
 - Development: no cluster; fails at `data.aws_eks_cluster` as before.
@@ -462,12 +475,12 @@ Terraform ownership is a Helm re-install, and the rollback of a bad deploy is a 
 
 | Step | `ac_app_production_cluster_addons_layer` | `ac_app_staging_cluster_addons_layer` |
 |---|---|---|
-| Commit A, speculative and merge | 4 to add: `module.argocd[0].random_password.argocd_admin`, `module.argocd[0].time_static.argocd_admin_password`, `module.argocd[0].helm_release.argocd`, `module.argocd[0].helm_release.argocd_apps[0]`; **confirm promptly** | not queued / 0 changes |
+| Commit A, speculative and merge | 4 to add: `module.argocd[0].random_password.argocd_admin`, `module.argocd[0].time_static.argocd_admin_password`, `module.argocd[0].helm_release.argocd`, `module.argocd[0].helm_release.argocd_apps[0]`; **applies on merge** | not queued / 0 changes |
 | after the first sync (5.3) | 0 changes | 0 changes |
 | Commit B speculative, release still in state (6, step 1) | **Error** `Instance cannot be destroyed` (prevent_destroy; the plan showed 1 to destroy). Do not merge. | n/a |
 | after `state rm` (6, step 3) | No changes | n/a |
 | Commit B merge (6, step 4) | 0 changes, planned and finished, no apply | not queued / 0 changes |
-| any later bump PR | 0 changes (`values-production.yaml` is no longer read by this workspace); the run is still queued until Phase 9 removes `helm/automation-calculator` from the trigger prefixes | 0 changes |
+| any later production bump PR | 0 changes (`values-production.yaml` is no longer read by this workspace); the run is still queued until Phase 9 removes `values-production.yaml` from production's trigger patterns | not queued |
 | any later `argocd_application_*` change in production tfvars (section 8, if ever) | 1 to change: `module.argocd[0].helm_release.argocd_apps[0]` in place | 0 changes |
 
 Development: no cluster; every plan fails at `data.aws_eks_cluster` as before this phase.
@@ -475,14 +488,18 @@ Development: no cluster; every plan fails at `data.aws_eks_cluster` as before th
 ## 8. The production deploy from now on
 
 Production stays on **manual sync**. `main` is still the single source of truth, but nothing
-reaches the production cluster until a human runs the sync. Merging a bump PR no longer deploys to
-production by itself (the production TFC run it queues plans 0 changes), and that is the gate that
-replaced the TFC confirm.
+reaches the production cluster until a human runs the sync. A deploy is still two PRs
+(`docs/promotion.md`): the staging bump PR, which ArgoCD rolls out on staging by itself, and,
+once staging is verified, the production bump PR, which changes `values-production.yaml` only.
+Merging the production PR no longer deploys by itself (the production TFC run it queues plans 0
+changes); the sync is the deploy. That puts back a manual step that #477 removed when it made the
+merge of the production PR the deploy; automated sync on production (end of this section) would
+restore "merge is the deploy".
 
 ```bash
-# 1. Merge the bump PR (opened by hand or by scripts/watch_app_docker_image_versions.py; CI
-#    checked the tag exists on Docker Hub). Staging syncs itself within the polling interval.
-#    The production TFC run plans 0 changes and needs nothing.
+# 1. Merge the production bump PR (scripts/bump_app_docker_image_version_branch.sh TAG SHA
+#    production), after the staging bump PR is merged and verified on staging. The production
+#    TFC run plans 0 changes and needs nothing.
 
 # 2. Production: SSO to the ac_ci_terraform_production role (docs/aws-sso-auth.md), log in
 #    through the argocd CLI's own port-forward (not kubectl port-forward).
@@ -536,7 +553,7 @@ Terraform's release owns everything; the Application is a second observer that h
 nothing. Through a PR, either `argocd_manage_application = false` in production's tfvars (1 to
 destroy, `module.argocd[0].helm_release.argocd_apps[0]`; the two CRs are uninstalled; no finalizer,
 so nothing cascades) or `argocd_enabled = false` (4 to destroy, the four resources Commit A added;
-the `argocd` namespace goes with them, the CRDs stay). Confirm promptly either way. By hand, right now:
+the `argocd` namespace goes with them, the CRDs stay). Either applies when its PR merges. By hand, right now:
 `argocd app delete automation-calculator --cascade=false -y`, then the tfvars PR. **Never omit
 `--cascade=false`**, and in the UI only "Non-cascading" is safe (Phase 5 section 7).
 
@@ -593,13 +610,14 @@ This path is for a broken ArgoCD, not for a bad deploy; a bad deploy is section 
 
 What **not** to do, in any rollback: `helm uninstall automation-calculator`; `argocd app delete`
 without `--cascade=false`; `kubectl delete namespace automation-calculator`; removing
-`prevent_destroy` or the resource block to "make the plan go through"; confirming a stale
-production plan.
+`prevent_destroy` or the resource block to "make the plan go through"; merging a production PR
+whose speculative plan has not been read.
 
 ## 10. Done when
 
-- `scripts/argocd_soak_log.py status` was PASS on the day the phase started, and the preflight
-  exited 0 on production (with whatever headroom change it needed applied first).
+- `scripts/argocd_soak_log.py status` passed its cycle count on the day the phase started (the
+  day count was waived by the owner on 2026-11-25, section 2), and the preflight exited 0 on
+  production.
 - Commit A applied on production with exactly 4 resources added; `kubectl -n argocd get pods`
   shows the four pods; `argocd login` works with the workspace output `argocd_admin_password`, and
   `argocd-initial-admin-secret` does not exist.
@@ -615,5 +633,5 @@ production plan.
 - `argocd app get automation-calculator` on production: Sync Policy Manual, Synced, Healthy; a
   fresh production plan shows 0 changes; `AGENTS.md` says production deploys are "merge, then
   `argocd app sync`".
-- Phase 9 (decommission the release from the module, drop the chart from the TFC trigger prefixes)
-  can start.
+- Phase 9 (decommission the release from the module, drop the chart from the TFC triggers) can
+  start.
