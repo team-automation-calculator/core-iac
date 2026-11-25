@@ -155,7 +155,17 @@ works under the `-ro` profile for read-only verbs on namespaced resources.
 The view policy excludes cluster-scoped resources and Secrets; the read-only
 entry is also placed in the `ac-ci-read-only` Kubernetes group, which
 `cluster-addons-layer` binds to a ClusterRole that can only read `nodes`
-(so `kubectl get nodes` and `scripts/argocd_preflight.sh` work). Other
+(so `kubectl get nodes` and `scripts/argocd_preflight.sh` work) and, once
+the `ac-ci-read-only-argocd` ClusterRole is applied in that environment, to
+one that can only read ArgoCD `applications` and `appprojects`, so the
+app's sync and health status is readable under the `-ro` context:
+
+```bash
+kubectl --context ac_app_staging-ro -n argocd get applications.argoproj.io automation-calculator
+```
+
+The `argocd` CLI still needs the full profile (it needs a port-forward and
+the admin login). Other
 cluster-scoped reads, such as `kubectl get namespaces`, still need the
 full profile, and so do `helm list` / `helm get manifest`: Helm 3 keeps
 release state in Secrets, which no `_read_only` role can read on any
