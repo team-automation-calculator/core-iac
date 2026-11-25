@@ -189,6 +189,7 @@ SCRIPTS = {
     "ec2_worker_node_pricing.py": "us-west-1 rates for candidate node types from downloaded price files.",
     "rds_utilization_summary.py": "Read-only CloudWatch summary for every RDS instance.",
     "rds_status_poll.py": "Read-only poll of an env's RDS instances, one line per change.",
+    "health_poll.py": "Poll an env's /health during a rollout, one log line per change.",
     "rds_price_list_extract.py": "Offline filter over the public AWS Price List CSV for RDS.",
     "alb_alarm_window.py": "Read-only replay of the app's CloudWatch alarms over an ALB metrics window.",
     "app_logs.py": "Read the app pods' stored logs in CloudWatch Logs (read-only).",
