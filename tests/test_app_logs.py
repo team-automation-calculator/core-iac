@@ -280,3 +280,23 @@ def test_volume_prints_days_in_order(monkeypatch, capsys):
     ]
     call = fake.calls[0]
     assert "Name=LogGroupName,Value=/ac/production/app" in call
+
+
+def test_volume_window_is_whole_utc_days_including_today(monkeypatch):
+    fake = FakeAws({"Datapoints": []})
+    before = dt.datetime.now(dt.UTC)
+    assert run_main(monkeypatch, fake, ["volume", "staging", "--days", "2"]) == 0
+    call = fake.calls[0]
+    end = dt.datetime.fromisoformat(call[call.index("--end-time") + 1])
+    start = dt.datetime.fromisoformat(call[call.index("--start-time") + 1])
+    assert end > before
+    assert (end.hour, end.minute, end.second) == (0, 0, 0)
+    assert end - start == dt.timedelta(days=2)
+
+
+def test_volume_labels_days_in_utc(monkeypatch, capsys):
+    fake = FakeAws(
+        {"Datapoints": [{"Timestamp": "2026-11-24T19:00:00-05:00", "Sum": 1024.0}]}
+    )
+    assert run_main(monkeypatch, fake, ["volume", "staging"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["2026-11-25 1.0 KB"]
