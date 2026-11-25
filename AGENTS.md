@@ -12,7 +12,7 @@ Infrastructure as Code for the [automation-calculations.io](https://automation-c
 ```
 terraform/
   modules/
-    tf_cloud/tf_cloud_workspaces/   # TFE workspace module
+    tf_cloud/tf_cloud_workspaces/   # TFE workspace module (per-env auto_apply and trigger_on_shared_code; docs/promotion.md)
     tf_cloud/tf_cloud_org_members/  # TFC organization memberships + owners team (applied from production tf_cloud; docs/tfc-org-members.md)
     aws/
       argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application, argocd_application_{automated_sync,prune,self_heal}; docs/argocd-migration-plan.md)
@@ -60,6 +60,15 @@ pyproject.toml, poetry.lock     # Poetry project: Python dev dependencies (pytes
 .repo-standards.toml            # Link to the shared repo standards and this repo's exemptions
 .circleci/config.yml            # CI validation pipeline: Terraform fmt/validate, Helm lint, and ./go lint, ./go test, ./go check-images on cimg/python:3.12.12
 ```
+
+## Promotion: Staging PR, Then Production PR
+
+Every app and infra change is two pull requests: one that changes staging, and, only after staging is verified, one that changes production (`docs/promotion.md`). Both environments' cluster workspaces auto-apply, so **merging a production pull request deploys to production with no confirm step**. Read its speculative plan before merging; never merge one whose plan nobody has read, and never merge one before staging is verified with the same change.
+
+- Production's cluster workspaces run only when production's own files change: its two working directories and `helm/automation-calculator/values-production.yaml`. A shared module or chart template change applies on staging at merge and waits for the next production pull request, whose plan therefore shows everything on `main` that production has not applied yet.
+- Put per-environment differences in tfvars or `values-<env>.yaml` so each pull request touches one environment. New module behaviour goes behind a variable that defaults to off.
+- A change with no production file to edit (a module refactor, a chart template) is promoted with `scripts/promote_to_production.sh`, which updates `promoted_ref` in the production working directory.
+- The global production workspaces (Route 53 domains, GitHub organization, Google Workspace, Google Cloud) still stop at "apply pending" and need a confirm.
 
 ## Layered Apply Order
 
@@ -128,10 +137,11 @@ helm template automation-calculator helm/automation-calculator/ \
 scripts/infra_eng_sso.py                       # SSO login + kubectl setup: writes AWS profiles, runs aws sso login, updates kubeconfig
 scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
 scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
-scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHash in helm/automation-calculator/values.yaml and values-<env>.yaml (yq)
-scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens the PR
+scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHash for one target (yq): staging (default; also values.yaml and values-development.yaml) or production (values-production.yaml only)
+scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens that target's PR (a deploy is two PRs, staging then production)
+scripts/promote_to_production.sh              # Write the staging-verified main commit to promoted_ref in a production working directory (base, addons or both), for a production PR whose change is all shared code (docs/promotion.md)
 scripts/check_app_docker_image_versions.py     # CI (./go check-images): validate added image.tag values in the chart values files exist on Docker Hub
-scripts/watch_app_docker_image_versions.py     # Watch Docker Hub for a new app image tag and open a bump PR (via bump_app_docker_image_version_branch.sh) when one appears
+scripts/watch_app_docker_image_versions.py     # Watch Docker Hub for a new app image tag and open the staging bump PR (via bump_app_docker_image_version_branch.sh) when one appears
 scripts/argocd_phase1_render_diff.sh           # ArgoCD Phase 1 proof: diff the pre-refactor chart render (git ref) against the working tree per env
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
