@@ -130,15 +130,24 @@ scripts/argocd_preflight.sh | tee tmp/phase8-00-preflight.txt
 
 **Pod headroom.** The Phase 0 table applies unchanged: one arm64 `t4g.medium` (since #410) allows 17 pods; ArgoCD adds
 4 (controller, repo-server, server, redis; the ApplicationSet controller is scaled to 0); the
-script fails when fewer than 4 slots would be left afterwards. Production on 2026-11-25: 11 pods (two app pods since #474, two ALB controller pods, Fluent Bit
-since #470), so 6 free slots, 2 after ArgoCD, and one of those is used during a rollout
-(`maxSurge 1`). Staging has run that same set since Phase 7.
+script fails when fewer than 4 slots would be left afterwards.
+
+**Measured on production, 2026-11-25: the preflight FAILS its margin.** 11 pods run (two app
+pods since #474, two ALB controller pods, Fluent Bit since #470), so 6 slots are free and 2 would
+be left after ArgoCD, where the script wants 4. One of the 2 is used during an app rollout
+(`maxSurge 1`), and one more for a few seconds during the install (the `redis-secret-init` job
+pod). Staging is in exactly that end state and fails the same check: 15 of 17 pods on the same
+`t4g.medium` since #474, through bump cycles 3 and 4 of the soak, with requests at 1330m CPU
+(68%) and 2214Mi memory (67%); production's requests are 1120m and 1734Mi before ArgoCD's 210m
+and 480Mi. Going ahead at that margin, or freeing a slot first with one of the two options
+below, is the owner's decision; the script's exit code alone does not settle it.
 
 **The ALB `replicaCount` reduction was not applied in Phase 0.** Staging had the headroom, so
 `terraform/modules/aws/cluster-addons-layer/main.tf` still does not set `replicaCount` on
 `helm_release.aws_load_balancer_controller` and the chart's default of 2 is what runs; the
-preflight script prints the live count. If production's headroom is under 4, pick one of the two
-Phase 0 options **in its own PR, applied and verified before Commit A**:
+preflight script prints the live count. To give production the full margin of 4, pick one of the
+two Phase 0 options **in its own PR, applied and verified before Commit A** (option 1 frees one
+slot, which makes 3; only option 2 reaches 4):
 
 1. `replicaCount = 1` on the ALB controller (one freed slot at no cost: the second replica is a
    standby on a single node). It is a shared-module change, so it is a cluster-addons run on
@@ -205,9 +214,17 @@ terraform plan | tee ../../../../../../tmp/phase8-01-production-commit-a.txt
 | `ac_app_staging_cluster_addons_layer` | Not queued (production's tfvars directory is not one of its trigger prefixes); 0 changes if a run happens for another reason. |
 | `ac_app_development_cluster_addons_layer` | No cluster; fails at `data.aws_eks_cluster` as before. |
 
+**The plan read on 2026-11-25 is `4 to add, 1 to change`.** The change is
+`module.cluster_addons.module.aws_load_balancer_controller_irsa_role.aws_iam_policy.this[0]`,
+updated in place, and it is not from this repo: the `terraform-aws-modules/iam` module is
+constrained to `~> 6.8`, not pinned, and its release v6.11.3 of that day adds one action,
+`ec2:ValidateSecurityGroupQuotasForInterface`, to the load balancer controller policy. Staging
+applied the same update at 16:23Z that day, with the run of #488. Any production add-ons run
+picks it up, with or without this PR.
+
 **Stop and do not merge** if the production plan shows anything on `module.main_rails_app` (the
-release, the namespace, the Secret, RDS, ACM), on `module.cluster_addons`, or an import: none of
-that is this commit. The Phase 4 `import` blocks are gone (`imports_argocd_phase4.tf` was deleted
+release, the namespace, the Secret, RDS, ACM), anything else on `module.cluster_addons`, or an
+import: none of that is this commit. The Phase 4 `import` blocks are gone (`imports_argocd_phase4.tf` was deleted
 by #463 on 2026-11-19), so no import can legitimately appear. Two artifacts that older production plans showed are now
 findings, not noise: a replacement of the ACM validation records (fixed by #404; it means a
 module-level `depends_on` crept back onto `main_rails_app`) and a `1 to add` on
@@ -617,7 +634,7 @@ whose speculative plan has not been read.
 
 - `scripts/argocd_soak_log.py status` passed its cycle count on the day the phase started (the
   day count was waived by the owner on 2026-11-25, section 2), and the preflight exited 0 on
-  production.
+  production or the owner accepted its headroom result (section 3).
 - Commit A applied on production with exactly 4 resources added; `kubectl -n argocd get pods`
   shows the four pods; `argocd login` works with the workspace output `argocd_admin_password`, and
   `argocd-initial-admin-secret` does not exist.
