@@ -58,7 +58,9 @@ module "main_rails_app" {
   db_engine_version              = var.db_engine_version
   db_security_group_ids          = [data.aws_eks_cluster.target_cluster.vpc_config[0].cluster_security_group_id]
   db_subnet_group_ids            = data.tfe_outputs.base_layer_state.nonsensitive_values.private_eks_subnet_ids
+  ci_read_only_kubernetes_group  = data.tfe_outputs.base_layer_state.nonsensitive_values.ci_read_only_kubernetes_group
   db_port                        = 5432
+  db_read_only_access_enabled    = var.db_read_only_access_enabled
   db_snapshot_identifier         = var.db_snapshot_identifier
   environment_name               = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
   final_snapshot_identifier      = var.final_snapshot_identifier

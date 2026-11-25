@@ -1,3 +1,9 @@
+variable "db_read_only_access_enabled" {
+  default     = false
+  description = "Let the read-only CI role request IAM database tokens for the PostgreSQL role ac_read_only_ci_<environment_name> (docs/db-read-only-access.md). The role itself is created by main_rails_app when its variable of the same name is true."
+  type        = bool
+}
+
 variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
   type        = string

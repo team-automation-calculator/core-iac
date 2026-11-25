@@ -112,6 +112,18 @@ locals {
     "logs:StartQuery",
     "logs:StopQuery",
   ]
+
+  # Signing in to the app database as the read-only role made for
+  # infrastructure engineers, for both InfraEng personas
+  # (modules/aws/main_rails_app/db_read_only_access.tf,
+  # docs/db-read-only-access.md). The instance id is a wildcard because the
+  # database is created by a later layer; the environment in the user name
+  # does the scoping, as in modules/aws/ci-iam-role. The region is spelled
+  # out because this module's provider targets the Identity Center region,
+  # not the database's.
+  db_read_only_user_arns = var.db_read_only_access_enabled ? [
+    "arn:aws:rds-db:${var.db_region}:${data.aws_caller_identity.current.account_id}:dbuser:*/ac_read_only_infra_eng_${var.environment_name}",
+  ] : []
 }
 
 resource "aws_ssoadmin_permission_set" "infra_eng" {
@@ -142,6 +154,16 @@ data "aws_iam_policy_document" "infra_eng" {
     sid       = "SearchLogs"
     actions   = local.search_logs_actions
     resources = ["*"]
+  }
+
+  dynamic "statement" {
+    for_each = length(local.db_read_only_user_arns) > 0 ? [1] : []
+
+    content {
+      sid       = "ConnectToAppDatabaseReadOnly"
+      actions   = ["rds-db:connect"]
+      resources = local.db_read_only_user_arns
+    }
   }
 }
 
@@ -182,6 +204,16 @@ data "aws_iam_policy_document" "infra_eng_read_only" {
     sid       = "SearchLogs"
     actions   = local.search_logs_actions
     resources = ["*"]
+  }
+
+  dynamic "statement" {
+    for_each = length(local.db_read_only_user_arns) > 0 ? [1] : []
+
+    content {
+      sid       = "ConnectToAppDatabaseReadOnly"
+      actions   = ["rds-db:connect"]
+      resources = local.db_read_only_user_arns
+    }
   }
 }
 

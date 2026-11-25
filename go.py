@@ -193,6 +193,7 @@ SCRIPTS = {
     "rds_price_list_extract.py": "Offline filter over the public AWS Price List CSV for RDS.",
     "alb_alarm_window.py": "Read-only replay of the app's CloudWatch alarms over an ALB metrics window.",
     "app_logs.py": "Read the app pods' stored logs in CloudWatch Logs (read-only).",
+    "db_read_only_psql.py": "psql on an env's app database as a read-only role (--as infra-eng or ci).",
     "pr_checklist.py": "List the PRs an image contains and tick their test-plan items through gh.",
 }
 # Scripts reached through a command of another name.
