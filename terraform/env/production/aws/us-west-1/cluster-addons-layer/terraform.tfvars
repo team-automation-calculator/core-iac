@@ -1,5 +1,6 @@
 alarm_email                    = "steven.uray@automation-calculations.net"
 app_logs_enabled               = true
+argocd_enabled                 = true
 automation_calculator_app_host = "automation-calculations.io"
 backup_retention_period        = 7
 db_engine_version              = "16.13"
