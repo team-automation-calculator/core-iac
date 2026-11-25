@@ -4,6 +4,21 @@ module "app_eks_cluster" {
   endpoint_public_access = true
   access_entries         = var.access_entries
 
+  # Envelope encryption of Kubernetes Secrets in etcd, with a customer-managed
+  # KMS key the EKS module creates per cluster (alias eks/ac_app_<env>) and
+  # rotates yearly. These three values equal the module's defaults and are
+  # what both clusters already run; they are spelled out so that a module
+  # upgrade that changes a default shows up as a plan diff instead of silently
+  # changing how Secrets (the app Secret, argocd-secret) are stored. Never set
+  # encryption_config to null or create_kms_key to false on a live cluster:
+  # EKS cannot turn secrets encryption off or change its key, so either one
+  # plans a cluster replacement.
+  encryption_config = {
+    resources = ["secrets"]
+  }
+  create_kms_key          = true
+  enable_kms_key_rotation = true
+
   # EKS managed add-ons. Until these were registered, the default add-ons were
   # the self-managed objects EKS installs at cluster creation, updated by hand
   # after each control-plane upgrade. That drifted: staging ran kube-proxy
