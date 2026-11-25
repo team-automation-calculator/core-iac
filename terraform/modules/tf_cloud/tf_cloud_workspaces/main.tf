@@ -4,7 +4,8 @@ resource "tfe_workspace" "base_cluster_tfe_workspace" {
   auto_apply        = var.auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
-  trigger_prefixes  = concat([var.base_cluster_layer_working_directory], var.base_cluster_layer_module_directories)
+  trigger_patterns  = local.base_cluster_layer_trigger_patterns
+  trigger_prefixes  = local.base_cluster_layer_trigger_prefixes
   vcs_repo {
     identifier     = var.tf_cloud_workspace_vcs_repo_identifier
     oauth_token_id = var.tfe_oauth_client_token_id
@@ -27,7 +28,7 @@ resource "tfe_workspace" "route53_domains_tfe_workspace" {
   count             = var.enable_route53_domains_workspace ? 1 : 0
   name              = "ac_app_${var.environment_name}_route53_domains"
   organization      = var.tf_cloud_organization_name
-  auto_apply        = var.auto_apply
+  auto_apply        = var.global_workspaces_auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.route53_domains_working_directory], var.route53_domains_module_directories)
@@ -42,7 +43,7 @@ resource "tfe_workspace" "github_org_tfe_workspace" {
   count             = var.enable_github_org_workspace ? 1 : 0
   name              = "ac_app_${var.environment_name}_github_org"
   organization      = var.tf_cloud_organization_name
-  auto_apply        = var.auto_apply
+  auto_apply        = var.global_workspaces_auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.github_org_working_directory], var.github_org_module_directories)
@@ -60,7 +61,7 @@ resource "tfe_workspace" "google_workspace_tfe_workspace" {
   count             = var.enable_google_workspace_workspace ? 1 : 0
   name              = "ac_app_${var.environment_name}_google_workspace"
   organization      = var.tf_cloud_organization_name
-  auto_apply        = var.auto_apply
+  auto_apply        = var.global_workspaces_auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.google_workspace_working_directory], var.google_workspace_module_directories)
@@ -78,7 +79,7 @@ resource "tfe_workspace" "google_cloud_tfe_workspace" {
   count             = var.enable_google_cloud_workspace ? 1 : 0
   name              = "ac_app_${var.environment_name}_google_cloud"
   organization      = var.tf_cloud_organization_name
-  auto_apply        = var.auto_apply
+  auto_apply        = var.global_workspaces_auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
   trigger_prefixes  = concat([var.google_cloud_working_directory], var.google_cloud_module_directories)
@@ -95,7 +96,8 @@ resource "tfe_workspace" "cluster_addons_tfe_workspace" {
   auto_apply        = var.auto_apply
   tag_names         = local.shared_workspace_tags
   terraform_version = var.tfe_workspace_tf_version
-  trigger_prefixes  = concat([var.cluster_addons_layer_working_directory], var.cluster_addons_layer_module_directories)
+  trigger_patterns  = local.cluster_addons_layer_trigger_patterns
+  trigger_prefixes  = local.cluster_addons_layer_trigger_prefixes
   vcs_repo {
     identifier     = var.tf_cloud_workspace_vcs_repo_identifier
     oauth_token_id = var.tfe_oauth_client_token_id
