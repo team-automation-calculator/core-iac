@@ -2,12 +2,25 @@ locals {
   www_redirect_name = "www.${var.automation_calculator_app_host}"
 }
 
+# Ordering handle for the Helm release only. A depends_on inside a module
+# cannot name resources outside it, so the caller passes the add-on Helm
+# release names in through var.addons_dependency and the release waits on this
+# resource instead. Do not express this as a module-level depends_on in the
+# caller: that defers data.aws_route53_zone to apply time whenever the add-ons
+# have pending changes, zone_id becomes unknown, and the ACM validation records
+# (zone_id is force-new) are planned for replacement on every add-ons change.
+# The RDS, ACM and Route 53 resources here do not need the add-ons at all.
+resource "terraform_data" "cluster_addons" {
+  input = var.addons_dependency
+}
+
 resource "helm_release" "automation-calculator" {
   atomic           = true
   name             = "automation-calculator"
   namespace        = "automation-calculator"
   chart            = var.automation_calculator_helm_release_local_path
   create_namespace = true
+  depends_on       = [terraform_data.cluster_addons]
   version          = "0.1.0"
 
   values = [

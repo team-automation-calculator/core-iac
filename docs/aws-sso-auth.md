@@ -113,19 +113,39 @@ Both CI roles have EKS access entries on each environment's cluster
 `ac_ci_terraform_<env>` has `AmazonEKSClusterAdminPolicy`, and
 `ac_ci_terraform_<env>_read_only` has `AmazonEKSViewPolicy`, so `kubectl`
 works under the `-ro` profile for read-only verbs on namespaced resources.
-The view policy excludes cluster-scoped resources; the read-only entry is
-also placed in the `ac-ci-read-only` Kubernetes group, which
+The view policy excludes cluster-scoped resources and Secrets; the read-only
+entry is also placed in the `ac-ci-read-only` Kubernetes group, which
 `cluster-addons-layer` binds to a ClusterRole that can only read `nodes`
 (so `kubectl get nodes` and `scripts/argocd_preflight.sh` work). Other
 cluster-scoped reads, such as `kubectl get namespaces`, still need the
-full profile. A kubeconfig entry
-written by `aws eks update-kubeconfig` embeds the profile it was created
-with, so run it once per persona, with `--alias` to keep them apart:
+full profile, and so do `helm list` / `helm get manifest`: Helm 3 keeps
+release state in Secrets, which no `_read_only` role can read on any
+environment (RBAC cannot narrow a Secrets grant to Helm's own, so granting
+it would expose every Secret's contents to the read-only persona). A
+kubeconfig entry written by `aws eks update-kubeconfig` embeds the profile
+it was created with, so run it once per persona, with `--alias` to keep
+them apart:
 
 ```bash
 aws eks update-kubeconfig --name ac_app_staging --region us-west-1 \
   --profile ac-ci-staging-ro --alias ac_app_staging-ro
 ```
+
+The alias is only a label: re-running `update-kubeconfig` with the same
+`--alias` and a different `--profile` silently rewrites which role the
+context uses. Before trusting a `-ro` context, confirm its identity:
+
+```bash
+kubectl --context ac_app_staging-ro auth whoami   # Username must end in _read_only/...
+```
+
+On 2026-11-04 an `ac_app_staging-ro` context was found embedding
+`AWS_PROFILE=ac-ci-staging`, so "read-only" staging checks (including
+`helm list`) had been running as cluster-admin, while the same checks on
+production, under the real `_read_only` role, failed on Helm's Secrets.
+The `validate-infra-rollout` snapshot script now refuses a context whose
+identity is not a `_read_only` role. If `auth whoami` shows the wrong
+role, recreate the context with the `update-kubeconfig` command above.
 
 `scripts/infra_eng_sso.py up --environment <env> --read-only` sets up the
 read-only persona end to end (profiles, login, kubeconfig, context); note it

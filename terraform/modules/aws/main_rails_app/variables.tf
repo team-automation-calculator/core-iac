@@ -1,3 +1,9 @@
+variable "addons_dependency" {
+  default     = []
+  description = "Values the app Helm release must be installed after, e.g. the add-on Helm release names output by cluster-addons-layer. Used only for ordering via terraform_data.cluster_addons; the values are never read."
+  type        = list(string)
+}
+
 variable "app_image_pull_policy" {
   default     = "Always"
   description = "The image pull policy for the automation-calculator app."
@@ -28,8 +34,8 @@ variable "automation_calculator_helm_release_local_path" {
 }
 
 variable "backup_retention_period" {
-  default     = 7
-  description = "Days to retain automated RDS backups (0 disables them, max 35). Must be non-zero before a major engine version upgrade so RDS takes its own pre- and post-upgrade snapshots. Changing between 0 and a non-zero value causes a brief outage (RDS takes the instance offline to create the first backup)."
+  default     = 0
+  description = "Days to retain automated RDS backups (0 disables them, max 35). Defaults to 0, the historical behaviour; each environment sets it in tfvars. Must be non-zero before a major engine version upgrade so RDS takes its own pre- and post-upgrade snapshots. Changing between 0 and a non-zero value causes a brief outage (RDS takes the instance offline to create the first backup)."
   type        = number
 }
 
