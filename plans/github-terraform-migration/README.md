@@ -1,135 +1,148 @@
 # GitHub Terraform Migration Plan
 
-Bring the `team-automation-calculator` GitHub organization's assets under Terraform
-control in this repo, importing existing assets so the first apply is a pure import
-with **zero changes**.
+Bring the settings of the `team-automation-calculator` organization's three repositories
+under Terraform, by import, so that the first apply changes nothing on GitHub.
 
-## Scope (decided)
+Written 2026-07-06, revised 2026-11-25. The revision drops everything that has since
+landed another way and re-bases the rest on what is on `main`.
 
-- **In scope**: the 3 repositories and their settings (`github_repository` resources only).
-- **Out of scope (this pass)**: branch protection, org settings, org memberships,
-  per-repo collaborators.
-- **Deliberately excluded**: webhooks and deploy keys — they are owned by CircleCI and
-  Terraform Cloud's VCS integration; importing them would fight those systems.
-- **Fidelity**: codify settings exactly as-is. Any policy tightening (e.g.
-  delete-branch-on-merge, protecting `development_vm`) comes later as separate PRs.
-- **Backend**: VCS-connected Terraform Cloud workspace `ac_app_global_github`,
-  org `team-automation-calculator`, following the repo's existing tf_cloud conventions.
+## Status
 
-## GitHub ground truth (captured 2026-07-06 via `gh api`)
+| Piece of the July plan | State on 2026-11-25 |
+|---|---|
+| Terraform Cloud workspace for GitHub | **Done differently** by #372: `ac_app_production_github_org`, created by `enable_github_org_workspace` in `tf_cloud_workspaces`, manual confirm (`global_workspaces_auto_apply = false`). The planned `ac_app_global_github` workspace is dropped. |
+| Env config directory | **Done differently**: `terraform/env/production/github/org` exists. The planned `terraform/env/global/github` is dropped. |
+| `github` provider, lock files, CI validate jobs for the env config | **Done** by #372 (`integrations/github ~> 6.13`, `validate_production_github_org`). |
+| Organization membership, team and team repository permissions for the CI machine user | **Done** by #372 (`terraform/modules/github/org-ci-access`). This was out of scope in July. |
+| Token | **Changed**: the workspace reads a fine-grained owner token from the `GITHUB_TOKEN` environment variable (`docs/github-ci-user.md`), not the `TF_VAR_GITHUB_TOKEN` variable set. |
+| `github_repository` for the three repositories, imported | **Not done.** This is the remaining work. |
+| CI validate job for `terraform/modules/aws/ci-iam-role` | **Not done.** Still has no job in `.circleci/config.yml`. |
 
-Org `team-automation-calculator` (free plan). 3 public repos, all with:
+## Scope
 
-- `has_issues = true`, `has_wiki = true`
-- `has_projects = true`, `has_downloads = true` ← **provider defaults are false; must set explicitly**
-- `has_discussions = false`, `allow_update_branch = false`
-- `allow_merge_commit / allow_squash_merge / allow_rebase_merge = true`, `allow_auto_merge = false`
-- `delete_branch_on_merge = false`, `web_commit_signoff_required = false`, `topics = []`
-- merge/squash commit title/message settings equal provider defaults
-  (`MERGE_MESSAGE`/`PR_TITLE`, `COMMIT_OR_PR_TITLE`/`COMMIT_MESSAGES`)
+- **In**: one `github_repository` per repository, plus its Dependabot alert setting,
+  imported exactly as it is today.
+- **Out, for a later pass**: branch protection and rulesets, organization settings (the
+  default repository permission is still `write`), human memberships, Dependabot
+  security updates, secret scanning.
+- **Left alone on purpose**: webhooks and deploy keys. CircleCI and the Terraform Cloud
+  VCS connection own them.
+- **Fidelity**: the configuration is made to match GitHub, never the other way round.
+  Any tightening is a separate pull request after the import.
 
-| Repo | default branch | description | homepage_url | vulnerability_alerts |
-|---|---|---|---|---|
-| automation-calculator | main | — | https://automation-calculations.io/ | **enabled** |
-| core-iac | main | "Infrastructure as Code base for all apps within this project, including the main one." | — | **disabled** |
-| development_vm | master | — | — | **enabled** |
+## Ground truth (captured 2026-11-25 with `gh api`)
 
-## Design decisions
+Organization on the free plan, three public repositories, none archived. The same on
+all three:
 
-1. **Placement**: env config at `terraform/env/global/github/`; module at
-   `terraform/modules/github/repository/` (single-repo module called with `for_each`
-   over a `map(object)` variable — mirrors `terraform/modules/aws/route53-domain/` +
-   `terraform/env/production/aws/us-east-1/route53-domains/`).
-2. **Workspace bootstrap**: extend `terraform/modules/tf_cloud/tf_cloud_workspaces/`
-   with a count-gated `tfe_workspace.github_tfe_workspace`
-   (`enable_github_workspace`, default `false`) — same precedent as
-   `enable_route53_domains_workspace`. Enabled only from
-   `terraform/env/production/tf_cloud/`. Workspace name `ac_app_global_github`, tags
-   `["automation-calculator", "global"]`, `terraform_version` from
-   `var.tfe_workspace_tf_version` ("1.11"), **`auto_apply = false` hardcoded**
-   (org-critical), `vcs_repo` + `working_directory`/`trigger_prefixes` like the
-   other workspaces.
-3. **Provider/auth**: `integrations/github` `~> 6.0` (matches the AWS `~> 6.0`
-   convention). Reuse the existing sensitive TF variable literally named
-   `TF_VAR_GITHUB_TOKEN`:
-   `provider "github" { owner = "team-automation-calculator", token = var.TF_VAR_GITHUB_TOKEN }`.
-   The existing TFC variable set gets attached to the new workspace — zero new
-   secrets. **Precondition**: that token must have admin on all 3 repos.
-4. **Import mechanism**: Terraform `import` blocks in
-   `terraform/env/global/github/import.tf` targeting
-   `module.github_repositories["<name>"].github_repository.this` with
-   `id = "<repo-name>"` — same shape as the existing `route53-domains/import.tf`.
-   Removed in a cleanup PR after apply.
-5. **Backend**: `backend "remote"` block in the env config's `versions.tf` pointing
-   at workspace `ac_app_global_github` (route53-domains precedent). CI validates
-   without backend credentials.
-6. **Zero-diff guardrails on `github_repository`**: set explicitly
-   `has_projects = true`, `has_downloads = true`, and per-repo
-   `vulnerability_alerts` (all differ from provider defaults or are non-computed —
-   omitting `vulnerability_alerts` would make Terraform disable Dependabot alerts).
-   Omit `security_and_analysis` (Optional+Computed; free-plan 422 risk),
-   `auto_init`/template args (create-only), deprecated `private`, and `topics`
-   (empty; Optional+Computed). **Default branch is intentionally unmanaged**
-   (provider v6 dropped it from `github_repository`; `development_vm`'s `master`
-   causes no drift).
-7. **Destroy safety**: `archive_on_destroy = true` +
-   `lifecycle { prevent_destroy = true }` in the module. Removing a repo from the
-   tfvars map errors at plan time; deliberate removal requires editing the module
-   lifecycle or `terraform state rm`.
+- `has_issues`, `has_wiki`, `has_projects`: true
+- `has_discussions`: false
+- `allow_merge_commit`, `allow_squash_merge`, `allow_rebase_merge`: true
+- `allow_auto_merge`, `allow_update_branch`, `web_commit_signoff_required`: false
+- merge and squash commit title and message: `MERGE_MESSAGE` / `PR_TITLE`,
+  `COMMIT_OR_PR_TITLE` / `COMMIT_MESSAGES` (the provider's defaults)
+- `topics`: empty
 
-## File tree (new ✚ / modified ✎)
+Per repository:
+
+| Repository | Default branch | Description | Homepage | `delete_branch_on_merge` | Dependabot alerts |
+|---|---|---|---|---|---|
+| `automation-calculator` | `main` | none | `https://automation-calculations.io/` | true | enabled |
+| `core-iac` | `main` | "Infrastructure as Code base for all apps within this project, including the main one." | none | true | disabled |
+| `development_vm` | `master` | none | none | false | enabled |
+
+Changed since the July capture: `delete_branch_on_merge` is now true on
+`automation-calculator` and `core-iac` (it was false everywhere), and the API now
+reports `has_downloads` false everywhere (it was true).
+
+## Design
+
+1. **Where it lives.** A new single-repository module,
+   `terraform/modules/github/repository`, called with `for_each` over a `repositories`
+   map from the existing `terraform/env/production/github/org`. No new workspace, no new
+   backend, no new provider block.
+2. **Token.** The workspace's owner token already carries Administration read and write,
+   but only on the repositories it was scoped to: `automation-calculator` and
+   `core-iac`. `development_vm` has to be added to the token's selected repositories by
+   an organization owner before the import can read it (task 01).
+3. **Arguments, checked against the provider 6.13.0 schema.**
+   - Set explicitly: `name`, `description`, `homepage_url`, `visibility`, `has_issues`,
+     `has_wiki`, `has_projects`, `has_discussions`, the three `allow_*_merge` flags,
+     `allow_auto_merge`, `allow_update_branch`, `delete_branch_on_merge`,
+     `archive_on_destroy`. `has_projects` matters most: it is not computed and the
+     provider's default is false, so leaving it out would plan to turn Projects off.
+   - Left out: `has_downloads`, `vulnerability_alerts`, `default_branch` and `private`
+     (all four deprecated in 6.13), `security_and_analysis` (a 422 risk on the free
+     plan), `topics` and `web_commit_signoff_required` (optional and computed, and at
+     their defaults), the commit title and message arguments (at the provider's
+     defaults), and the create-only arguments (`auto_init`, templates).
+   - The July plan set `has_downloads` and `vulnerability_alerts` on `github_repository`.
+     Both are deprecated now, so neither is set there.
+4. **Dependabot alerts.** `vulnerability_alerts` on `github_repository` is deprecated in
+   favour of the separate `github_repository_vulnerability_alerts` resource
+   (`repository`, `enabled`). The module holds one per repository, with `enabled` taken
+   from the table above and no default, so nobody can turn alerts off by omission.
+5. **Default branch** stays unmanaged. `development_vm` on `master` causes no drift.
+6. **Import.** `import` blocks in `terraform/env/production/github/org/import.tf`, one
+   per repository with `id = "<repository name>"`, removed in the cleanup pull request.
+   Whether `github_repository_vulnerability_alerts` can be imported, and with what id,
+   is not confirmed; task 02 checks it before the gate numbers are fixed.
+7. **Destroy safety.** `archive_on_destroy = true` and `lifecycle { prevent_destroy =
+   true }` in the module. Removing a repository from the map fails at plan time; a
+   deliberate removal is a `terraform state rm`.
+8. **Run trigger.** Add `terraform/modules/github/repository` to the default of
+   `github_org_module_directories` in `tf_cloud_workspaces`, or a later change to the
+   module alone would not start a run in the workspace.
+
+## Files
 
 ```
-plans/github-terraform-migration/                              ✚ this folder
-terraform/modules/github/repository/                           ✚ main.tf variables.tf outputs.tf versions.tf .terraform.lock.hcl
-terraform/env/global/github/                                   ✚ main.tf variables.tf provider.tf versions.tf
-                                                               ✚ terraform.tfvars import.tf(temp) outputs.tf .terraform.lock.hcl
-terraform/modules/tf_cloud/tf_cloud_workspaces/main.tf         ✎ + github workspace
-terraform/modules/tf_cloud/tf_cloud_workspaces/variables.tf    ✎ + 3 vars (alphabetized)
-terraform/env/production/tf_cloud/main.tf                      ✎ pass-through
-terraform/env/production/tf_cloud/variables.tf                 ✎ + 3 vars
-terraform/env/production/tf_cloud/terraform.tfvars             ✎ enable + working dir
-.circleci/config.yml                                           ✎ + validate jobs (github module, global/github env, missing ci-iam-role)
-CLAUDE.md                                                      ✎ layout tree, provider table (+ GitHub ~> 6.0), unmanaged-attrs note
+terraform/modules/github/repository/                         new: main.tf variables.tf outputs.tf versions.tf .terraform.lock.hcl
+terraform/env/production/github/org/main.tf                  module call
+terraform/env/production/github/org/variables.tf             repositories variable
+terraform/env/production/github/org/terraform.tfvars         the three repositories
+terraform/env/production/github/org/import.tf                new, temporary
+terraform/env/production/github/org/outputs.tf               repository URLs
+terraform/env/production/github/org/.terraform.lock.hcl      regenerate only if init changes it
+terraform/modules/tf_cloud/tf_cloud_workspaces/variables.tf  github_org_module_directories default
+.circleci/config.yml                                         validate_github_repository_module, validate_ci_iam_role_module
+AGENTS.md, docs/github-ci-user.md                            layout line, token scope, what is managed
 ```
 
-## Phase / PR sequence
+## Remaining tasks
 
-Every PR: branch + `gh` draft PR, never push main. Run
-`terraform fmt -recursive terraform/` before every commit.
-
-| Phase | PR | Task file | Summary |
+| Order | Task | Who | Outcome |
 |---|---|---|---|
-| 0 | PR 1 | (this folder) | Commit the plan + task files |
-| 1 | — | [task-01](task-01-capture-github-state.md) | Ground truth captured (done); verify token admin rights |
-| 2 | PR 2 | [task-02](task-02-tf-cloud-workspace.md) | TFC workspace bootstrap via tf_cloud module |
-| 3 | PR 3 | [task-03](task-03-github-module-and-env-config.md), [task-04](task-04-ci-validate-jobs.md) | GitHub module + env config + import blocks + CI jobs |
-| 4 | apply | [task-05](task-05-import-plan-and-apply.md) | Speculative-plan gate, merge, manual apply |
-| 5 | PR 4 | [task-06](task-06-cleanup-and-docs.md) | Remove import.tf, update docs |
+| 1 | [task-01](task-01-token-and-ground-truth.md) | organization owner, by hand | Token can administer all three repositories; ground truth still current |
+| 2 | [task-02](task-02-repository-module-and-imports.md) | agent, one pull request | Module, module call, import blocks, CI jobs, run trigger |
+| 3 | [task-03](task-03-plan-gate-and-apply.md) | human, Terraform Cloud | Import-only plan read, pull request merged, run confirmed |
+| 4 | [task-04](task-04-cleanup-and-docs.md) | agent, one pull request | Import blocks removed, docs updated |
+
+The workspace is one of the global production workspaces: a merge stops at "apply
+pending" and needs a confirm. It has no staging counterpart, so the two-pull-request
+promotion flow in `docs/promotion.md` does not apply.
 
 ## Verification
 
-1. PR 3 speculative plan: exactly **"3 to import, 0 to add, 0 to change, 0 to destroy"** (hard merge gate).
-2. Post-apply: queue a fresh TFC plan → "No changes. Your infrastructure matches the configuration."
-3. PR 4 speculative plan → "No changes."
-4. CI green including the new validate jobs.
-5. Smoke test: toggle `has_wiki` on one repo in the GitHub UI, queue a plan, confirm
-   Terraform detects the drift, revert in the UI.
+1. Speculative plan on the task 02 pull request imports and does nothing else: no add
+   other than what task 02 recorded for the alerts resource, no change, no destroy.
+2. After the apply, a fresh plan in `ac_app_production_github_org` shows no changes.
+3. The same `gh api` capture as task 01 returns the values in the table above.
+4. The cleanup pull request's speculative plan shows no changes.
 
 ## Rollback
 
-- Pre-apply: discard the TFC run.
-- Post-apply: `terraform state rm 'module.github_repositories'` (state ops work on
-  VCS workspaces with `TFE_TOKEN`) — imports made no GitHub-side changes, so removal
-  fully reverts Terraform's involvement.
+- Before the apply: discard the run.
+- After it: `terraform state rm` on the module addresses. An import changes nothing on
+  GitHub, so removing the state entries undoes all of it.
 
-## Known risks / gotchas
+## Risks
 
-- **Perpetual-drift arguments**: `has_projects`, `has_downloads`,
-  `vulnerability_alerts` — must come from captured values, never provider defaults.
-- **Workspace-name mismatch precedent**: route53-domains' backend says
-  `ac_app_route53_domain_production` while the module creates
-  `ac_app_production_route53_domains` — a workspace was renamed manually. Confirm the
-  actual TFC workspace name matches the backend block before PR 3.
-- Token rotation in the TFC variable set now also breaks GitHub plans, not just VCS
-  connections — noted in docs (task-06).
+- **An argument at the provider default overwrites a real setting.** Guarded by the
+  import-only gate; `has_projects` and `delete_branch_on_merge` are the likely ones.
+- **Token scope.** A repository missing from the token's selected repositories fails the
+  plan with a 404 that reads like a missing repository.
+- **Token expiry.** The owner token lasts at most a year. When it lapses every plan in
+  the workspace fails, now for repository settings as well as CI access.
+- **Deprecated arguments.** If a later provider release removes `has_downloads` or
+  `vulnerability_alerts` outright nothing here changes, because neither is set.
