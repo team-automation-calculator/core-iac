@@ -1,11 +1,17 @@
+variable "app_chart_directory" {
+  default     = "helm/automation-calculator"
+  description = "Repository path of the app Helm chart. With trigger_on_shared_code = false, only its values-<environment_name>.yaml triggers the cluster add-ons workspace."
+  type        = string
+}
+
 variable "auto_apply" {
-  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
+  description = "When true, the base cluster and cluster add-ons workspaces apply a successful plan without a confirm. The other workspaces follow global_workspaces_auto_apply."
   type        = bool
   default     = false
 }
 
 variable "base_cluster_layer_module_directories" {
-  default     = ["terraform/modules/aws/networking", "terraform/modules/aws/base-cluster-layer"]
+  default     = ["terraform/modules/aws/networking", "terraform/modules/aws/base-cluster-layer", "terraform/modules/aws/ci-iam-role", "terraform/modules/aws/sso-infra-eng"]
   description = "The list of module directories for the base cluster layer"
   type        = list(string)
 }
@@ -75,6 +81,12 @@ variable "github_org_working_directory" {
   type        = string
 }
 
+variable "global_workspaces_auto_apply" {
+  default     = false
+  description = "Auto-apply for the workspaces that exist once and have no staging counterpart to rehearse on: Route 53 domains, the GitHub organization, Google Workspace and Google Cloud. Kept apart from auto_apply so that turning it on for the cluster workspaces leaves these on a manual confirm."
+  type        = bool
+}
+
 variable "google_cloud_module_directories" {
   default     = ["terraform/modules/google_cloud/organization", "terraform/modules/google_cloud/project"]
   description = "Module directories that trigger a run in the Google Cloud workspace."
@@ -109,6 +121,12 @@ variable "route53_domains_working_directory" {
   description = "The path to the route53-domains env config directory."
   type        = string
   default     = ""
+}
+
+variable "trigger_on_shared_code" {
+  default     = true
+  description = "When true, a change to the shared module directories or the app chart triggers the base cluster and cluster add-ons workspaces. When false, only this environment's own files do (the working directories and the chart's values-<environment_name>.yaml), so shared changes reach it with the next pull request that changes one of those (docs/promotion.md)."
+  type        = bool
 }
 
 variable "tf_cloud_organization_name" {
