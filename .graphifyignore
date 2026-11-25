@@ -1,0 +1,22 @@
+# .graphifyignore — what the graphify knowledge graph leaves out (gitignore syntax).
+# The graph holds what was written on purpose: generated, downloaded and
+# per-machine files stay out. graphify reads .tf, .tfvars, .hcl, .json and .sh as
+# code, so lock files and provider caches would otherwise become nodes.
+
+# Scratch, downloads and tool caches
+tmp/
+graphify-out/
+.venv/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+.claude/worktrees/
+
+# Terraform provider caches, lock files and state
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+
+# Generated or pinned dependency data
+poetry.lock

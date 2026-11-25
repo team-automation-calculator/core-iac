@@ -59,6 +59,7 @@ go -> go.py                     # ./go, the single entry point (see Common Comma
 pyproject.toml, poetry.lock     # Poetry project: Python dev dependencies (pytest, Black, Ruff) and tool config
 .python-version                 # Python version pin (3.12.12)
 .repo-standards.toml            # Link to the shared repo standards and this repo's exemptions
+.graphifyignore                 # What the graphify knowledge graph leaves out (graphify-out/ itself is gitignored)
 .circleci/config.yml            # CI validation pipeline: Terraform fmt/validate, Helm lint, and ./go lint, ./go test, ./go check-images on cimg/python:3.12.12
 ```
 
@@ -180,7 +181,20 @@ Every file in `scripts/` is a `./go` command named after it (`scripts/env_snapsh
 ./go app-logs                               # Read-only reader for the app pods' stored logs in CloudWatch Logs (/ac/<env>/app) under the -ro profile: streams, tail, errors, Logs Insights query, ingested volume (docs/app-logs.md)
 ./go db-read-only-psql                     # psql on an env's app database as a read-only role (--as infra-eng for a person, --as ci for CI and agents): IAM token, port-forward under the -ro kube context, verified TLS (docs/db-read-only-access.md)
 ./go pr-checklist                           # Lists the PRs an image contains and ticks their test-plan checklist items through gh (--repo selects the repo; default is the app repo)
+./go graphify-update                        # Refresh the knowledge graph's code layer (graphify-out/), no LLM: main's graph in the main checkout on main, or a seeded worktree's copy; exits 0 doing nothing with no graph, off main, or in CI/cloud
+./go graphify-status                        # How far the knowledge graph is behind HEAD: code files vs documents waiting for the LLM pass (--brief: one line, only when stale; exit 0 fresh, 3 stale, 1 no graph)
+./go graphify-seed                          # Give a worktree its own copy of main's graph (cache shared by symlink), then refresh it to the branch; nothing in the main checkout or when already seeded
 ```
+
+## Knowledge Graph (graphify)
+
+When `graphify-out/graph.json` exists, a question about structure, callers, dependencies or "where is X" (which module creates a resource, what reads a variable, which scripts call a helper, what a change to a module affects) goes to the graph first: `graphify query "<question>" --budget 2000`, `graphify path "A" "B"`, `graphify explain "X"` or `graphify affected "X"`. Then read the one or two files the answer cites, to confirm, not to search. Finding a name or string you already know stays with grep, which is as fast and exact. The interpreter in `graphify-out/.graphify_python` has the `graphify` CLI beside it (`<python> -m graphify query ...`) when no `graphify` is on `PATH`.
+
+- **The graph is `main`'s and a snapshot.** It is gitignored and built in the main checkout (`~/git/core-iac`) with `main` checked out; `built_at_commit` in `graph.json` names the commit. `./go graphify-status` says how far behind `HEAD` it is. When it is stale, run `./go graphify-update` (code layer, no LLM, seconds) before relying on it. A file you are about to edit is read first in any case.
+- **Never rebuild it on a feature branch, and never put `graphify-out/` in a pull request.** A worktree under `.claude/worktrees/` works on a private copy: `./go graphify-seed` copies `main`'s graph into it and refreshes the code layer to the branch; `./go graphify-update` there refreshes the copy after edits, commits, or a merge of `origin/main`. Nothing is copied back.
+- **Documents cost tokens.** Markdown under `docs/` and `plans/` is the semantic layer, extracted by an LLM pass (`/graphify --update` in a Claude Code session in the main checkout, then `./go graphify-update`). Run it when `graphify-status` reports pending documents that matter to the question, never from a hook, cron or worktree. A full rebuild (`/graphify .`) is for a large move or rename, a `.graphifyignore` change, or a graphify upgrade across a format change.
+- **How `main`'s graph keeps up.** The repo-standards git-sync agent fast-forwards `main` (07:00, 23:00, login) and then runs `[git-sync] post_sync = "./go graphify-update"` from `.repo-standards.toml`. After a `git pull` by hand, run `./go graphify-update` yourself. CI and claude.ai cloud sessions have no graph and build none.
+- `.graphifyignore` keeps scratch (`tmp/`), Terraform provider caches and lock files, and `poetry.lock` out; graphify reads `.tf`, `.tfvars`, `.hcl`, `.json` and `.sh` as code.
 
 ## Key Conventions
 
