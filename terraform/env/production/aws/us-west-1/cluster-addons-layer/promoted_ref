@@ -2,4 +2,4 @@
 # other production file to change (docs/promotion.md). Terraform does not read
 # this file; changing it is what triggers the workspace. Written by
 # scripts/promote_to_production.sh.
-5e980ed
+004b67a
