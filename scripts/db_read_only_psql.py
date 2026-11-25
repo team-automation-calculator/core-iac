@@ -17,8 +17,12 @@ AWS for a 15-minute IAM token under the persona's profile, port-forwards to the 
 under the read-only kube context (ac_app_<env>-ro), and runs psql through it with full TLS
 verification of the RDS endpoint. Everything after `--` goes to psql.
 
-Needs `aws`, `kubectl` and `psql` (macOS: `brew install libpq`, then put its bin on PATH) and an
-`aws sso login`. Reference: docs/db-read-only-access.md.
+Needs `aws`, `kubectl` and an `aws sso login`, plus either `psql` on PATH (macOS: `brew install
+libpq`, then put its bin on PATH) or `docker`. Without a local psql the script runs the one in
+the official postgres image (PSQL_IMAGE) in a container that reaches the port-forward on the
+host; `--psql local` or `--psql docker` forces one. In the container only `tmp/` of the working
+directory is visible, at the same relative path, so `-f tmp/query.sql` and `-o tmp/out.txt` work
+and paths outside `tmp/` do not. Reference: docs/db-read-only-access.md.
 """
 
 import argparse
@@ -40,6 +44,12 @@ DB_NAME = "automation_calculator_app"
 NAMESPACE = "ac-db-access"
 FORWARDER = "deploy/db-read-proxy"
 FORWARDER_PORT = 5432
+
+# psql when none is installed: the official image, same major version as the app repo's
+# docker-compose.yml. A newer psql reads an older server (RDS is behind it) without trouble.
+PSQL_IMAGE = "postgres:18-alpine"
+CONTAINER_CA_DIR = "/rds-ca"
+CONTAINER_WORKDIR = "/work"
 
 # persona -> (PostgreSQL role prefix, AWS profile per environment). The role names are fixed by
 # terraform/modules/aws/main_rails_app/db_read_only_access.tf and by the rds-db:connect
@@ -111,12 +121,84 @@ def find_instance(instances: list[dict], environment: str) -> tuple[str, int]:
     return inst["Endpoint"]["Address"], int(inst["Endpoint"]["Port"])
 
 
-def conninfo(host: str, local_port: int, user: str, ca_bundle: pathlib.Path) -> str:
-    """psql connection string: TCP to the local forward, TLS verified against the RDS name."""
+def conninfo(
+    host: str,
+    local_port: int,
+    user: str,
+    ca_bundle: pathlib.PurePath,
+    hostaddr: str | None = "127.0.0.1",
+) -> str:
+    """psql connection string: TCP to the local forward, TLS verified against the RDS name.
+
+    With hostaddr None the RDS name itself must resolve to the forward (the container's
+    --add-host entry does that).
+    """
+    address = f" hostaddr={hostaddr}" if hostaddr else ""
     return (
-        f"host={host} hostaddr=127.0.0.1 port={local_port} dbname={DB_NAME} user={user} "
+        f"host={host}{address} port={local_port} dbname={DB_NAME} user={user} "
         f"sslmode=verify-full sslrootcert={ca_bundle}"
     )
+
+
+def choose_psql(choice: str, have_psql: bool, have_docker: bool) -> str:
+    """Return "local" or "docker" for --psql auto|local|docker and what is installed."""
+    if choice == "local" or (choice == "auto" and have_psql):
+        if not have_psql:
+            raise Failure(
+                "psql is not on PATH (macOS: brew install libpq, then add its bin directory "
+                "to PATH), or use --psql docker"
+            )
+        return "local"
+    if not have_docker:
+        raise Failure(
+            "neither psql nor docker is on PATH: install one (macOS: brew install libpq, then "
+            "add its bin directory to PATH)"
+            if choice == "auto"
+            else "docker is not on PATH"
+        )
+    return "docker"
+
+
+def docker_psql_command(
+    host: str,
+    local_port: int,
+    user: str,
+    ca_bundle: pathlib.Path,
+    psql_args: list[str],
+    cwd: pathlib.Path,
+    tty: bool,
+    platform: str,
+) -> list[str]:
+    """`docker run` for psql in PSQL_IMAGE, connected to the port-forward on the host.
+
+    The token and application name are passed by variable name (`--env NAME`), so the token is
+    never in an argument list. On Linux the container shares the host's network and connects to
+    127.0.0.1 as a local psql would; elsewhere (Docker Desktop) the RDS name is mapped to the
+    host gateway, which reaches a port bound to the host's loopback.
+    """
+    cmd = ["docker", "run", "--rm", "--interactive"]
+    if tty:
+        cmd.append("--tty")
+    cmd += ["--env", "PGPASSWORD", "--env", "PGAPPNAME"]
+    cmd += ["--volume", f"{ca_bundle.parent}:{CONTAINER_CA_DIR}:ro"]
+    scratch = cwd / "tmp"
+    if scratch.is_dir():
+        cmd += ["--volume", f"{scratch}:{CONTAINER_WORKDIR}/tmp"]
+    cmd += ["--workdir", CONTAINER_WORKDIR]
+    if platform == "linux":
+        cmd += ["--network", "host"]
+        hostaddr = "127.0.0.1"
+    else:
+        cmd += ["--add-host", f"{host}:host-gateway"]
+        hostaddr = None
+    container_ca = pathlib.PurePosixPath(CONTAINER_CA_DIR) / ca_bundle.name
+    cmd += [
+        PSQL_IMAGE,
+        "psql",
+        conninfo(host, local_port, user, container_ca, hostaddr=hostaddr),
+        *psql_args,
+    ]
+    return cmd
 
 
 def port_forward_command(environment: str, local_port: int) -> list[str]:
@@ -199,18 +281,26 @@ def main() -> int:
     ap.add_argument(
         "--context", help="kube context for the port-forward (default: ac_app_<env>-ro)"
     )
+    ap.add_argument(
+        "--psql",
+        dest="psql_choice",
+        choices=("auto", "local", "docker"),
+        default="auto",
+        help=f"which psql to run: the one on PATH, or the one in {PSQL_IMAGE} through docker "
+        "(default: auto, local when installed and docker otherwise)",
+    )
     ap.add_argument("psql_args", nargs="*", help="arguments for psql, after --")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
 
-    for tool in ("aws", "kubectl", "psql"):
+    for tool in ("aws", "kubectl"):
         if shutil.which(tool) is None:
-            hint = (
-                " (macOS: brew install libpq, then add its bin directory to PATH)"
-                if tool == "psql"
-                else ""
-            )
-            raise Failure(f"{tool} is not on PATH{hint}")
+            raise Failure(f"{tool} is not on PATH")
+    runner = choose_psql(
+        args.psql_choice,
+        have_psql=shutil.which("psql") is not None,
+        have_docker=shutil.which("docker") is not None,
+    )
 
     profile = args.profile or default_profile(args.persona, args.env)
     user = role_name(args.persona, args.env)
@@ -244,12 +334,25 @@ def main() -> int:
         env = dict(
             os.environ, PGPASSWORD=token, PGAPPNAME=f"db_read_only_psql/{args.persona}"
         )
-        psql = subprocess.run(
-            ["psql", conninfo(host, local_port, user, ca_bundle), *args.psql_args],
-            env=env,
-            check=False,
-        )
-        return psql.returncode
+        if runner == "docker":
+            logger.info("running psql from %s through docker", PSQL_IMAGE)
+            psql_cmd = docker_psql_command(
+                host,
+                local_port,
+                user,
+                ca_bundle,
+                args.psql_args,
+                cwd=pathlib.Path.cwd(),
+                tty=sys.stdin.isatty() and sys.stdout.isatty(),
+                platform=sys.platform,
+            )
+        else:
+            psql_cmd = [
+                "psql",
+                conninfo(host, local_port, user, ca_bundle),
+                *args.psql_args,
+            ]
+        return subprocess.run(psql_cmd, env=env, check=False).returncode
     finally:
         forward.terminate()
         try:
