@@ -330,10 +330,11 @@ state address and the rollback at each step: `docs/argocd-phase-8-production.md`
 cluster workspaces auto-apply since #477 (`docs/promotion.md`), so each merge is the apply and
 its speculative plan is read on the PR first, as Phase 6 did with the automated-sync flip.
 
-- Gate: `scripts/argocd_soak_log.py status`, and the Phase 0 preflight passes on production
+- Gate: `scripts/argocd_soak_log.py status`, and the Phase 0 preflight on production
   (`scripts/argocd_preflight.sh`). The owner waived the gate's day count on 2026-11-25 (four
   clean bump cycles and the rollback test, one day of the three). The ALB `replicaCount`
-  reduction was never applied; production has 6 free pod slots of 17 without it.
+  reduction was never applied, and the preflight fails its margin on production: 6 of 17 pod
+  slots are free, 2 after ArgoCD, where it wants 4. Staging has run at that margin since #474.
 - Commit A: set `argocd_enabled = true` in production's `terraform.tfvars` (4 to add in
   `module.argocd[0]`, applied on merge). The same `argocd_apps` release creates the production
   `AppProject` and `Application`, with `syncPolicy` manual: the module defaults
