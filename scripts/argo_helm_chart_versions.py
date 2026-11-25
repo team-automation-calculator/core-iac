@@ -18,11 +18,14 @@ argocd-apps chart versions.
 from __future__ import annotations
 
 import argparse
+import logging
+import os
 import re
 import sys
 import urllib.request
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 INDEX_URL = "https://argoproj.github.io/argo-helm/index.yaml"
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -35,7 +38,9 @@ CHART_HEADER_RE = re.compile(r"^  ([A-Za-z0-9_.-]+):\s*$")
 # such as annotations); later scalar fields sit at four spaces.
 ITEM_START_RE = re.compile(r"^  - (\w+):(?: (.*))?$")
 ITEM_FIELD_RE = re.compile(r"^    (\w+):(?: (.*))?$")
-SEMVER_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$")
+SEMVER_RE = re.compile(
+    r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$"
+)
 
 
 def unquote(value: str) -> str:
@@ -52,8 +57,8 @@ def parse_index(text: str) -> dict[str, list[dict[str, str]]]:
     (dependencies, maintainers, urls) are ignored.
     """
     entries: dict[str, list[dict[str, str]]] = {}
-    chart: Optional[str] = None
-    current: Optional[dict[str, str]] = None
+    chart: str | None = None
+    current: dict[str, str] | None = None
     in_entries = False
 
     for line in text.splitlines():
@@ -85,16 +90,16 @@ def parse_index(text: str) -> dict[str, list[dict[str, str]]]:
     return entries
 
 
-def semver_key(version: str) -> Optional[tuple[int, int, int]]:
+def semver_key(version: str) -> tuple[int, int, int] | None:
     match = SEMVER_RE.match(version)
     if not match or match.group(4):  # unparseable or prerelease
         return None
     return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
-def latest_stable(items: list[dict[str, str]]) -> Optional[dict[str, str]]:
-    best: Optional[dict[str, str]] = None
-    best_key: Optional[tuple[int, int, int]] = None
+def latest_stable(items: list[dict[str, str]]) -> dict[str, str] | None:
+    best: dict[str, str] | None = None
+    best_key: tuple[int, int, int] | None = None
     for item in items:
         if item.get("deprecated", "false").lower() == "true":
             continue
@@ -134,11 +139,16 @@ def main() -> int:
         help=f"Chart names to report (default: {' '.join(DEFAULT_CHARTS)})",
     )
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     if args.fetch:
         fetch_index(args.index)
     if not args.index.is_file():
-        print(f"Index not found: {args.index} (run with --fetch)", file=sys.stderr)
+        logger.error("Index not found: %s (run with --fetch)", args.index)
         return 2
 
     entries = parse_index(args.index.read_text(encoding="utf-8"))
@@ -147,7 +157,7 @@ def main() -> int:
     for chart in args.charts:
         latest = latest_stable(entries.get(chart, []))
         if latest is None:
-            print(f"{chart}: no stable version found in index", file=sys.stderr)
+            logger.error("%s: no stable version found in index", chart)
             missing = True
             continue
         app_version = latest.get("appVersion") or "-"

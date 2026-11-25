@@ -1,0 +1,22 @@
+# .repo-standards.toml — this repo's link to the shared standards, and where it
+# intentionally departs from them. A rule not listed under [overrides] is expected
+# to be met; a rule listed with a reason is skipped by the audit.
+# Adoption plan: plans/repo-standards-conformance.md
+
+[standards]
+source = "https://github.com/stevenuray/repo-standards"
+
+[repo]
+python = true
+
+# Permanent departures. CircleCI is this repo's CI. The audit only reads
+# .github/workflows/ci.yml, so the three CI-bound rules are exempted here; their
+# intent is met by the validate_python job in .circleci/config.yml.
+[overrides.ci]
+reason = "CircleCI (.circleci/config.yml) is this repo's CI; its validate_python job runs ./go lint and ./go test on every PR"
+
+[overrides.compile-check]
+reason = "./go compile runs inside ./go lint in the CircleCI validate_python job; the audit only reads .github/workflows/ci.yml"
+
+[overrides.lint]
+reason = "ruff check runs inside ./go lint in the CircleCI validate_python job; the audit only reads .github/workflows/ci.yml"

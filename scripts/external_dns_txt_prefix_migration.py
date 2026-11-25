@@ -22,6 +22,16 @@ time (see docs/external-dns-txt-prefix-migration.md for the full runbook):
     delete-old  remove the old-format TXT records (only after the prefix is
                 live and verified); refuses unless every new record exists
 
+    delete-legacy-cname
+                cleanup after the external-dns 0.23 upgrade: since v0.22.0
+                the AWS provider keys the ownership TXT of an A ALIAS record
+                on type `a`, so `a-extdns.<host>` replaces
+                `cname-extdns.<host>` and external-dns logs "Obsolete legacy
+                TXT record ... can be removed" for every host. This removes
+                our owner value from `cname-extdns.<host>`; it refuses unless
+                `a-extdns.<host>` exists with our owner value for every host.
+                `aaaa-extdns.<host>` is still current and is never touched.
+
 Writes are dry runs unless --apply is given; a dry run prints the Route 53
 change batch and the inverse batch that would undo it. Hosts come from
 automation_calculator_app_host in the environment's cluster-addons-layer
@@ -51,7 +61,7 @@ SHORT_ENV_NAMES = {"staging": "staging", "production": "prod"}
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 APP_HOST_RE = re.compile(
-    r'^\s*automation_calculator_app_host\s*=\s*"([^"]+)"\s*$', re.M
+    r'^\s*automation_calculator_app_host\s*=\s*"([^"]+)"\s*$', re.MULTILINE
 )
 
 
@@ -74,16 +84,28 @@ def env_hosts(environment: str) -> list[str]:
     return [host, f"www.{host}"]
 
 
+OCTAL_ESCAPE_RE = re.compile(r"\\([0-7]{3})")
+
+
 def normalize(name: str) -> str:
-    """Lowercase and strip the trailing dot Route 53 puts on names."""
-    return name.lower().rstrip(".")
+    """Decode Route 53's \\NNN octal escapes, lowercase, and strip the trailing dot.
+
+    Route 53 returns special characters in names as three-digit octal escapes,
+    e.g. `\\052` for the `*` of a wildcard. An escaped dot inside a label
+    (`\\056`) decodes to a plain `.` and becomes indistinguishable from a label
+    separator; no record this script handles has one.
+    """
+    decoded = OCTAL_ESCAPE_RE.sub(lambda m: chr(int(m.group(1), 8)), name)
+    return decoded.lower().rstrip(".")
 
 
 def to_txt_name(dns_name: str, token: str, prefix: str) -> str:
-    """Port of AffixNameMapper.ToTXTName (external-dns v0.21.0, prefix only).
+    """Port of AffixNameMapper.ToTXTName (external-dns v0.21.0, prefix only;
+    unchanged in v0.23.0).
 
     `token` is the lowercased record type external-dns encodes: "cname" for
-    alias A records, "a" for plain A, "aaaa" for AAAA.
+    alias A records up to v0.21, "a" for plain A (and alias A from v0.22),
+    "aaaa" for AAAA.
     """
     labels = dns_name.split(".", 1)
     resolved_prefix = prefix.replace(RECORD_TYPE_TEMPLATE, token)
@@ -132,6 +154,11 @@ def owner_of(value: str) -> str | None:
     return match.group(1) if match else None
 
 
+def owned_value(record: TxtRecord) -> str | None:
+    """The first of the record's ownership values whose owner is OWNER_ID."""
+    return next((v for v in record.ownership_values if owner_of(v) == OWNER_ID), None)
+
+
 @dataclass
 class TxtRecord:
     name: str
@@ -178,8 +205,16 @@ def tokens_for_host(records: list[dict], host: str) -> list[str]:
     return sorted(set(tokens))
 
 
-def build_plan(records: list[dict], hosts: list[str]) -> list[HostPlan]:
-    txt = {
+def has_alias_a(records: list[dict], host: str) -> bool:
+    return any(
+        normalize(r["Name"]) == host and r["Type"] == "A" and "AliasTarget" in r
+        for r in records
+    )
+
+
+def txt_index(records: list[dict]) -> dict[str, TxtRecord]:
+    """TXT record sets in the zone, keyed by normalized name."""
+    return {
         normalize(r["Name"]): TxtRecord(
             name=normalize(r["Name"]),
             ttl=r["TTL"],
@@ -188,6 +223,10 @@ def build_plan(records: list[dict], hosts: list[str]) -> list[HostPlan]:
         for r in records
         if r["Type"] == "TXT"
     }
+
+
+def build_plan(records: list[dict], hosts: list[str]) -> list[HostPlan]:
+    txt = txt_index(records)
     plans = []
     for host in hosts:
         tokens = tokens_for_host(records, host)
@@ -204,9 +243,7 @@ def build_plan(records: list[dict], hosts: list[str]) -> list[HostPlan]:
         new = {to_txt_name(host, t, TXT_PREFIX): None for t in tokens}
         for name in new:
             new[name] = txt.get(name)
-        source = next(
-            (r for r in old if owner_of(r.ownership_values[0]) == OWNER_ID), None
-        )
+        source = next((r for r in old if owned_value(r) is not None), None)
         plans.append(HostPlan(host, tokens, old, new, source))
     return plans
 
@@ -217,7 +254,7 @@ def new_value(plan: HostPlan) -> str:
             f"error: no ownership TXT record with owner={OWNER_ID} found for "
             f"{plan.host}; refusing to invent one"
         )
-    return plan.source.ownership_values[0]
+    return owned_value(plan.source)
 
 
 def print_plan(environment: str, plans: list[HostPlan]) -> None:
@@ -284,28 +321,122 @@ def delete_changes(plans: list[HostPlan]) -> tuple[list[dict], list[dict]]:
                 "run create-new first"
             )
         for record in plan.old:
-            remaining = [
-                v
-                for v in record.values
-                if not (is_ownership_value(v) and owner_of(v) == OWNER_ID)
-            ]
-            if remaining == record.values:
-                continue
-            current = record.to_rrset()
-            if remaining:
-                # Shared RRset (e.g. SPF at the apex): drop only our value.
-                # UPSERT replaces the whole RRset with the remaining values.
-                changes.append(
-                    {
-                        "Action": "UPSERT",
-                        "ResourceRecordSet": record.to_rrset(remaining),
-                    }
-                )
-                inverse.append({"Action": "UPSERT", "ResourceRecordSet": current})
-            else:
-                # DELETE must match the live RRset exactly (TTL and values).
-                changes.append({"Action": "DELETE", "ResourceRecordSet": current})
-                inverse.append({"Action": "CREATE", "ResourceRecordSet": current})
+            remove_owner_value(record, changes, inverse)
+    return changes, inverse
+
+
+def remove_owner_value(
+    record: TxtRecord, changes: list[dict], inverse: list[dict]
+) -> None:
+    """Append the change (and its inverse) that drops our owner value from `record`."""
+    remaining = [
+        v
+        for v in record.values
+        if not (is_ownership_value(v) and owner_of(v) == OWNER_ID)
+    ]
+    if remaining == record.values:
+        return
+    current = record.to_rrset()
+    if remaining:
+        # Shared RRset (e.g. SPF at the apex): drop only our value.
+        # UPSERT replaces the whole RRset with the remaining values.
+        changes.append(
+            {"Action": "UPSERT", "ResourceRecordSet": record.to_rrset(remaining)}
+        )
+        inverse.append({"Action": "UPSERT", "ResourceRecordSet": current})
+    else:
+        # DELETE must match the live RRset exactly (TTL and values).
+        changes.append({"Action": "DELETE", "ResourceRecordSet": current})
+        inverse.append({"Action": "CREATE", "ResourceRecordSet": current})
+
+
+@dataclass
+class LegacyCnamePlan:
+    host: str
+    # `cname-extdns.<host>`: the pre-v0.22 ownership TXT of the alias A record
+    legacy_name: str
+    legacy: TxtRecord | None
+    # `a-extdns.<host>`: what external-dns >= v0.22 reads and writes instead
+    current_name: str
+    current: TxtRecord | None
+
+    @property
+    def current_owned(self) -> bool:
+        return self.current is not None and any(
+            owner_of(v) == OWNER_ID for v in self.current.ownership_values
+        )
+
+    @property
+    def legacy_owned(self) -> bool:
+        return self.legacy is not None and any(
+            owner_of(v) == OWNER_ID for v in self.legacy.ownership_values
+        )
+
+
+def build_legacy_cname_plan(
+    records: list[dict], hosts: list[str]
+) -> list[LegacyCnamePlan]:
+    txt = txt_index(records)
+    plans = []
+    for host in hosts:
+        if not has_alias_a(records, host):
+            sys.exit(
+                f"error: {host} has no alias A record; the cname-/a- switch only "
+                "applies to A ALIAS records, refusing to guess"
+            )
+        legacy_name = to_txt_name(host, "cname", TXT_PREFIX)
+        current_name = to_txt_name(host, "a", TXT_PREFIX)
+        plans.append(
+            LegacyCnamePlan(
+                host,
+                legacy_name,
+                txt.get(legacy_name),
+                current_name,
+                txt.get(current_name),
+            )
+        )
+    return plans
+
+
+def print_legacy_cname_plan(environment: str, plans: list[LegacyCnamePlan]) -> None:
+    print(f"environment: {environment}  zone: {HOSTED_ZONE_ID}  prefix: {TXT_PREFIX}")
+    for plan in plans:
+        print(f"\n{plan.host}  (A ALIAS)")
+        print(f"  current ownership TXT (must exist with owner={OWNER_ID}):")
+        if plan.current is None:
+            print(f"    {plan.current_name}  MISSING")
+        else:
+            for value in plan.current.ownership_values:
+                print(f"    {plan.current_name}  TTL {plan.current.ttl}  {value}")
+            if not plan.current_owned:
+                print(f"    (no owner={OWNER_ID} value)")
+        print("  legacy ownership TXT (delete-legacy-cname candidate):")
+        if plan.legacy is None:
+            print(f"    {plan.legacy_name}  (absent, nothing to do)")
+        else:
+            for value in plan.legacy.ownership_values:
+                print(f"    {plan.legacy_name}  TTL {plan.legacy.ttl}  {value}")
+            others = len(plan.legacy.values) - len(plan.legacy.ownership_values)
+            if others:
+                print(f"      + {others} non-external-dns value(s), kept on delete")
+            if not plan.legacy_owned:
+                print(f"    (no owner={OWNER_ID} value, left alone)")
+
+
+def delete_legacy_cname_changes(
+    plans: list[LegacyCnamePlan],
+) -> tuple[list[dict], list[dict]]:
+    not_ready = [p.current_name for p in plans if not p.current_owned]
+    if not_ready:
+        sys.exit(
+            "error: refusing to delete legacy cname- TXT records while the a- "
+            f"records are missing or lack owner={OWNER_ID}: {', '.join(not_ready)}\n"
+            "external-dns >= 0.22 writes them on its first sync; check its logs"
+        )
+    changes, inverse = [], []
+    for plan in plans:
+        if plan.legacy is not None:
+            remove_owner_value(plan.legacy, changes, inverse)
     return changes, inverse
 
 
@@ -352,7 +483,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("command", choices=["plan", "create-new", "delete-old"])
+    parser.add_argument(
+        "command", choices=["plan", "create-new", "delete-old", "delete-legacy-cname"]
+    )
     parser.add_argument(
         "--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True
     )
@@ -375,7 +508,25 @@ def main() -> int:
         sys.exit("error: --apply has no effect on plan")
 
     hosts = env_hosts(args.environment)
-    plans = build_plan(list_records(profile, args.hosted_zone_id), hosts)
+    records = list_records(profile, args.hosted_zone_id)
+
+    if args.command == "delete-legacy-cname":
+        legacy_plans = build_legacy_cname_plan(records, hosts)
+        print_legacy_cname_plan(args.environment, legacy_plans)
+        print(
+            "\nnote: only run delete-legacy-cname once external-dns >= 0.22 is live in\n"
+            "this environment and has written the a-extdns records (it logs\n"
+            '"Obsolete legacy TXT record ... can be removed" until they are gone).\n'
+            "After this, rolling the chart back to 0.21 would lose ownership."
+        )
+        changes, inverse = delete_legacy_cname_changes(legacy_plans)
+        comment = f"external-dns 0.23 cleanup: delete legacy cname-extdns TXT ({args.environment})"
+        apply_changes(
+            profile, args.hosted_zone_id, comment, changes, inverse, args.apply
+        )
+        return 0
+
+    plans = build_plan(records, hosts)
     print_plan(args.environment, plans)
 
     if args.command == "create-new":
