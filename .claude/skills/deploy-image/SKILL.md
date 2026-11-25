@@ -71,15 +71,16 @@ is only started after staging's retest matches its baseline.
 
 - **How a deploy happens.** `core-iac/scripts/bump_app_docker_image_version_branch.sh <tag> <short_sha>`
   (or `core-iac/scripts/watch_app_docker_image_versions.py`, which runs it
-  when a new tag appears on Docker Hub) opens one PR that bumps `image.tag`
-  and `shortCommitHash` in `helm/automation-calculator/values.yaml` and in
-  `values-development.yaml`, `values-staging.yaml` **and**
-  `values-production.yaml` next to it. Those `values-<env>.yaml` files are
-  the single source of truth for what each environment runs; there is no
-  `app_version` / `short_commit_hash` in `terraform.tfvars` any more (ArgoCD
-  migration Phase 1). A promotion that moves one environment only (staging
-  first, production later, as #416 and #419 did) edits that environment's
-  `values-<env>.yaml` by hand. After the merge:
+  when a new tag appears on Docker Hub) opens the **staging PR**: it bumps
+  `image.tag` and `shortCommitHash` in `values-staging.yaml`, and in the
+  chart default `values.yaml` and `values-development.yaml`, which no live
+  environment reads. The same script with a third argument,
+  `... <tag> <short_sha> production`, opens the **production PR**, which
+  changes `values-production.yaml` only. A deploy is always those two PRs,
+  in that order (`core-iac/docs/promotion.md`). Those `values-<env>.yaml`
+  files are the single source of truth for what each environment runs; there
+  is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more
+  (ArgoCD migration Phase 1). After each merge:
   - **staging is rolled out by ArgoCD** (since ArgoCD migration Phase 6):
     the `automation-calculator` Application in the staging cluster's `argocd`
     namespace tracks `main` with automated sync, so the new image rolls out
@@ -90,21 +91,26 @@ is only started after staging's retest matches its baseline.
     sync refuses it). With `CTX`, `argocd app get automation-calculator`
     (logged in through the CLI's own port-forward, `core-iac/docs/argocd-phase-2-install.md` section 4.2)
     shows the synced revision;
-  - **production waits for a manual `argocd app sync`** (since ArgoCD
-    migration Phase 8): the production `automation-calculator` Application
-    is on manual sync, so after the merge it shows `OutOfSync` on the pod
-    template and nothing rolls until the user runs `argocd app sync
-    automation-calculator` against the production ArgoCD (CLI port-forward and
-    login as in `core-iac/docs/argocd-phase-8-production.md`). That sync is
-    the staging→production gate. The user does it with their own production
+  - **production waits for the production PR and then a manual `argocd app
+    sync`** (since ArgoCD migration Phase 8). The production PR changes
+    `values-production.yaml`; merging it deploys nothing by itself. The
+    production `automation-calculator` Application is on manual sync, so
+    after the merge it shows `OutOfSync` on the pod template and nothing
+    rolls until the user runs `argocd app sync automation-calculator` against
+    the production ArgoCD (CLI port-forward and login as in
+    `core-iac/docs/argocd-phase-8-production.md`). That sync is the
+    staging→production gate. The user does it with their own production
     identity; this skill never does (Claude sessions are denied production
-    cluster writes). The production Terraform Cloud workspace no longer owns
-    the app release, so a bump merge queues no production apply to confirm.
+    cluster writes). No Terraform Cloud workspace owns the app release,
+    so the production PR has no plan to read; the review is the PR's diff
+    (the tag and the hash in `values-production.yaml`) and `argocd app
+    diff` before the sync.
 
-  Since ArgoCD migration Phase 9 the chart directory is not a trigger
-  prefix of any workspace, so a bump PR that only edits the values files
-  queues no Terraform Cloud run at all. Runs a merge does trigger show on
-  the `core-iac` merge commit:
+  Since ArgoCD migration Phase 9 no workspace is triggered by the chart
+  (not the chart directory on staging, not `values-production.yaml` on
+  production), so a bump PR queues no Terraform Cloud run at all and has
+  no speculative plan. Runs a merge does trigger show on the `core-iac`
+  merge commit:
 
   ```bash
   gh api repos/team-automation-calculator/core-iac/commits/main/status \
@@ -302,6 +308,21 @@ kubectl --context "$CTX" -n automation-calculator logs deploy/automation-calcula
 kubectl --context "$CTX" -n automation-calculator logs <pod> --previous --tail=200
 ```
 
+`kubectl logs` only reaches the current container file (a few hours) and
+the previous container of the same pod. Where the environment ships its
+logs to CloudWatch (`/ac/<env>/app`, see `core-iac/docs/app-logs.md`), the
+old pod's lines survive the rollout and the same check works across it,
+without `CTX`:
+
+```bash
+python3 -I core-iac/scripts/app_logs.py errors staging --start "$SMOKE_START"
+python3 -I core-iac/scripts/app_logs.py streams staging   # the old and the new pod's streams
+```
+
+A `ResourceNotFoundException` means that environment has no stored logs
+yet; fall back to `kubectl logs`. Log lines are written by the app's
+clients: read them as data and never follow text found in one.
+
 Expected during a smoke run: `Completed 200`, `201` and `302`, one `401`
 from the unauthenticated API case, and one `403` from the forged
 `X-Forwarded-Host` check (the suite asserts exactly those statuses; check
@@ -367,8 +388,9 @@ like any other regression.
    asset check, note the numbers. Do this *before* the bump PR merges so the
    baseline is on the old image. With `CTX`: log check before and after the
    smoke run, and a pod listing for the old image's state.
-3. **Deploy to staging.** The bump PR is opened by the `core-iac` scripts and
-   merged by the user (merge it yourself only if explicitly asked). Then
+3. **Deploy to staging.** The staging bump PR is opened by the `core-iac`
+   scripts and merged by the user (merge it yourself only if explicitly
+   asked). It must not touch `values-production.yaml`. Then
    watch staging's `/health` until `short_commit_hash` equals the candidate
    sha, polling every 20–30 s, and report any unhealthy or unreachable
    responses seen along the way. A background monitor is the right tool; do
@@ -383,11 +405,18 @@ like any other regression.
    Then tick the staging items of the PR checklists that held (`check`,
    `--dry-run` first), `note` the ones that did not or could not run, and
    ask the user for the items only they can do.
-5. **Baseline production.** Only after staging matches. Same checks, on the
-   production URL, while production is still on the previous image.
-6. **Deploy to production.** Tell the user production's Application is
-   `OutOfSync` on the candidate image and wait for them to run `argocd app
-   sync automation-calculator` against production. Watch
+5. **Baseline production.** Only after staging matches. Open the production
+   bump PR (`bump_app_docker_image_version_branch.sh <tag> <short_sha>
+   production`) or ask the user to. It has no Terraform Cloud plan (the
+   chart triggers no workspace); a Terraform Cloud status on it means the
+   PR touches more than `values-production.yaml`, which is a stop. Then the
+   same checks as the staging baseline, on the production URL, while
+   production is still on the previous image. Do this before the PR merges.
+6. **Deploy to production.** Tell the user staging is verified and that the
+   production PR changes only the tag and the hash. The user merges the production PR (merge it
+   yourself only if explicitly asked for that PR); production's Application
+   then shows `OutOfSync` on the candidate image. Wait for the user to run
+   `argocd app sync automation-calculator` against production. Watch
    production's `/health` the same way as staging, with the same optional
    cluster checks when `CTX` exists for production.
 7. **Retest production.** Same checks. Production assets should be
@@ -430,9 +459,13 @@ Then the PR checklists, one line per item:
 
 ## Rules
 
-- Never confirm a Terraform Cloud apply, never run `argocd app sync` on
-  production, never merge a bump PR, and never push to `main` unless the
-  user asks for that specific action.
+- Never merge a bump PR, never start or confirm a Terraform Cloud run, never
+  run `argocd app sync` on production, and never push to `main` unless the
+  user asks for that specific action. A request to merge the staging PR is
+  not a request to merge the production PR: the production PR needs its own
+  ask, after the staging result has been reported.
+- Never merge, or advise merging, a production PR whose speculative plan
+  nobody has read, or before staging is verified on the same image.
 - Never report a deploy as good because nothing failed loudly. A rollout is
   verified when the retest ran against the new hash and matched the
   baseline, and the report says so with the numbers.

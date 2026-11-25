@@ -1,5 +1,5 @@
 variable "auto_apply" {
-  description = "When true, automatically applies successful plans triggered via the API, UI, or VCS. Should be false for production."
+  description = "When true, the production base cluster and cluster add-ons workspaces apply a successful plan without a confirm: merging a production pull request is the approval (docs/promotion.md). The global workspaces (Route 53 domains, GitHub organization, Google) always wait for a confirm."
   type        = bool
   default     = false
 }
@@ -116,6 +116,12 @@ variable "tfc_owner_token_expired_at" {
     condition     = can(formatdate("YYYY-MM-DD", var.tfc_owner_token_expired_at))
     error_message = "tfc_owner_token_expired_at must be an RFC 3339 timestamp, e.g. 2027-11-18T00:00:00Z."
   }
+}
+
+variable "trigger_on_shared_code" {
+  default     = false
+  description = "False for production: its cluster workspaces run only for changes to production's own files (the two working directories), so a shared module change applies on staging at merge and reaches production with the next production pull request (docs/promotion.md)."
+  type        = bool
 }
 
 variable "tfe_workspace_tf_version" {

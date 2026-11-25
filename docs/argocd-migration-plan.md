@@ -332,16 +332,17 @@ Runbook with the exact commands, the failure triage and the definition of "manua
 ### Phase 8: production
 
 Runbook with the soak-gate check, the production preflight, the expected plan per merge, the
-state address and the rollback at each step: `docs/argocd-phase-8-production.md`. One branch,
-two commits, landed as **separate merges** in this order (each a fresh, promptly confirmed
-production run); the second is reverted off the branch and re-landed as a follow-up PR if the
-first has to merge alone, as Phase 6 did with the automated-sync flip.
+state address and the rollback at each step: `docs/argocd-phase-8-production.md`. Two PRs
+("Commit A" and "Commit B", one branch until 2026-11-25), merged in this order. Production's
+cluster workspaces auto-apply since #477 (`docs/promotion.md`), so each merge is the apply and
+its speculative plan is read on the PR first, as Phase 6 did with the automated-sync flip.
 
-- Gate: `scripts/argocd_soak_log.py status` prints PASS, and the Phase 0 preflight passes on
-  production (`scripts/argocd_preflight.sh`). The ALB `replicaCount` reduction was never applied
-  (staging had the headroom), so production may first need it or `desired_size = 2` in its own PR.
+- Gate: `scripts/argocd_soak_log.py status`, and the Phase 0 preflight passes on production
+  (`scripts/argocd_preflight.sh`). The owner waived the gate's day count on 2026-11-25 (four
+  clean bump cycles and the rollback test, one day of the three). The ALB `replicaCount`
+  reduction was never applied; production has 6 free pod slots of 17 without it.
 - Commit A: set `argocd_enabled = true` in production's `terraform.tfvars` (4 to add in
-  `module.argocd[0]`; confirm promptly). The same `argocd_apps` release creates the production
+  `module.argocd[0]`, applied on merge). The same `argocd_apps` release creates the production
   `AppProject` and `Application`, with `syncPolicy` manual: the module defaults
   (`argocd_manage_application` true, the three `argocd_application_*` variables false) do it, and
   production's tfvars set none of them.
@@ -352,9 +353,10 @@ first has to merge alone, as Phase 6 did with the automated-sync flip.
   address, `terraform state rm 'module.main_rails_app.helm_release.automation-calculator[0]'`
   (production applied the Phase 6 move), then `manage_app_helm_release = false` in production
   tfvars (plans 0 changes), then delete the Helm history.
-- Production stays on manual sync. A production deploy is now: merge the bump PR, then
+- Production stays on manual sync. A production deploy is now: merge the production bump PR, then
   `argocd app sync automation-calculator` through a port-forward. Decide separately whether to move
-  production to automated sync, which would make PR review the only gate.
+  production to automated sync, which would make the merge of the production PR the deploy again,
+  as it has been under Terraform since #477.
 
 ### Phase 9: decommission
 
@@ -371,8 +373,9 @@ objects in both states), the expected plans and the rollback: `docs/argocd-phase
   feeding it) goes too: with no release it orders nothing, and its destroy is state only.
 - Each env's `cluster-addons-layer` loses `manage_app_helm_release` and the chart-path input, and
   staging and production lose `imports_argocd_phase4.tf` (applied in Phase 4).
-- Remove `helm/automation-calculator` from `cluster_addons_layer_module_directories` so chart
-  changes stop queueing TFC runs (and stale production plans). `terraform/modules/aws/main_rails_app`
+- Remove `helm/automation-calculator` from `cluster_addons_layer_module_directories`, and
+  `values-production.yaml` from production's trigger patterns (#477), so chart changes and bump
+  PRs stop queueing TFC runs. `terraform/modules/aws/main_rails_app`
   **stays** in the list, unlike what this bullet first said: the module still owns the namespace,
   the Secret, RDS and ACM in every addons workspace, so changes to it must keep queueing their runs.
 - Update `AGENTS.md` (layout, apply order, how deploys work, scripts; `CLAUDE.md` imports it since

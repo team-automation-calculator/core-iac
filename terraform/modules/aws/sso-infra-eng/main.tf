@@ -101,6 +101,17 @@ locals {
     "sns:Get*",
     "sns:List*",
   ]
+
+  # Searching CloudWatch Logs, for both InfraEng personas: the same three
+  # actions as the SearchLogs statement of the CI read-only role
+  # (modules/aws/ci-iam-role), so the engineer's own SSO session can search
+  # the app log group without first assuming that role. The verb patterns
+  # above do not match them (plans/app-log-persistence.md).
+  search_logs_actions = [
+    "logs:FilterLogEvents",
+    "logs:StartQuery",
+    "logs:StopQuery",
+  ]
 }
 
 resource "aws_ssoadmin_permission_set" "infra_eng" {
@@ -124,6 +135,12 @@ data "aws_iam_policy_document" "infra_eng" {
   statement {
     sid       = "ReadInfrastructureServices"
     actions   = local.read_only_infrastructure_actions
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "SearchLogs"
+    actions   = local.search_logs_actions
     resources = ["*"]
   }
 }
@@ -158,6 +175,12 @@ data "aws_iam_policy_document" "infra_eng_read_only" {
   statement {
     sid       = "ReadInfrastructureServices"
     actions   = local.read_only_infrastructure_actions
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "SearchLogs"
+    actions   = local.search_logs_actions
     resources = ["*"]
   }
 }

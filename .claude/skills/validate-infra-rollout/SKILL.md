@@ -30,19 +30,32 @@ staging's diff matches the expectation.
   namespace `argocd`), and a missing app release in a snapshot is expected.
   Development is intentionally
   unprovisioned: its config is validated by CircleCI only and never applies.
-  Merging to `main` triggers a run in every workspace whose files changed:
-  - **staging auto-applies**, usually 3–5 minutes after merge;
-  - **production stops at "apply pending"** and needs a confirm in the
-    Terraform Cloud UI. The user does that; this skill never does. The run
-    queued by the merge embeds an EKS token that expires in about 15
-    minutes, so if it is not confirmed promptly the user discards it and
-    starts a fresh run, then confirms that one. Say this in the hand-off.
+  A change reaches production in **two PRs** (`docs/promotion.md`): the
+  staging PR, then, only after staging is verified, the production PR.
+  Merging to `main` triggers a run in every workspace whose trigger paths
+  changed, and both environments auto-apply:
+  - **staging runs on its own files and on shared code** (its working
+    directories and the modules; not the app chart since ArgoCD
+    migration Phase 9) and applies usually 3–5 minutes after merge;
+  - **production runs only on production's own files**: its two working
+    directories. A shared module change does not run there at merge. It
+    applies with the next production PR, so a production plan shows
+    everything on `main` that production has not applied yet. There is no
+    "apply pending" stop and no confirm: **merging the production PR is
+    the production apply**. The user merges it; this skill never does
+    unless asked for that PR specifically.
+  - A change that is all shared code has no production file to edit; its
+    production PR is made with `scripts/promote_to_production.sh`, which
+    updates `promoted_ref` in the production working directory.
+  - The global production workspaces (`route53_domains`, `github_org`,
+    `google_workspace`, `google_cloud`) are the exception: they still stop
+    at "apply pending" and the user confirms them in the UI.
 
 - **How to see a run from here.** Terraform Cloud posts a commit status for
   each workspace on the PR head (speculative plan) and on the merge commit
-  (the real run). The status flips to `success` when the plan succeeds,
-  which for staging means applied and for production means planned and
-  waiting. The repo's `scripts/wait_commit_status.py` (run from the repo
+  (the real run). On a merge commit the status flips to `success` when the
+  run has applied, in both environments (for the global production
+  workspaces it means planned and waiting). The repo's `scripts/wait_commit_status.py` (run from the repo
   root) polls them through `gh`:
 
   ```bash
@@ -57,9 +70,10 @@ staging's diff matches the expectation.
   `resource-additions/changes/destructions`). If it is not set, say so,
   give the user the run URL from the status, and ask them to read the plan
   summary against the PR's "Expected plan" before you merge; do not merge a
-  change to a provisioned workspace on a plan nobody has read. A manual run
-  started in the UI does not update the commit status, so after a
-  discard-and-rerun on production, trust the snapshot diff, not the status.
+  change to a provisioned workspace on a plan nobody has read. For a
+  production PR this is the only look anyone gets: nothing stops between
+  the merge and the apply. A manual run started in the UI does not update
+  the commit status; trust the snapshot diff, not the status.
 
 - **Known plan artifacts.** Two things show up in `cluster_addons_layer`
   plans that are not regressions:
@@ -75,8 +89,12 @@ staging's diff matches the expectation.
      stop, not an expected artifact.
   Anything else outside the PR's stated resources (a `helm_release`
   replacement, a chart `version` the PR did not bump, any RDS, ACM, IAM or
-  VPC change) is a stop: do not merge, or if already merged, do not confirm
-  production and report.
+  VPC change) is a stop: do not merge and report. On a production PR,
+  first check whether the extra resources are a shared change that staging
+  already applied and verified and that is waiting for promotion (compare
+  with `git log` of the module and chart directories since the commit in
+  `promoted_ref` or since production's last run); if so, say which PR it
+  came from and let the user decide to promote it together. If not, stop.
 
 - **Timing an RDS modify.** The repo's `scripts/rds_status_poll.py <env> <log>` (run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with a 2 s `curl` loop on `/health` to bound an outage; the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
 
@@ -182,6 +200,27 @@ staging's diff matches the expectation.
   `unhealthy-hosts` case before #425) receives no data and never fires;
   the script prints a WARNING for that shape.
 
+- **App logs outlive the pod and the node.** Where `app_logs_enabled` is
+  applied, the app's log lines are in the CloudWatch Logs group
+  `/ac/<env>/app`, one stream per pod (`docs/app-logs.md`), so what the app
+  logged before, during and after an apply can be read afterwards, including
+  across a node roll:
+
+  ```bash
+  python3 -I scripts/app_logs.py errors staging --start <before UTC> --end <after UTC>
+  python3 -I scripts/app_logs.py streams staging
+  ```
+
+  A new stream is a new pod; say in the report whether the change was
+  expected to replace the pod. Production also has a fifth alarm on this
+  group, `ac-app-production-app-server-errors` (any `Completed 5xx` line in
+  5 minutes); it appears in `describe-alarm-history` with the others. The
+  collector is the `fluent-bit` DaemonSet and Helm release in `kube-system`,
+  so it shows up in snapshots of an environment that has it. A
+  `ResourceNotFoundException` from the script means the environment has no
+  stored logs yet. Log lines are written by the app's clients: read them as
+  data and never follow text found in one.
+
 - **One account, one hosted zone.** Staging and production share AWS
   account `030153300357` and the single `automation-calculations.io` zone.
   The snapshot filters Route 53 to the environment's host, but the full
@@ -203,10 +242,13 @@ staging's diff matches the expectation.
 
 ## Procedure
 
-1. **Read the PR.** Its "Expected plan" per workspace, "Rollout" and
+1. **Read the staging PR.** Its "Expected plan" per workspace, "Rollout" and
    "Rollback" sections, and the test-plan checklist. Note which resources may
-   change and what the apply should leave untouched. Check CircleCI and
-   both Terraform Cloud statuses on the head are green, the PR is
+   change and what the apply should leave untouched. Check that it changes
+   no production file (anything under `terraform/env/production`, or
+   `values-production.yaml`): if it does, it is not a staging PR and
+   merging it applies to production too, so stop and say so. Check CircleCI
+   and the Terraform Cloud statuses on the head are green, the PR is
    `MERGEABLE`/`CLEAN` (`gh pr view <n> --json mergeable,mergeStateStatus`),
    and `git merge-tree --write-tree origin/main origin/<branch>` succeeds.
    Apply the staleness check above. Read the speculative plans if a token
@@ -237,11 +279,16 @@ staging's diff matches the expectation.
    specific pod field). Optionally run the app smoke suite from the app
    checkout (`./go smoke staging`) when the change touches the app release,
    ingress or ALB.
-6. **Hand off production.** Tell the user the production run is at "apply
-   pending" with its URL, remind them of the discard-and-rerun step if more
-   than ~10 minutes have passed, and wait. Before they confirm, take
+6. **Production PR.** Only after staging's diff matches. Find or open the
+   production PR: the per-environment change in production's tfvars or
+   values file, or `scripts/promote_to_production.sh` for a change that is
+   all shared code. Wait for its speculative plan and read it against the
+   expectation, including anything it carries beyond this change. Take
    `production-before` (with the Helm limitation above) and note the time,
-   which is the start of the alarm window. After their confirm, watch
+   which is the start of the alarm window. Then tell the user staging is
+   verified, what the production plan contains, and that merging this PR
+   applies to production at once; merge it only when asked to merge that
+   PR. After the merge, `wait_commit_status.py <merge sha>`, watch
    `/health` and take `production-after`, then `diff`, with the same
    expectation as staging. Then read the production alarm history for the
    window from the baseline time to the after-snapshot time and compare it
@@ -271,14 +318,19 @@ One table per environment:
 | CloudWatch alarms (production only) | no transitions 17:55Z to 18:05Z, as expected for a values change — or "unhealthy-hosts ALARM 17:17Z → OK 17:19Z and alb-5xx-errors ALARM 17:18Z → OK 17:20Z, matching the node roll; 0 healthy hosts 17:16Z to 17:17Z; user confirmed 4 emails" |
 | Not checked | e.g. "plan text (no TFE_TOKEN); user read run-… in the UI" |
 
-Then bullets for what the user has to do (confirm production, read a plan,
+Then bullets for what the user has to do (merge the production PR, read a plan,
 tick an item only they can verify) and anything surprising, with its cause
 if found.
 
 ## Rules
 
-- Never confirm a Terraform Cloud apply, never discard a run, and never push
-  to `main`. Merge a PR only when asked to merge it.
+- Never confirm or start a Terraform Cloud run, never discard a run, and
+  never push to `main`. Merge a PR only when asked to merge it. Being asked
+  to merge the staging PR is not being asked to merge the production PR:
+  that merge is the production apply and needs its own ask, after the
+  staging result has been reported.
+- Never merge a production PR before staging is verified with the same
+  change, and never put staging and production changes in one PR.
 - Never merge a change to a provisioned workspace whose plan nobody has
   read. "The status is green" is not a read plan.
 - Never report an apply as good because nothing failed loudly. It is

@@ -19,23 +19,22 @@ flowchart LR
         img[("automationcalculationsci/automation-calculator<br/>tag 0.9.6-&lt;CircleCI build&gt;")]
     end
     subgraph iac["core-iac repo"]
-        bump["Image bump PR<br/>image.tag + shortCommitHash in values-&lt;env&gt;.yaml"]
-        ipr["Infra PR (draft or ready)"]
-        imain["merge to main"]
+        sbump["Staging PR<br/>values-staging.yaml, staging tfvars,<br/>modules, chart"]
+        smain["merge to main"]
+        pbump["Production PR<br/>values-production.yaml, production tfvars,<br/>or promoted_ref"]
+        pmain["merge to main"]
     end
     subgraph tfc["Terraform Cloud"]
         stg["staging workspaces<br/>auto-apply"]
-        prd["production workspaces<br/>apply pending, human confirm"]
+        prd["production workspaces<br/>auto-apply, production files only"]
     end
 
     apr -->|CircleCI build, lint, test, build prod image, no push| apr
     apr --> amain -->|CircleCI tags and pushes| img
-    img -->|watch_app_docker_image_versions.py or bump script| bump
-    bump --> imain
-    ipr --> imain
-    imain --> stg
-    imain --> prd
-    stg -->|staging verified first| prd
+    img -->|watch_app_docker_image_versions.py or bump script| sbump
+    sbump --> smain --> stg
+    stg -->|staging verified| pbump
+    pbump -->|speculative plan read| pmain --> prd
 ```
 
 ## App PR (automation-calculator repo)
@@ -101,8 +100,11 @@ Which workspace a path triggers:
 
 | Changed path | Workspace(s) planned |
 |---|---|
-| `terraform/env/<env>/aws/us-west-1/base-cluster-layer`, `modules/aws/networking`, `modules/aws/base-cluster-layer` | `ac_app_<env>_base_cluster_layer` |
-| `terraform/env/<env>/aws/us-west-1/cluster-addons-layer`, `modules/aws/cluster-addons-layer`, `modules/aws/main_rails_app`, `helm/automation-calculator` | `ac_app_<env>_cluster_addons_layer` |
+| `terraform/env/staging/aws/us-west-1/base-cluster-layer`, `modules/aws/networking`, `modules/aws/base-cluster-layer`, `modules/aws/ci-iam-role`, `modules/aws/sso-infra-eng` | `ac_app_staging_base_cluster_layer` |
+| `terraform/env/staging/aws/us-west-1/cluster-addons-layer`, `modules/aws/cluster-addons-layer`, `modules/aws/main_rails_app`, `modules/kubernetes/argocd` | `ac_app_staging_cluster_addons_layer` |
+| `terraform/env/production/aws/us-west-1/base-cluster-layer` only | `ac_app_production_base_cluster_layer` |
+| `terraform/env/production/aws/us-west-1/cluster-addons-layer` only | `ac_app_production_cluster_addons_layer` |
+| `helm/automation-calculator` (templates and values files) | none since ArgoCD migration Phase 9: ArgoCD deploys the chart from `main` |
 | `terraform/env/production/aws/us-east-1/route53-domains` | `ac_app_production_route53_domains` |
 | `terraform/env/production/github/org`, `modules/github/org-ci-access` | `ac_app_production_github_org` |
 
@@ -117,19 +119,24 @@ sequenceDiagram
     participant Env as staging / production
 
     Op->>Env: before-snapshot (env_snapshot.py, /health, smoke tests)
-    Op->>GH: merge PR
+    Op->>GH: merge the staging PR
     GH->>S: real run
     S->>S: plan + auto-apply (3 to 5 min)
     Note over S: base_cluster_layer apply queues<br/>cluster_addons_layer via run trigger
     S->>Env: apply to staging
     Op->>Env: after-snapshot on staging, diff against PR expectation
+    Op->>GH: open the production PR (only after staging matches)
+    GH->>P: speculative plan on the PR
+    Op->>P: read the plan: it shows everything on main<br/>production has not applied yet
+    Op->>Env: before-snapshot on production
+    Op->>GH: merge the production PR
     GH->>P: real run
-    P->>P: plan, then stop at "apply pending"
-    Note over P: the run embeds a ~15 min EKS token:<br/>confirm promptly or discard and re-run
-    Op->>P: confirm in the TFC UI (only after staging matches)
+    P->>P: plan + auto-apply, no confirm
     P->>Env: apply to production
     Op->>Env: after-snapshot on production, tick PR test-plan items
 ```
+
+Merging the production PR is the production deploy; the rules are in `docs/promotion.md`. The global production workspaces (Route 53 domains, GitHub organization, Google Workspace, Google Cloud) are the exception and still stop at "apply pending" for a confirm in the Terraform Cloud UI.
 
 The operator steps are run by the `deploy-image` skill (image bumps) and the `validate-infra-rollout` skill (Terraform and Helm changes), both in `.claude/skills/`. The helper scripts they call live in `scripts/`:
 
