@@ -5,13 +5,18 @@ staging and is verified there. The second changes production and is merged only 
 well. **Merging the production pull request is the deploy**: the production cluster workspaces
 apply on merge, with no confirm in Terraform Cloud.
 
+The app image is the one exception since ArgoCD migration Phase 8. ArgoCD deploys the app, and
+production's Application is on manual sync: merging the production pull request changes what
+`main` says production should run, and the image rolls out when `argocd app sync` is run
+afterwards (`docs/argocd-phase-8-production.md` section 8).
+
 ## How it is wired
 
 | | Staging | Production |
 |---|---|---|
 | `ac_app_<env>_base_cluster_layer`, `ac_app_<env>_cluster_addons_layer` | auto-apply | **auto-apply** |
 | What triggers them | the environment's working directories, the shared modules and the app chart | **production's own files only**: the two working directories and `helm/automation-calculator/values-production.yaml` |
-| App rollout | ArgoCD, from `main` | the Terraform `helm_release`, until ArgoCD migration Phase 8 |
+| App rollout | ArgoCD, from `main`, automated sync | ArgoCD, from `main`, on a manual `argocd app sync` |
 | Route 53 domains, GitHub organization, Google Workspace, Google Cloud | (production only) | manual confirm, unchanged: they exist once and have no staging to rehearse on |
 
 The settings are `auto_apply`, `trigger_on_shared_code` and `global_workspaces_auto_apply` on
@@ -26,19 +31,20 @@ picks the change up when a production pull request merges.
 
 | Change | Staging pull request | Production pull request |
 |---|---|---|
-| App image | `./go bump-app-docker-image-version-branch <tag> <sha>` (or the watcher): `values-staging.yaml`, plus the chart default and `values-development.yaml` | `scripts/bump_app_docker_image_version_branch.sh <tag> <sha> production`: `values-production.yaml` |
+| App image | `./go bump-app-docker-image-version-branch <tag> <sha>` (or the watcher): `values-staging.yaml`, plus the chart default and `values-development.yaml` | `./go bump-app-docker-image-version-branch <tag> <sha> production`: `values-production.yaml`, then `argocd app sync` |
 | A per-environment setting (tfvars, a version pin, a toggle) | staging's `terraform.tfvars` | production's `terraform.tfvars` |
 | A new capability in a module | the module change, off by default behind a variable, and the toggle in staging's tfvars | the toggle in production's tfvars |
 | Shared code with nothing per-environment to change (a module refactor, a chart template, a chart or module version bump) | the change itself | `./go promote-to-production <base\|addons\|both>`: writes the verified `main` commit to `promoted_ref` in the production working directory, which is the file the pull request changes |
 | A provider or lock file bump | staging's env config directory | production's env config directory |
 
-**A chart change needs a chart version bump to reach production.** The production
-`helm_release` installs the chart from a local directory, and Terraform plans a release update
-only when the chart `version` (read from `Chart.yaml`) or the values change. A template or
-`values.yaml` change with the same version gives a production plan of "no changes": #474 sat
-unapplied on production this way, and its promotion pull request (#480) planned nothing. Bump
-`version` in `helm/automation-calculator/Chart.yaml` in the same pull request as the chart
-change, and expect the production plan to show the `helm_release` update.
+**A chart change reaches production at the next `argocd app sync`.** ArgoCD renders the chart
+from `main`. Staging syncs by itself, so a template or `values.yaml` change applies there at
+merge. Production's manual sync applies everything on `main` at once: every chart change merged
+since the last sync comes along with the image in `values-production.yaml`, and no promotion pull
+request is involved. `argocd app diff automation-calculator` before the sync is the review, and
+anything in it beyond the tag and the hash is a chart change to understand first. The chart
+`version` in `Chart.yaml` no longer decides whether a change applies (under the Terraform
+`helm_release` it did: #474 sat unapplied on production until the version was bumped).
 
 Prefer a per-environment variable over `promoted_ref` when the change can be written that way:
 the production pull request then says what it turns on.
