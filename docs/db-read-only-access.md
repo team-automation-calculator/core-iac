@@ -16,7 +16,13 @@ Two roles so that the PostgreSQL log says who ran what. An agent always uses `--
 ./go db-read-only-psql staging --as ci -- -c "select count(*) from users"
 ```
 
-The script needs `aws`, `kubectl`, `psql` (macOS: `brew install libpq`) and an `aws sso login`.
+The script needs `aws`, `kubectl` and an `aws sso login`, plus either `psql` on `PATH` (macOS:
+`brew install libpq`) or `docker`. Without a local `psql` it runs the one in the official
+`postgres:18-alpine` image, the major version the app repo's `docker-compose.yml` uses, in a
+container that connects to the port-forward on the host; `--psql local` or `--psql docker` forces
+one. In the container only the working directory's `tmp/` is visible, at the same relative path:
+`-f tmp/query.sql` works, a path outside `tmp/` does not. The token reaches the container as an
+environment variable, never as an argument.
 
 ## What the roles can and cannot do
 

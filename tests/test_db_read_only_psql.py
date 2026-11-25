@@ -5,9 +5,12 @@ import re
 
 import pytest
 from db_read_only_psql import (
+    PSQL_IMAGE,
     Failure,
+    choose_psql,
     conninfo,
     default_profile,
+    docker_psql_command,
     find_instance,
     kube_context,
     port_forward_command,
@@ -67,6 +70,80 @@ def test_conninfo_verifies_the_rds_name_over_the_local_forward():
     assert "user=ac_read_only_ci_staging" in info
     assert "dbname=automation_calculator_app" in info
     assert "sslmode=verify-full sslrootcert=/ca.pem" in info
+
+
+def test_psql_choice_prefers_local_and_falls_back_to_docker():
+    assert choose_psql("auto", have_psql=True, have_docker=True) == "local"
+    assert choose_psql("auto", have_psql=False, have_docker=True) == "docker"
+    assert choose_psql("docker", have_psql=True, have_docker=True) == "docker"
+    assert choose_psql("local", have_psql=True, have_docker=False) == "local"
+
+
+def test_psql_choice_fails_when_the_chosen_client_is_missing():
+    with pytest.raises(Failure, match="neither psql nor docker"):
+        choose_psql("auto", have_psql=False, have_docker=False)
+    with pytest.raises(Failure, match="psql is not on PATH"):
+        choose_psql("local", have_psql=False, have_docker=True)
+    with pytest.raises(Failure, match="docker is not on PATH"):
+        choose_psql("docker", have_psql=True, have_docker=False)
+
+
+def docker_command(tmp_path, platform="darwin", tty=False, args=("-c", "select 1")):
+    ca = tmp_path / "rds-ca" / "global-bundle.pem"
+    return docker_psql_command(
+        "stg.internal",
+        15432,
+        "ac_read_only_ci_staging",
+        ca,
+        list(args),
+        cwd=tmp_path,
+        tty=tty,
+        platform=platform,
+    )
+
+
+def test_docker_psql_maps_the_rds_name_to_the_host_and_verifies_it(tmp_path):
+    cmd = docker_command(tmp_path)
+    assert cmd[:4] == ["docker", "run", "--rm", "--interactive"]
+    assert "--tty" not in cmd
+    assert cmd[cmd.index("--add-host") + 1] == "stg.internal:host-gateway"
+    assert f"{tmp_path / 'rds-ca'}:/rds-ca:ro" in cmd
+    image = cmd.index(PSQL_IMAGE)
+    assert cmd[image + 1] == "psql"
+    info = cmd[image + 2]
+    assert "host=stg.internal port=15432" in info
+    assert "hostaddr" not in info
+    assert "sslmode=verify-full sslrootcert=/rds-ca/global-bundle.pem" in info
+    assert cmd[image + 3 :] == ["-c", "select 1"]
+
+
+def test_docker_psql_takes_the_token_from_the_environment_not_the_arguments(tmp_path):
+    cmd = docker_command(tmp_path)
+    assert [cmd[i + 1] for i, part in enumerate(cmd) if part == "--env"] == [
+        "PGPASSWORD",
+        "PGAPPNAME",
+    ]
+    assert not any("PGPASSWORD=" in part for part in cmd)
+
+
+def test_docker_psql_shares_only_tmp_of_the_working_directory(tmp_path):
+    assert not any(part.endswith(":/work/tmp") for part in docker_command(tmp_path))
+    (tmp_path / "tmp").mkdir()
+    cmd = docker_command(tmp_path, tty=True)
+    assert f"{tmp_path / 'tmp'}:/work/tmp" in cmd
+    assert cmd[cmd.index("--workdir") + 1] == "/work"
+    assert "--tty" in cmd
+
+
+def test_docker_psql_on_linux_uses_the_host_network_and_loopback(tmp_path):
+    cmd = docker_command(tmp_path, platform="linux")
+    assert cmd[cmd.index("--network") + 1] == "host"
+    assert "--add-host" not in cmd
+    assert "host=stg.internal hostaddr=127.0.0.1 port=15432" in cmd[-3]
+
+
+def test_psql_image_is_the_official_postgres_image_on_a_fixed_major():
+    assert re.fullmatch(r"postgres:\d+-alpine", PSQL_IMAGE)
 
 
 def test_port_forward_uses_the_read_only_context_and_the_forwarder_namespace():
