@@ -14,7 +14,7 @@ googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.9.6-1014
+  tag: 0.9.6-1021
 ingress:
   # ALB name. Must never change for a live environment: the ALB controller replaces the ALB.
   albName: automation-calculator-alb
@@ -84,11 +84,18 @@ secrets:
   kubernetesSecretObjectName: automation-calculator-app-secrets
   secretKeyBase: ""
 securityContext: {}
-shortCommitHash: "d61b443"
+shortCommitHash: "97dd335"
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-  externalTrafficPolicy: Local
+  # Cluster, not Local. With Local a node passes the ALB health check only
+  # while an app pod runs on it, so on a node roll the replacement nodes stay
+  # unhealthy until a pod lands on them, while the old node has already left
+  # the target group: staging went dark for two minutes on 2026-11-25 with
+  # two replicas and the PodDisruptionBudget in place. With Cluster every
+  # node forwards to a ready pod wherever it runs. The client address still
+  # reaches the app in the ALB's X-Forwarded-For header.
+  externalTrafficPolicy: Cluster
   port: 80
   targetPort: 3000
   type: NodePort
