@@ -35,11 +35,10 @@ staging's diff matches the expectation.
   Merging to `main` triggers a run in every workspace whose trigger paths
   changed, and both environments auto-apply:
   - **staging runs on its own files and on shared code** (its working
-    directories, the modules, the app chart) and applies usually 3–5
-    minutes after merge;
+    directories and the modules; not the app chart since ArgoCD
+    migration Phase 9) and applies usually 3–5 minutes after merge;
   - **production runs only on production's own files**: its two working
-    directories and `helm/automation-calculator/values-production.yaml`.
-    A shared module or chart change does not run there at merge. It
+    directories. A shared module change does not run there at merge. It
     applies with the next production PR, so a production plan shows
     everything on `main` that production has not applied yet. There is no
     "apply pending" stop and no confirm: **merging the production PR is
