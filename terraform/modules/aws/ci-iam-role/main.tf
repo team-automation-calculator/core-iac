@@ -169,6 +169,25 @@ data "aws_iam_policy_document" "ci_read_only_permissions" {
     resources = ["*"]
   }
 
+  # Searching CloudWatch Logs. The verb patterns above cover reading a known
+  # stream (GetLogEvents) and fetching query results (GetQueryResults), but
+  # not searching a group or running a Logs Insights query: FilterLogEvents,
+  # StartQuery and StopQuery match none of Describe*/Get*/List*. None of the
+  # three changes anything; a query only costs the bytes it scans. Kept in
+  # step with search_logs_actions in modules/aws/sso-infra-eng
+  # (plans/app-log-persistence.md). The read-write role needs no matching
+  # statement: its ManageInfrastructureServices statement allows logs:*,
+  # which covers all three. If that is ever narrowed, add them there.
+  statement {
+    sid = "SearchLogs"
+    actions = [
+      "logs:FilterLogEvents",
+      "logs:StartQuery",
+      "logs:StopQuery",
+    ]
+    resources = ["*"]
+  }
+
   statement {
     sid = "ReadIamForTerraformPlan"
     actions = [

@@ -1,3 +1,13 @@
+output "identity_store_id" {
+  description = "The identity store id of the IAM Identity Center instance (the d-... in the SAML Entity ID and the awsapps.com portal URL)."
+  value       = local.identity_store_id
+}
+
+output "instance_arn" {
+  description = "The ARN of the IAM Identity Center instance."
+  value       = local.instance_arn
+}
+
 output "permission_set_arn" {
   description = "The ARN of the InfraEng permission set."
   value       = aws_ssoadmin_permission_set.infra_eng.arn

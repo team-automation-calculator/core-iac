@@ -79,6 +79,31 @@ the AWS credentials needed to re-create staging.
 4. If the base destroy queues a run in the add-ons workspace through the run trigger, that run
    fails at plan because the base outputs are gone. Discard or ignore it.
 
+## Since ArgoCD Phase 4: the app namespace blocks the destroy
+
+Phase 4 (`docs/argocd-phase-4-secret-adoption.md`) made the `automation-calculator` namespace a
+Terraform resource with `prevent_destroy = true`, because on production deleting it deletes the
+Ingress and the ALB. Written from a read of the code, not yet run:
+
+- **Destroy.** The add-ons destroy plan fails with "Instance cannot be destroyed" on
+  `module.main_rails_app.kubernetes_namespace_v1.automation_calculator`. Before step 1, take the
+  namespace out of the staging state (the object stays on the cluster and goes with the cluster in
+  step 3):
+
+  ```bash
+  cd terraform/env/staging/aws/us-west-1/cluster-addons-layer
+  terraform init
+  terraform state rm module.main_rails_app.kubernetes_namespace_v1.automation_calculator
+  ```
+
+  The app release is still uninstalled by the destroy, which deletes the Ingress and lets the
+  load balancer controller remove the ALB as before. Do not merge anything that queues a staging
+  add-ons run between the `state rm` and the destroy: the next plan would try to create the
+  namespace again and fail because it exists.
+- **Re-create.** Nothing extra. The Phase 4 `import` blocks, which would have failed the plan
+  on a cluster without the objects, were deleted once both environments had applied them (Phase 4
+  runbook, section 6); Terraform creates the namespace and the Secret itself.
+
 ## What is gone, and what stays
 
 Destroyed with the add-ons layer: the app, add-on and ArgoCD Helm releases, the RDS instance and its

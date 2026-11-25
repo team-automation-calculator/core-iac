@@ -9,10 +9,40 @@ variable "argocd_admin_password_rotation" {
   type        = string
 }
 
+variable "argocd_application_automated_sync" {
+  default     = false
+  description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). Only after this env's workspace has forgotten the Helm release (manage_app_helm_release = false, applied) and its Helm history is deleted: until then two controllers would reconcile the same Deployment. Runbook: docs/argocd-phase-6-retire-staging-release.md."
+  type        = bool
+}
+
+variable "argocd_application_prune" {
+  default     = false
+  description = "syncPolicy.automated.prune on the app's ArgoCD Application. Read only with argocd_application_automated_sync. Safe once `argocd app resources` lists only the Service, Deployment and Ingress (the Terraform-managed Secret carries no ArgoCD tracking annotation)."
+  type        = bool
+}
+
+variable "argocd_application_self_heal" {
+  default     = false
+  description = "syncPolicy.automated.selfHeal on the app's ArgoCD Application. Read only with argocd_application_automated_sync."
+  type        = bool
+}
+
 variable "argocd_enabled" {
   default     = false
   description = "Set to true to install ArgoCD into this environment's cluster (docs/argocd-migration-plan.md, Phase 2)."
   type        = bool
+}
+
+variable "argocd_manage_application" {
+  default     = true
+  description = "With argocd_enabled, also create the app's ArgoCD AppProject and Application (docs/argocd-migration-plan.md, Phase 5). Set to false to roll the Application back while keeping ArgoCD installed; the Application carries no finalizer, so its deletion never touches the app's objects."
+  type        = bool
+}
+
+variable "app_repo_url" {
+  default     = "https://github.com/team-automation-calculator/core-iac.git"
+  description = "Git URL of this repository: the ArgoCD Application's source and the only source its AppProject allows (docs/argocd-migration-plan.md, Phase 5)."
+  type        = string
 }
 
 variable "automation_calculator_app_host" {
@@ -78,6 +108,12 @@ variable "google_oauth_app_secret" {
 variable "skip_final_snapshot" {
   default     = true
   description = "Whether to skip the final RDS snapshot on destroy. Set to false to take one named by final_snapshot_identifier."
+  type        = bool
+}
+
+variable "manage_app_helm_release" {
+  default     = true
+  description = "Manage the app's Helm release from this workspace (module.main_rails_app.helm_release.automation-calculator[0]). ArgoCD migration Phase 6: set to false only AFTER `terraform state rm` of that release in this workspace; flipping it first plans a destroy, which prevent_destroy on the release turns into a plan error. Runbook: docs/argocd-phase-6-retire-staging-release.md."
   type        = bool
 }
 

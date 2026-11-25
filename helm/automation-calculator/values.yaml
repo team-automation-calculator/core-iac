@@ -3,8 +3,10 @@
 # Declare variables to be passed into your templates.
 #
 # Per-environment overrides live in values-<env>.yaml (image.tag, shortCommitHash,
-# ingress.host, ingress.albName). Terraform injects ingress.certificateArn and the
-# secrets.* values at release time; they have no usable default here on purpose.
+# ingress.host, ingress.albName, secrets.create: false). Terraform injects
+# ingress.certificateArn at release time and manages the app Secret itself
+# (ArgoCD migration Phase 4); the secrets.* defaults below exist for standalone
+# renders of the chart, such as the Phase 3 canary, and are unusable on purpose.
 
 affinity: {}
 fullnameOverride: automation-calculator
@@ -12,7 +14,7 @@ googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.9.6-996
+  tag: 0.9.6-1021
 ingress:
   # ALB name. Must never change for a live environment: the ALB controller replaces the ALB.
   albName: automation-calculator-alb
@@ -34,7 +36,18 @@ livenessProbe:
 logToStdout: true
 nameOverride: ""
 podAnnotations: {}
+# Rendered only when replicaCount is above 1: with a single replica,
+# minAvailable 1 would block every node drain until the node group update
+# times out.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
 podSecurityContext: {}
+# Seconds a terminating pod keeps serving before it gets SIGTERM. On a node
+# roll the replacement pod is on a new node, which the ALB only starts using
+# after 2 health checks 15s apart (instance targets, externalTrafficPolicy
+# Local), so the old pod has to outlive that window. 0 disables the hook.
+preStopSleepSeconds: 40
 railsEnv: production
 readinessProbe:
   httpGet:
@@ -43,7 +56,12 @@ readinessProbe:
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
-replicaCount: 1
+# Two replicas plus the PodDisruptionBudget are what keep the app serving while
+# a node is drained (AMI release, EKS upgrade): one pod is evicted, starts on
+# the new node and turns Ready before the other may be evicted. The app's rate
+# limiter counts per pod, so every limit is effectively doubled at 2
+# (plans/rate-limit-shared-cache-store.md).
+replicaCount: 2
 resources:
   limits:
     cpu: 750m
@@ -54,6 +72,9 @@ resources:
 secrets:
   # Render the Secret from the chart. Every value below is required when true;
   # `helm template` with these empty defaults fails on purpose (helm lint does not).
+  # The default stays true so a standalone render (the Phase 3 canary, a local
+  # `helm template` with placeholders) is self-contained; every values-<env>.yaml
+  # sets it to false because Terraform owns the real Secret since Phase 4.
   create: true
   databaseUrl: ""
   githubOAuthAppId: ""
@@ -63,11 +84,18 @@ secrets:
   kubernetesSecretObjectName: automation-calculator-app-secrets
   secretKeyBase: ""
 securityContext: {}
-shortCommitHash: ""
+shortCommitHash: "97dd335"
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-  externalTrafficPolicy: Local
+  # Cluster, not Local. With Local a node passes the ALB health check only
+  # while an app pod runs on it, so on a node roll the replacement nodes stay
+  # unhealthy until a pod lands on them, while the old node has already left
+  # the target group: staging went dark for two minutes on 2026-11-25 with
+  # two replicas and the PodDisruptionBudget in place. With Cluster every
+  # node forwards to a ready pod wherever it runs. The client address still
+  # reaches the app in the ALB's X-Forwarded-For header.
+  externalTrafficPolicy: Cluster
   port: 80
   targetPort: 3000
   type: NodePort
@@ -78,4 +106,7 @@ startupProbe:
   periodSeconds: 5
   timeoutSeconds: 5
   failureThreshold: 36
+# Must exceed preStopSleepSeconds by the time Puma needs to finish in-flight
+# requests after SIGTERM.
+terminationGracePeriodSeconds: 70
 tolerations: []

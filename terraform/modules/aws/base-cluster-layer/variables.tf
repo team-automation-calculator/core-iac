@@ -11,13 +11,13 @@ variable "ami_id" {
 }
 
 variable "ami_type" {
-  default     = "AL2023_x86_64"
+  default     = "AL2023_ARM_64_STANDARD"
   description = "The AMI type to use for the EKS node group."
   type        = string
 }
 
 variable "cluster_version" {
-  default     = "1.26"
+  default     = "1.37"
   description = "The AWS EKS version to use"
   type        = string
 }
@@ -29,12 +29,12 @@ variable "environment_name" {
 }
 
 variable "kube_proxy_addon_version" {
-  description = "Version of the kube-proxy EKS managed add-on, e.g. v1.36.0-eksbuild.58. Pin the defaultVersion that `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <cluster_version>` reports for the region, and bump it together with cluster_version."
+  description = "Version of the kube-proxy EKS managed add-on, e.g. v1.37.0-eksbuild.39. Pin the defaultVersion that `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <cluster_version>` reports for the region, and bump it together with cluster_version."
   type        = string
 }
 
 variable "node_group_instance_types" {
-  default     = ["t3.medium"]
+  default     = ["t4g.medium"]
   description = "The AWS EC2 instance types to use to create worker nodes with"
   type        = list(string)
 }

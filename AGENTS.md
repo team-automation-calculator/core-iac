@@ -12,15 +12,21 @@ Infrastructure as Code for the [automation-calculations.io](https://automation-c
 ```
 terraform/
   modules/
-    tf_cloud/tf_cloud_workspaces/   # TFE workspace module
+    tf_cloud/tf_cloud_workspaces/   # TFE workspace module (per-env auto_apply and trigger_on_shared_code; docs/promotion.md)
+    tf_cloud/tf_cloud_org_members/  # TFC organization memberships + owners team (applied from production tf_cloud; docs/tfc-org-members.md)
     aws/
-      argocd/                       # ArgoCD Helm release (per-env toggle argocd_enabled; docs/argocd-migration-plan.md)
+      argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application, argocd_application_{automated_sync,prune,self_heal}; docs/argocd-migration-plan.md)
       base-cluster-layer/           # VPC, EKS cluster, IAM
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms
-      main_rails_app/               # Rails app Helm release module
+      main_rails_app/               # Rails app namespace, Secret, RDS, ACM; the Helm release behind manage_helm_release (off on staging since ArgoCD Phase 6)
       networking/                   # VPC/subnet resources
     github/
       org-ci-access/                # GitHub org membership + team for the CI machine user
+    google_cloud/
+      organization/                 # Looks up the Google Cloud organization by domain (no API creates or imports one) and holds additive org-level IAM grants
+      project/                      # The Google Cloud project, its enabled APIs, and its one service account (terraform-google-workspace, used by both Google workspaces) with its project roles (keys stay hand-made)
+    google_workspace/
+      aws-identity-center-access/   # Google group (and members) that may use the AWS Identity Center SAML app
   env/              # Per-environment configs (development, staging, production)
     <env>/
       tf_cloud/     # TFE workspace bootstrap (apply this first)
@@ -29,14 +35,19 @@ terraform/
         cluster-addons-layer/
     production/
       github/org/   # GitHub organization (global, hangs off production tf_cloud like route53-domains)
+      google_cloud/       # Google Cloud organization lookup and the imported project (global; bootstrapped and first applied 2026-11-19, docs/google-cloud-terraform.md)
+      google_workspace/   # Google Workspace directory objects (global; workspace has no credentials until bootstrapped, docs/google-workspace-terraform.md)
 helm/
   automation-calculator/        # App Helm chart
+argocd/
+  scratch/                      # Phase 3 dry-run AppProject + Application, applied by hand (docs/argocd-phase-3-dry-run.md)
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
-docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, external-dns, ArgoCD, arm64)
+docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, TFC organization members and the IBMid sign-in change, external-dns, ArgoCD, arm64)
   architecture/                 # Mermaid diagrams: AWS resources, request/response flows, PR validation and deploy
 scripts/                        # Python and Bash helpers
 tests/                          # pytest tests for the Python scripts
 iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
+iac/specs/sso/google-workspace-saml.json  # Expected hand-made SAML settings between Google Workspace and IAM Identity Center (no API on either side)
 version_dates/
   eks_version_dates.json          # EKS Kubernetes version GA/EOL dates
   rds_postgres_version_dates.json # RDS PostgreSQL version support timelines
@@ -49,6 +60,15 @@ pyproject.toml, poetry.lock     # Poetry project: Python dev dependencies (pytes
 .repo-standards.toml            # Link to the shared repo standards and this repo's exemptions
 .circleci/config.yml            # CI validation pipeline: Terraform fmt/validate, Helm lint, and ./go lint, ./go test, ./go check-images on cimg/python:3.12.12
 ```
+
+## Promotion: Staging PR, Then Production PR
+
+Every app and infra change is two pull requests: one that changes staging, and, only after staging is verified, one that changes production (`docs/promotion.md`). Both environments' cluster workspaces auto-apply, so **merging a production pull request deploys to production with no confirm step**. Read its speculative plan before merging; never merge one whose plan nobody has read, and never merge one before staging is verified with the same change.
+
+- Production's cluster workspaces run only when production's own files change: its two working directories and `helm/automation-calculator/values-production.yaml`. A shared module or chart template change applies on staging at merge and waits for the next production pull request, whose plan therefore shows everything on `main` that production has not applied yet.
+- Put per-environment differences in tfvars or `values-<env>.yaml` so each pull request touches one environment. New module behaviour goes behind a variable that defaults to off.
+- A change with no production file to edit (a module refactor, a chart template) is promoted with `scripts/promote_to_production.sh`, which updates `promoted_ref` in the production working directory.
+- The global production workspaces (Route 53 domains, GitHub organization, Google Workspace, Google Cloud) still stop at "apply pending" and need a confirm.
 
 ## Layered Apply Order
 
@@ -96,26 +116,32 @@ terraform apply
 # Lint the chart (what CI runs — note the --strict flag)
 helm lint helm/automation-calculator/ --strict   # or: ./go helm-lint
 
-# Render templates locally for one environment. ingress.certificateArn and the
-# secrets.* values are `required` (Terraform injects them), so a render with only
-# values.yaml fails on purpose; pass placeholders or turn the Secret off.
+# Render templates locally for one environment. ingress.certificateArn is
+# `required` (Terraform injects it), so a render with only values.yaml fails on
+# purpose; pass a placeholder. values-<env>.yaml already turns the chart's
+# Secret off (Terraform manages the real one); a render with values.yaml alone
+# also needs --set secrets.create=false or placeholder secrets.* values.
 helm template automation-calculator helm/automation-calculator/ \
   --values helm/automation-calculator/values-staging.yaml \
-  --set ingress.certificateArn=arn:aws:acm:us-west-1:000000000000:certificate/placeholder \
-  --set secrets.create=false
+  --set ingress.certificateArn=arn:aws:acm:us-west-1:000000000000:certificate/placeholder
 ```
 
-**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`; secrets still come through `set_sensitive`. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB. Nor may the Ingress name or namespace (both `automation-calculator`): the ALB controller tags the target group `ingress.k8s.aws/stack=automation-calculator/automation-calculator`, and the unhealthy-hosts alarm in `cluster-addons-layer/cloudwatch_alarms.tf` finds the group by that tag.
+**Values layering.** `helm/automation-calculator/values.yaml` holds chart defaults; `values-<env>.yaml` (development, staging, production) holds what differs per environment and is the single source of truth for the deployed image: `image.tag`, `shortCommitHash`, `ingress.host`, `ingress.albName`. Terraform's `main_rails_app` module passes `values-${environment_name}.yaml` plus a tiny `values.yml` template that only injects `ingress.certificateArn`. The app Secret (`automation-calculator-app-secrets`) and the `automation-calculator` namespace are Terraform resources in that module (`kubernetes_secret_v1.app_secrets`, `kubernetes_namespace_v1.automation_calculator`, adopted from Helm in ArgoCD migration Phase 4, `docs/argocd-phase-4-secret-adoption.md`); every `values-<env>.yaml` sets `secrets.create: false` so the chart never renders a Secret for a real environment. **Bump `version` in `Chart.yaml` with every chart change** (a template, `values.yaml`): the production `helm_release` reads its `version` from `Chart.yaml`, and Terraform plans a release update only when that version or the values change, so a chart change with the same version plans as "no changes" on production. There is no `app_version` / `short_commit_hash` in `terraform.tfvars` any more; bump the values files instead (the bump scripts below do). `ingress.albName` must never change for a live environment: the ALB controller replaces the ALB. Nor may the Ingress name or namespace (both `automation-calculator`): the ALB controller tags the target group `ingress.k8s.aws/stack=automation-calculator/automation-calculator`, and the unhealthy-hosts alarm in `cluster-addons-layer/cloudwatch_alarms.tf` finds the group by that tag.
+
+**Surviving a node drain.** The chart runs `replicaCount: 2` with a PodDisruptionBudget (`minAvailable: 1`), a rolling update of `maxSurge 1 / maxUnavailable 0`, and a 40 second `preStop` sleep, so a node roll (AMI release, EKS upgrade, node type change) moves the pods one at a time and the old pod keeps serving until the ALB has passed the new node's health checks. The Service is `externalTrafficPolicy: Cluster` for the same reason: with `Local` a replacement node fails the ALB health check until an app pod lands on it, and the old node has already left the target group (two minutes of no healthy hosts on staging, 2026-11-25). The PodDisruptionBudget is rendered only above one replica; at `replicaCount: 1` it would block every drain. Do not lower `preStopSleepSeconds` below the ALB's time to mark a new target healthy (2 checks, 15 s apart), and keep `terminationGracePeriodSeconds` above it. The app's rate limiter counts per pod, so limits are doubled at two replicas (`plans/rate-limit-shared-cache-store.md`).
+
+**How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`).** Staging deploys through ArgoCD since Phase 6: the `automation-calculator` Application (`terraform/modules/aws/argocd`) tracks `main` with automated sync, prune and self-heal, so a merged bump PR rolls out within ArgoCD's polling interval and a rollback is a git revert; the staging TFC workspace no longer manages the Helm release (`manage_app_helm_release = false` in its tfvars; the release was removed from its state, never destroyed, per `docs/argocd-phase-6-retire-staging-release.md`). Production still deploys through the Terraform `helm_release` in the `ac_app_production_cluster_addons_layer` workspace (merge the bump PR, confirm the run) until Phase 8. **Never set `manage_app_helm_release = false` for an env before that env's workspace has run `terraform state rm` on the release**: the plan would be a `helm uninstall`, which deletes the Ingress and the ALB; `prevent_destroy` on the release makes such a plan fail, and the fix is the `state rm`, not removing the guard. Never run `helm uninstall automation-calculator` on any cluster.
 
 ### Scripts
 ```bash
 scripts/infra_eng_sso.py                       # SSO login + kubectl setup: writes AWS profiles, runs aws sso login, updates kubeconfig
 scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
 scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
-scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHash in helm/automation-calculator/values.yaml and values-<env>.yaml (yq)
-scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens the PR
+scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHash for one target (yq): staging (default; also values.yaml and values-development.yaml) or production (values-production.yaml only)
+scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens that target's PR (a deploy is two PRs, staging then production)
+scripts/promote_to_production.sh              # Write the staging-verified main commit to promoted_ref in a production working directory (base, addons or both), for a production PR whose change is all shared code (docs/promotion.md)
 scripts/check_app_docker_image_versions.py     # CI (./go check-images): validate added image.tag values in the chart values files exist on Docker Hub
-scripts/watch_app_docker_image_versions.py     # Watch Docker Hub for a new app image tag and open a bump PR (via bump_app_docker_image_version_branch.sh) when one appears
+scripts/watch_app_docker_image_versions.py     # Watch Docker Hub for a new app image tag and open the staging bump PR (via bump_app_docker_image_version_branch.sh) when one appears
 scripts/argocd_phase1_render_diff.sh           # ArgoCD Phase 1 proof: diff the pre-refactor chart render (git ref) against the working tree per env
 scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
 scripts/install_tf.sh                          # Install a specific Terraform version
@@ -123,6 +149,9 @@ scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (d
 scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration, plus delete-legacy-cname for the post-0.23 cname-extdns cleanup (dry run unless --apply)
 scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
+scripts/argocd_canary_check.sh                 # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
+scripts/argocd_staging_verify.sh               # ArgoCD Phase 7: read-only check that a merged bump reached staging via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty)
+scripts/argocd_soak_log.py                     # ArgoCD Phase 7: add bump/rollback cycles to docs/argocd-staging-soak-log.md and evaluate the soak gate (status)
 scripts/watch_addon_rollout.sh                 # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
 scripts/wait_commit_status.py                  # validate-infra-rollout: poll a commit's GitHub statuses (Terraform Cloud runs) through gh until none is pending, one line per state change
 scripts/env_snapshot.py                        # validate-infra-rollout: read-only before/after snapshot of an environment (helm releases and manifests, pods, Route 53, ACM, /health) under the -ro profile, and a diff of two snapshots
@@ -142,6 +171,7 @@ scripts/pr_checklist.py                        # Lists the PRs an image contains
 - **Project tag**: `automation_calculator`
 - **Kubernetes namespaces**: `automation-calculator` (app), `kube-system` (add-ons)
 - **AWS region**: `us-west-1` for all environments
+- **Worker node architecture**: arm64 (Graviton `t4g` instances, `AL2023_ARM_64_STANDARD` AMI) in all environments. The app image must stay multi-arch (`linux/amd64,linux/arm64`) or at least carry `linux/arm64`, or the pod fails with `exec format error`.
 - **Terraform backend**: Terraform Cloud, org `team-automation-calculator`
 
 ## Provider Versions
@@ -149,18 +179,22 @@ scripts/pr_checklist.py                        # Lists the PRs an image contains
 | Provider | Module constraint | Env config constraint |
 |----------|------------------|-----------------------|
 | AWS | `~> 6.0` | `~> 6.0` |
-| Helm | `~> 2.9` | `~> 2.9` |
-| Kubernetes | `~> 2.16` | `~> 2.16` |
-| TFE | — | `0.68.2` (pinned exactly in all tf_cloud configs) |
+| Helm | `~> 3.3` (`cluster-addons-layer`, `main_rails_app`, `argocd`) | `~> 3.3` (cluster-addons-layer configs) |
+| Kubernetes | `~> 3.4` (`cluster-addons-layer`) | `~> 3.4` (cluster-addons-layer configs) |
+| TFE | `~> 0.82` (`tf_cloud_workspaces`, `tf_cloud_org_members`) | `~> 0.82` (all tf_cloud and cluster-addons-layer configs) |
 | GitHub | `~> 6.13` | `~> 6.13` |
+| Google Workspace (`macadmins/googleworkspace`) | `~> 1.5` | `~> 1.5` |
+| Google Cloud (`hashicorp/google`) | `~> 8.12` | `~> 8.12` |
 
-Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform). When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then commit the updated lock files alongside the `versions.tf` changes.
+Helm provider 3.x takes `set = [{ name = ..., value = ... }]` / `set_sensitive = [...]` list attributes and a `kubernetes = { ... }` attribute in the provider block, not the 2.x nested blocks. The Q4 2026 bumps are recorded in `docs/dependency-upgrade-plan-2026-q4.md`.
+
+Lock files (`.terraform.lock.hcl`) are committed in every module and env config directory. All lock files use `registry.terraform.io` (HashiCorp Terraform) and should carry `h1:` hashes for three platforms: `linux_amd64` (TFC and CI), `darwin_arm64` and `darwin_amd64`. When updating providers, run `terraform init -upgrade` in module directories and `terraform init -upgrade -backend=false` in env config directories (env configs require TFE_TOKEN for normal init), then regenerate the platform hashes in the same directory with `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=darwin_amd64` (a plain `init` on one machine records only that machine's platform), and commit the updated lock files alongside the `versions.tf` changes.
 
 ## External-DNS Helm Registry
 
-External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`.
+External-DNS uses the official kubernetes-sigs chart (`repository = "https://kubernetes-sigs.github.io/external-dns/"`, `chart = "external-dns"`), not Bitnami. Bitnami charts/images are unmaintained (versioned tags were purged from `public.ecr.aws/bitnami`; only the frozen `bitnamilegacy` archive remains) — do not reintroduce them. Note the official chart's value names differ from Bitnami's: `provider.name` (not `provider`), and AWS zone filtering goes through `extraArgs` (e.g. `--aws-zone-type=public`) rather than `aws.zoneType`. Since chart 1.22.0 `policy` has no default and is required; the module sets `policy = upsert-only` explicitly (anything else lets external-dns delete records).
 
-**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `set` block is rendered. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
+**TXT registry prefix.** The module variable `external_dns_txt_prefix` sets the chart value `txtPrefix`; when it is empty, no `txtPrefix` entry is added to the release's `set` list. It is set per environment in the cluster-addons-layer `terraform.tfvars` to `"%%{record_type}-extdns."`. The `%%` is required because `%{` starts an HCL template directive. Without a prefix, the apex's TXT name (`cname-automation-calculations.io`) falls outside the zone and external-dns UPSERTs the apex A record every sync. **Never set or change the prefix in an environment before pre-creating that environment's new-format TXT records.** Otherwise external-dns treats every record as unowned and silently stops updating DNS. Follow `docs/external-dns-txt-prefix-migration.md` and use `scripts/external_dns_txt_prefix_migration.py`.
 
 ## Scratch Files
 
@@ -188,6 +222,10 @@ AWS_PROFILE                # SSO-chained CI role profile, e.g. ac-ci-staging (se
 ```
 
 `GITHUB_TOKEN` for the `github` provider (`terraform/env/production/github/org`) is never set locally: it lives only as a sensitive environment variable on the `ac_app_production_github_org` TFC workspace. The GitHub CI machine user, its tokens, and the owner token that workspace uses are documented in `docs/github-ci-user.md`.
+
+`GOOGLEWORKSPACE_CREDENTIALS` for the `googleworkspace` provider (`terraform/env/production/google_workspace`) follows the same rule: the service account key lives only as a sensitive environment variable on the `ac_app_production_google_workspace` TFC workspace. The bootstrap that created it is in `docs/google-workspace-terraform.md`. The SAML settings that link Google Workspace to IAM Identity Center have no API on either side; their expected values are in `iac/specs/sso/google-workspace-saml.json`, with instance identifiers as placeholders because the repo is public. Do not commit the Identity Center instance id, identity store id, portal URL or the Google IdP id.
+
+`GOOGLE_CREDENTIALS` for the `google` provider (`terraform/env/production/google_cloud`) follows the same rule, on the `ac_app_production_google_cloud` TFC workspace. The bootstrap that created it is in `docs/google-cloud-terraform.md`. The Google Cloud organization is looked up by domain because no API creates or imports one, and the project is imported, never created. The project ID and display name are Terraform variables on that workspace; do not commit them, the organization ID or the billing account ID.
 
 ## AWS Authentication
 
