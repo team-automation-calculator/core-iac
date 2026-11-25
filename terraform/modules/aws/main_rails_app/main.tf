@@ -136,7 +136,13 @@ resource "helm_release" "automation-calculator" {
   # the release depends on it. Left in place so this phase's release diff is
   # only the removed set_sensitive blocks; Phase 9 deletes the release.
   create_namespace = true
-  version          = "0.1.0"
+  # Read from Chart.yaml so there is one place to bump. The chart is a local
+  # directory, and Terraform plans a release update only when this version
+  # or the values change: a template or values.yaml change with the same
+  # chart version plans as "no changes" and never reaches the cluster (#474
+  # did exactly that on production). Bump `version` in Chart.yaml with every
+  # chart change.
+  version = yamldecode(file("${var.automation_calculator_helm_release_local_path}/Chart.yaml")).version
 
   # The add-ons first (the Ingress needs the ALB controller's IngressClass and
   # webhook; see terraform_data.cluster_addons). On a fresh environment the
