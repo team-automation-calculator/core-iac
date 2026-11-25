@@ -28,13 +28,13 @@ profile (`ac-ci-staging-ro`, `ac-ci-prod-ro`), so `aws sso login` is the only pr
 (`docs/aws-sso-auth.md`).
 
 ```bash
-python3 -I scripts/app_logs.py streams staging                      # pods that have logged, newest first
-python3 -I scripts/app_logs.py tail staging --since 15m             # everything in the last 15 minutes
-python3 -I scripts/app_logs.py errors production --since 24h        # FATAL, ERROR and 5xx lines
-python3 -I scripts/app_logs.py tail production --since 2h --filter '"Completed 5"'
-python3 -I scripts/app_logs.py tail staging --start 2026-11-24T23:00:00Z --end 2026-11-24T23:30:00Z
-python3 -I scripts/app_logs.py tail staging --since 1h --stream-prefix app-automation-calculator-6c75b7bbc4
-python3 -I scripts/app_logs.py volume production --days 14          # bytes ingested per day
+./go app-logs streams staging                      # pods that have logged, newest first
+./go app-logs tail staging --since 15m             # everything in the last 15 minutes
+./go app-logs errors production --since 24h        # FATAL, ERROR and 5xx lines
+./go app-logs tail production --since 2h --filter '"Completed 5"'
+./go app-logs tail staging --start 2026-11-24T23:00:00Z --end 2026-11-24T23:30:00Z
+./go app-logs tail staging --since 1h --stream-prefix app-automation-calculator-6c75b7bbc4
+./go app-logs volume production --days 14          # bytes ingested per day
 ```
 
 `--filter` takes a [CloudWatch Logs filter pattern](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html):
@@ -45,9 +45,9 @@ For counting and grouping use Logs Insights. It bills $0.0067 per GB scanned, so
 as narrow as the question allows:
 
 ```bash
-python3 -I scripts/app_logs.py query production --since 24h \
+./go app-logs query production --since 24h \
   'filter @message like /Completed/ | parse @message /Completed (?<status>\d+)/ | stats count() by status'
-python3 -I scripts/app_logs.py query production --since 7d \
+./go app-logs query production --since 7d \
   'filter @message like /Completed 5/ | stats count() by bin(1h)'
 ```
 
@@ -90,7 +90,7 @@ summarise.
 | Streams named `app-unresolved-*` | the Kubernetes metadata lookup failed, so the pod name was unknown; events are still stored. Check the collector's log for errors from the `kubernetes` filter. |
 | `AccessDeniedException` on `FilterLogEvents` or `StartQuery` when reading | stage 1 of the plan (the `SearchLogs` statement) is not applied in that environment's base layer |
 | A gap around a node roll | expected to be seconds at most: lines written after the last flush (5 s) on a terminating node are lost |
-| The 5xx alarm fired | `python3 -I scripts/app_logs.py errors production --since 30m`, then pull the request id of the `Completed 5xx` line with `--filter` to see the whole request |
+| The 5xx alarm fired | `./go app-logs errors production --since 30m`, then pull the request id of the `Completed 5xx` line with `--filter` to see the whole request |
 
 The collector never touches the app. If it is down, the app keeps serving and the kubelet
 keeps the usual single file per container.

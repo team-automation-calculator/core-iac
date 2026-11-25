@@ -26,10 +26,10 @@ picks the change up when a production pull request merges.
 
 | Change | Staging pull request | Production pull request |
 |---|---|---|
-| App image | `scripts/bump_app_docker_image_version_branch.sh <tag> <sha>` (or the watcher): `values-staging.yaml`, plus the chart default and `values-development.yaml` | `scripts/bump_app_docker_image_version_branch.sh <tag> <sha> production`: `values-production.yaml` |
+| App image | `./go bump-app-docker-image-version-branch <tag> <sha>` (or the watcher): `values-staging.yaml`, plus the chart default and `values-development.yaml` | `scripts/bump_app_docker_image_version_branch.sh <tag> <sha> production`: `values-production.yaml` |
 | A per-environment setting (tfvars, a version pin, a toggle) | staging's `terraform.tfvars` | production's `terraform.tfvars` |
 | A new capability in a module | the module change, off by default behind a variable, and the toggle in staging's tfvars | the toggle in production's tfvars |
-| Shared code with nothing per-environment to change (a module refactor, a chart template, a chart or module version bump) | the change itself | `scripts/promote_to_production.sh <base\|addons\|both>`: writes the verified `main` commit to `promoted_ref` in the production working directory, which is the file the pull request changes |
+| Shared code with nothing per-environment to change (a module refactor, a chart template, a chart or module version bump) | the change itself | `./go promote-to-production <base\|addons\|both>`: writes the verified `main` commit to `promoted_ref` in the production working directory, which is the file the pull request changes |
 | A provider or lock file bump | staging's env config directory | production's env config directory |
 
 **A chart change needs a chart version bump to reach production.** The production

@@ -44,7 +44,7 @@ argocd/
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
 docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, TFC organization members and the IBMid sign-in change, external-dns, ArgoCD, arm64)
   architecture/                 # Mermaid diagrams: AWS resources, request/response flows, PR validation and deploy
-scripts/                        # Python and Bash helpers
+scripts/                        # Python and Bash helpers, each run as ./go <name> (see Scripts)
 tests/                          # pytest tests for the Python scripts
 iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
 iac/specs/sso/google-workspace-saml.json  # Expected hand-made SAML settings between Google Workspace and IAM Identity Center (no API on either side)
@@ -133,37 +133,38 @@ helm template automation-calculator helm/automation-calculator/ \
 **How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`).** Staging deploys through ArgoCD since Phase 6: the `automation-calculator` Application (`terraform/modules/aws/argocd`) tracks `main` with automated sync, prune and self-heal, so a merged bump PR rolls out within ArgoCD's polling interval and a rollback is a git revert; the staging TFC workspace no longer manages the Helm release (`manage_app_helm_release = false` in its tfvars; the release was removed from its state, never destroyed, per `docs/argocd-phase-6-retire-staging-release.md`). Production still deploys through the Terraform `helm_release` in the `ac_app_production_cluster_addons_layer` workspace (merge the bump PR, confirm the run) until Phase 8. **Never set `manage_app_helm_release = false` for an env before that env's workspace has run `terraform state rm` on the release**: the plan would be a `helm uninstall`, which deletes the Ingress and the ALB; `prevent_destroy` on the release makes such a plan fail, and the fix is the `state rm`, not removing the guard. Never run `helm uninstall automation-calculator` on any cluster.
 
 ### Scripts
+Every file in `scripts/` is a `./go` command named after it (`scripts/env_snapshot.py` is `./go env-snapshot`); arguments go to the script unchanged, it runs in your working directory, and `./go` exits with its status. `./go <command> --help` shows a script's own usage. The table is `SCRIPTS` in `go.py`, and `tests/test_go.py` fails when a script has no entry. A new script gets a `SCRIPTS` entry and a line here.
 ```bash
-scripts/infra_eng_sso.py                       # SSO login + kubectl setup: writes AWS profiles, runs aws sso login, updates kubeconfig
-scripts/update_kubeconfigs.sh                  # Refresh kubeconfig for all envs
-scripts/launch_psql_pod.sh                     # Launch a psql pod to connect to RDS
-scripts/bump_app_docker_image_version.sh       # Bump image.tag + shortCommitHash for one target (yq): staging (default; also values.yaml and values-development.yaml) or production (values-production.yaml only)
-scripts/bump_app_docker_image_version_branch.sh  # Same, but creates a git branch, commits, pushes and opens that target's PR (a deploy is two PRs, staging then production)
-scripts/promote_to_production.sh              # Write the staging-verified main commit to promoted_ref in a production working directory (base, addons or both), for a production PR whose change is all shared code (docs/promotion.md)
-scripts/check_app_docker_image_versions.py     # CI (./go check-images): validate added image.tag values in the chart values files exist on Docker Hub
-scripts/watch_app_docker_image_versions.py     # Watch Docker Hub for a new app image tag and open the staging bump PR (via bump_app_docker_image_version_branch.sh) when one appears
-scripts/argocd_phase1_render_diff.sh           # ArgoCD Phase 1 proof: diff the pre-refactor chart render (git ref) against the working tree per env
-scripts/sort_tfvars.sh                         # Sort terraform.tfvars files alphabetically
-scripts/install_tf.sh                          # Install a specific Terraform version
-scripts/delete_first_eks_cluster.sh            # Delete the first EKS cluster (dev utility)
-scripts/external_dns_txt_prefix_migration.py   # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration, plus delete-legacy-cname for the post-0.23 cname-extdns cleanup (dry run unless --apply)
-scripts/argocd_preflight.sh                    # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
-scripts/argo_helm_chart_versions.py            # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
-scripts/argocd_canary_check.sh                 # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
-scripts/argocd_staging_verify.sh               # ArgoCD Phase 7/8: read-only check that a merged bump reached an env via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty); --env production, --expect-helm-release while Terraform still owns the release
-scripts/argocd_soak_log.py                     # ArgoCD Phase 7: add bump/rollback cycles to docs/argocd-staging-soak-log.md and evaluate the soak gate (status)
-scripts/watch_addon_rollout.sh                 # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
-scripts/wait_commit_status.py                  # validate-infra-rollout: poll a commit's GitHub statuses (Terraform Cloud runs) through gh until none is pending, one line per state change
-scripts/env_snapshot.py                        # validate-infra-rollout: read-only before/after snapshot of an environment (helm releases and manifests, pods, Route 53, ACM, /health) under the -ro profile, and a diff of two snapshots
-scripts/tfc_workspace_inventory.py             # Spacelift migration Phase 0: read-only TFC workspace inventory (resource counts, triggers, variable names) for plans/tfc-to-spacelift-migration.md
-scripts/ec2_worker_node_utilization.py         # Node sizing plan: read-only CloudWatch CPU and burst-credit summary for an EKS node group ASG (plans/ec2-worker-node-sizing.md)
-scripts/ec2_worker_node_pricing.py             # Node sizing plan: us-west-1 on-demand, RI and Savings Plan rates for candidate node types from downloaded public price files
-scripts/rds_utilization_summary.py             # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
-scripts/rds_status_poll.py                     # validate-infra-rollout: read-only poll of an env's RDS instances under the -ro profile, one log line per status/retention/LatestRestorableTime change (for timing a modify)
-scripts/rds_price_list_extract.py              # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
-scripts/alb_alarm_window.py                    # Read-only replay of the ac-app-<env>-* CloudWatch alarms over an ALB metrics window (--start/--end UTC, --env): per-minute alarm metrics and host counts, which alarm would have fired, and a warning for a host-count alarm missing the TargetGroup dimension
-scripts/app_logs.py                            # Read-only reader for the app pods' stored logs in CloudWatch Logs (/ac/<env>/app) under the -ro profile: streams, tail, errors, Logs Insights query, ingested volume (docs/app-logs.md)
-scripts/pr_checklist.py                        # Lists the PRs an image contains and ticks their test-plan checklist items through gh (--repo selects the repo; default is the app repo)
+./go infra-eng-sso                          # SSO login + kubectl setup: writes AWS profiles, runs aws sso login, updates kubeconfig
+./go update-kubeconfigs                     # Refresh kubeconfig for all envs
+./go launch-psql-pod                        # Launch a psql pod to connect to RDS
+./go bump-app-docker-image-version          # Bump image.tag + shortCommitHash for one target (yq): staging (default; also values.yaml and values-development.yaml) or production (values-production.yaml only)
+./go bump-app-docker-image-version-branch   # Same, but creates a git branch, commits, pushes and opens that target's PR (a deploy is two PRs, staging then production)
+./go promote-to-production                  # Write the staging-verified main commit to promoted_ref in a production working directory (base, addons or both), for a production PR whose change is all shared code (docs/promotion.md)
+./go check-images                           # CI: validate added image.tag values in the chart values files exist on Docker Hub
+./go watch-app-docker-image-versions        # Watch Docker Hub for a new app image tag and open the staging bump PR (via bump_app_docker_image_version_branch.sh) when one appears
+./go argocd-phase1-render-diff              # ArgoCD Phase 1 proof: diff the pre-refactor chart render (git ref) against the working tree per env
+./go sort-tfvars                            # Sort terraform.tfvars files alphabetically
+./go install-tf                             # Install a specific Terraform version
+./go delete-first-eks-cluster               # Delete the first EKS cluster (dev utility)
+./go external-dns-txt-prefix-migration      # Plan/create/delete external-dns TXT ownership records for the txtPrefix migration, plus delete-legacy-cname for the post-0.23 cname-extdns cleanup (dry run unless --apply)
+./go argocd-preflight                       # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
+./go argo-helm-chart-versions               # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
+./go argocd-canary-check                    # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
+./go argocd-staging-verify                  # ArgoCD Phase 7/8: read-only check that a merged bump reached an env via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty); --env production, --expect-helm-release while Terraform still owns the release
+./go argocd-soak-log                        # ArgoCD Phase 7: add bump/rollback cycles to docs/argocd-staging-soak-log.md and evaluate the soak gate (status)
+./go watch-addon-rollout                    # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
+./go wait-commit-status                     # validate-infra-rollout: poll a commit's GitHub statuses (Terraform Cloud runs) through gh until none is pending, one line per state change
+./go env-snapshot                           # validate-infra-rollout: read-only before/after snapshot of an environment (helm releases and manifests, pods, Route 53, ACM, /health) under the -ro profile, and a diff of two snapshots
+./go tfc-workspace-inventory                # Spacelift migration Phase 0: read-only TFC workspace inventory (resource counts, triggers, variable names) for plans/tfc-to-spacelift-migration.md
+./go ec2-worker-node-utilization            # Node sizing plan: read-only CloudWatch CPU and burst-credit summary for an EKS node group ASG (plans/ec2-worker-node-sizing.md)
+./go ec2-worker-node-pricing                # Node sizing plan: us-west-1 on-demand, RI and Savings Plan rates for candidate node types from downloaded public price files
+./go rds-utilization-summary                # Read-only CloudWatch summary (CPU, credits, memory, connections, IOPS, burst balance) for every RDS instance, for plans/rds-instance-sizing.md
+./go rds-status-poll                        # validate-infra-rollout: read-only poll of an env's RDS instances under the -ro profile, one log line per status/retention/LatestRestorableTime change (for timing a modify)
+./go rds-price-list-extract                 # Offline filter over the public AWS Price List CSV for RDS (download to tmp/ first); used because the CI roles lack pricing:GetProducts
+./go alb-alarm-window                       # Read-only replay of the ac-app-<env>-* CloudWatch alarms over an ALB metrics window (--start/--end UTC, --env): per-minute alarm metrics and host counts, which alarm would have fired, and a warning for a host-count alarm missing the TargetGroup dimension
+./go app-logs                               # Read-only reader for the app pods' stored logs in CloudWatch Logs (/ac/<env>/app) under the -ro profile: streams, tail, errors, Logs Insights query, ingested volume (docs/app-logs.md)
+./go pr-checklist                           # Lists the PRs an image contains and ticks their test-plan checklist items through gh (--repo selects the repo; default is the app repo)
 ```
 
 ## Key Conventions
