@@ -1,7 +1,10 @@
 # Rate limiting: a shared cache store, when to adopt one, and what it costs
 
 Status: **proposal** (not scheduled). Nothing below is implemented. **Trigger to act:** the app runs
-more than one replica.
+more than one replica. **The trigger fired:** the chart moved to `replicaCount: 2` so that node
+rolls stop taking the app down (see "Surviving a node drain" in `AGENTS.md`). Until a shared store
+is adopted every per-IP limit is effectively doubled, as "What breaks at more than one pod" below
+describes.
 
 Prices were checked on 2026-11-04 against AWS's public price list for US West (N. California,
 `us-west-1`) and the AWS pricing pages (sources at the end). Monthly figures use 730 hours and

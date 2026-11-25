@@ -25,6 +25,7 @@ module "tf_cloud_workspaces" {
   tf_cloud_workspace_vcs_repo_identifier = var.tf_cloud_workspace_vcs_repo_identifier
   tfe_oauth_client_token_id              = tfe_oauth_client.github.oauth_token_id
   tfe_workspace_tf_version               = var.tfe_workspace_tf_version
+  trigger_on_shared_code                 = var.trigger_on_shared_code
 }
 
 # Terraform Cloud organization members. The organization is global, so it is
