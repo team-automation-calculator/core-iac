@@ -109,7 +109,7 @@ flowchart LR
     ciro["IAM role ac_ci_terraform_&lt;env&gt;_read_only"]
     tfc(["Terraform Cloud workspace runs<br/>credentials held as TFC workspace variables"])
     admin["EKS access entry<br/>AmazonEKSClusterAdminPolicy"]
-    view["EKS access entry<br/>AmazonEKSViewPolicy + group ac-ci-read-only<br/>(nodes read via ClusterRole)"]
+    view["EKS access entry<br/>AmazonEKSViewPolicy + group ac-ci-read-only<br/>(nodes and ArgoCD Application read via ClusterRoles)"]
     aws[("AWS APIs in the env account")]
 
     eng --> sso
