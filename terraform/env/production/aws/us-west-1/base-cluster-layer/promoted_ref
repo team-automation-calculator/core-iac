@@ -1,0 +1,5 @@
+# The main commit last promoted to this workspace by a pull request that had no
+# other production file to change (docs/promotion.md). Terraform does not read
+# this file; changing it is what triggers the workspace. Written by
+# scripts/promote_to_production.sh.
+004b67a
