@@ -101,7 +101,7 @@ Which workspace a path triggers:
 | Changed path | Workspace(s) planned |
 |---|---|
 | `terraform/env/staging/aws/us-west-1/base-cluster-layer`, `modules/aws/networking`, `modules/aws/base-cluster-layer`, `modules/aws/ci-iam-role`, `modules/aws/sso-infra-eng` | `ac_app_staging_base_cluster_layer` |
-| `terraform/env/staging/aws/us-west-1/cluster-addons-layer`, `modules/aws/cluster-addons-layer`, `modules/aws/main_rails_app`, `modules/aws/argocd` | `ac_app_staging_cluster_addons_layer` |
+| `terraform/env/staging/aws/us-west-1/cluster-addons-layer`, `modules/aws/cluster-addons-layer`, `modules/aws/main_rails_app`, `modules/kubernetes/argocd` | `ac_app_staging_cluster_addons_layer` |
 | `terraform/env/production/aws/us-west-1/base-cluster-layer` only | `ac_app_production_base_cluster_layer` |
 | `terraform/env/production/aws/us-west-1/cluster-addons-layer` only | `ac_app_production_cluster_addons_layer` |
 | `helm/automation-calculator` (templates and values files) | none since ArgoCD migration Phase 9: ArgoCD deploys the chart from `main` |

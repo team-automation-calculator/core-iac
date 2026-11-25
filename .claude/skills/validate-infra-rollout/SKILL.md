@@ -45,7 +45,7 @@ staging's diff matches the expectation.
     the production apply**. The user merges it; this skill never does
     unless asked for that PR specifically.
   - A change that is all shared code has no production file to edit; its
-    production PR is made with `scripts/promote_to_production.sh`, which
+    production PR is made with `./go promote-to-production`, which
     updates `promoted_ref` in the production working directory.
   - The global production workspaces (`route53_domains`, `github_org`,
     `google_workspace`, `google_cloud`) are the exception: they still stop
@@ -59,7 +59,7 @@ staging's diff matches the expectation.
   root) polls them through `gh`:
 
   ```bash
-  python3 -I scripts/wait_commit_status.py <merge sha>       # one line per state change, exits when terminal
+  ./go wait-commit-status <merge sha>       # one line per state change, exits when terminal
   gh api repos/team-automation-calculator/core-iac/commits/<sha>/status \
     --jq '.statuses[] | select(.context | startswith("Terraform Cloud")) | "\(.context) \(.state) \(.updated_at) \(.target_url)"'
   ```
@@ -96,7 +96,7 @@ staging's diff matches the expectation.
   `promoted_ref` or since production's last run); if so, say which PR it
   came from and let the user decide to promote it together. If not, stop.
 
-- **Timing an RDS modify.** The repo's `scripts/rds_status_poll.py <env> <log>` (run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with a 2 s `curl` loop on `/health` to bound an outage; the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
+- **Timing an RDS modify.** `./go rds-status-poll <env> <log>` (`scripts/rds_status_poll.py`, run from the repo root) logs every change of each instance's status, retention and `LatestRestorableTime` (read-only, `-ro` profile), one line per change. Pair it with `./go health-poll <env> <log> --interval 2` to bound an outage (one line per change of `/health`, then a summary with the longest non-200 stretch); the 2026-11-04 retention 0 → 7 apply on staging showed about 11 s of 503 one minute into the modify, then 7 more minutes of `modifying` with `/health` 200.
 
 - **What a snapshot is.** The repo's `scripts/env_snapshot.py` (run from
   the repo root) captures, read-only, everything the morning's rollouts were
@@ -107,11 +107,10 @@ staging's diff matches the expectation.
   ACM certificate's status and expected validation records, and `/health`.
 
   ```bash
-  S=scripts/env_snapshot.py
-  python3 -I $S take staging    tmp/<pr>/staging-before
-  python3 -I $S take staging    tmp/<pr>/staging-after
-  python3 -I $S diff tmp/<pr>/staging-before tmp/<pr>/staging-after
-  python3 -I $S take production tmp/<pr>/production-before [--context CTX]
+  ./go env-snapshot take staging    tmp/<pr>/staging-before
+  ./go env-snapshot take staging    tmp/<pr>/staging-after
+  ./go env-snapshot diff tmp/<pr>/staging-before tmp/<pr>/staging-after
+  ./go env-snapshot take production tmp/<pr>/production-before [--context CTX]
   ```
 
   Snapshots live in the gitignored `tmp/`, one directory per PR. A check
@@ -193,7 +192,7 @@ staging's diff matches the expectation.
   aws cloudwatch describe-alarm-history --region us-west-1 --profile ac-ci-staging-ro \
     --start-date <before UTC> --end-date <after UTC> --max-records 100 --output text \
     --query 'AlarmHistoryItems[?starts_with(AlarmName,`ac-app-production`)].[Timestamp,HistoryItemType,AlarmName,HistorySummary]'
-  AWS_PROFILE=ac-ci-staging-ro python3 -I scripts/alb_alarm_window.py --start <before UTC> --end <after UTC>
+  AWS_PROFILE=ac-ci-staging-ro ./go alb-alarm-window --start <before UTC> --end <after UTC>
   ```
 
   `describe-alarm-history` is the authority for what fired; the replay in
@@ -213,8 +212,8 @@ staging's diff matches the expectation.
   across a node roll:
 
   ```bash
-  python3 -I scripts/app_logs.py errors staging --start <before UTC> --end <after UTC>
-  python3 -I scripts/app_logs.py streams staging
+  ./go app-logs errors staging --start <before UTC> --end <after UTC>
+  ./go app-logs streams staging
   ```
 
   A new stream is a new pod; say in the report whether the change was
@@ -287,7 +286,7 @@ staging's diff matches the expectation.
    ingress or ALB.
 6. **Production PR.** Only after staging's diff matches. Find or open the
    production PR: the per-environment change in production's tfvars or
-   values file, or `scripts/promote_to_production.sh` for a change that is
+   values file, or `./go promote-to-production` for a change that is
    all shared code. Wait for its speculative plan and read it against the
    expectation, including anything it carries beyond this change. Take
    `production-before` (with the Helm limitation above) and note the time,
@@ -295,7 +294,9 @@ staging's diff matches the expectation.
    verified, what the production plan contains, and that merging this PR
    applies to production at once; merge it only when asked to merge that
    PR. After the merge, `wait_commit_status.py <merge sha>`, watch
-   `/health` and take `production-after`, then `diff`, with the same
+   `/health` (`./go health-poll production
+   tmp/<pr>/health.log` in the background, started before the merge) and
+   take `production-after`, then `diff`, with the same
    expectation as staging. Then read the production alarm history for the
    window from the baseline time to the after-snapshot time and compare it
    with what the change type predicts (the alarms fact above); for a node
