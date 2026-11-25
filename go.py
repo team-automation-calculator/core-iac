@@ -182,7 +182,7 @@ SCRIPTS = {
     "argocd_staging_verify.sh": "Read-only check that a merged bump reached an env through ArgoCD.",
     "argocd_soak_log.py": "Add cycles to the ArgoCD staging soak log and evaluate the soak gate.",
     "watch_addon_rollout.sh": "Wait for a kube-system add-on Deployment to roll past a baseline generation.",
-    "wait_commit_status.py": "Poll a commit's GitHub statuses (Terraform Cloud runs) until none is pending.",
+    "wait_commit_status.py": "Poll a commit's GitHub statuses (Terraform Cloud runs) until none is pending (--until-applied: until applied).",
     "env_snapshot.py": "Read-only before/after snapshot of an environment, and a diff of two.",
     "tfc_workspace_inventory.py": "Read-only Terraform Cloud workspace inventory.",
     "ec2_worker_node_utilization.py": "Read-only CloudWatch CPU and burst-credit summary for a node group.",
