@@ -283,7 +283,12 @@ def cmd_query(args, run, sleep=time.sleep) -> int:
 
 
 def cmd_volume(args, run) -> int:
-    end = dt.datetime.now(dt.UTC).replace(minute=0, second=0, microsecond=0)
+    # Whole UTC days, ending at the next UTC midnight, so each datapoint is one
+    # calendar day and today's partial day is counted. Ending at the last full
+    # hour hid everything a new group had ingested so far.
+    end = dt.datetime.now(dt.UTC).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + dt.timedelta(days=1)
     start = end - dt.timedelta(days=args.days)
     out = run(
         [
@@ -305,9 +310,14 @@ def cmd_volume(args, run) -> int:
             "Sum",
         ]
     )
-    points = sorted(out.get("Datapoints", []), key=lambda point: point["Timestamp"])
+    # The CLI prints timestamps in the local zone; label each day in UTC.
+    points = sorted(
+        out.get("Datapoints", []),
+        key=lambda point: dt.datetime.fromisoformat(point["Timestamp"]),
+    )
     for point in points:
-        print(f"{point['Timestamp'][:10]} {format_bytes(point['Sum'])}")
+        day = dt.datetime.fromisoformat(point["Timestamp"]).astimezone(dt.UTC).date()
+        print(f"{day} {format_bytes(point['Sum'])}")
     total = sum(point["Sum"] for point in points)
     logger.info(
         "%s in %d days from %s", format_bytes(total), len(points), log_group(args.env)
