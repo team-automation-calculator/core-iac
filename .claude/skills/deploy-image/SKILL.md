@@ -101,15 +101,16 @@ is only started after staging's retest matches its baseline.
     `core-iac/docs/argocd-phase-8-production.md`). That sync is the
     staging→production gate. The user does it with their own production
     identity; this skill never does (Claude sessions are denied production
-    cluster writes). The `ac_app_production_cluster_addons_layer` workspace
-    still runs when the production PR merges, and auto-applies, but it no
-    longer owns the app release: its speculative plan on the PR should show
-    no app change. If it shows anything, that is shared module code merged
-    since production last ran: a verified staging change waiting for
-    promotion (name it in the report) or a stop.
+    cluster writes). No Terraform Cloud workspace owns the app release,
+    so the production PR has no plan to read; the review is the PR's diff
+    (the tag and the hash in `values-production.yaml`) and `argocd app
+    diff` before the sync.
 
-  Terraform Cloud run states show on each PR's merge commit; for a bump PR
-  every workspace should plan no app change:
+  Since ArgoCD migration Phase 9 no workspace is triggered by the chart
+  (not the chart directory on staging, not `values-production.yaml` on
+  production), so a bump PR queues no Terraform Cloud run at all and has
+  no speculative plan. Runs a merge does trigger show on the `core-iac`
+  merge commit:
 
   ```bash
   gh api repos/team-automation-calculator/core-iac/commits/main/status \
@@ -408,13 +409,13 @@ like any other regression.
    ask the user for the items only they can do.
 5. **Baseline production.** Only after staging matches. Open the production
    bump PR (`bump_app_docker_image_version_branch.sh <tag> <short_sha>
-   production`) or ask the user to, and wait for its Terraform Cloud
-   speculative plan. Read the plan: no app change is the expectation, since
-   ArgoCD deploys the app; report anything else before going on. Then the
+   production`) or ask the user to. It has no Terraform Cloud plan (the
+   chart triggers no workspace); a Terraform Cloud status on it means the
+   PR touches more than `values-production.yaml`, which is a stop. Then the
    same checks as the staging baseline, on the production URL, while
    production is still on the previous image. Do this before the PR merges.
-6. **Deploy to production.** Tell the user staging is verified and what the
-   production plan contains. The user merges the production PR (merge it
+6. **Deploy to production.** Tell the user staging is verified and that the
+   production PR changes only the tag and the hash. The user merges the production PR (merge it
    yourself only if explicitly asked for that PR); production's Application
    then shows `OutOfSync` on the candidate image. Wait for the user to run
    `argocd app sync automation-calculator` against production. Watch
