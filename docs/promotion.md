@@ -15,7 +15,8 @@ afterwards (`docs/argocd-phase-8-production.md` section 8).
 | | Staging | Production |
 |---|---|---|
 | `ac_app_<env>_base_cluster_layer`, `ac_app_<env>_cluster_addons_layer` | auto-apply | **auto-apply** |
-| What triggers them | the environment's working directories, the shared modules and the app chart | **production's own files only**: the two working directories and `helm/automation-calculator/values-production.yaml` |
+| What triggers them | the environment's working directories and the shared modules | **production's own files only**: the two working directories |
+| The app chart and its values files | trigger no workspace since ArgoCD migration Phase 9 | trigger no workspace |
 | App rollout | ArgoCD, from `main`, automated sync | ArgoCD, from `main`, on a manual `argocd app sync` |
 | Route 53 domains, GitHub organization, Google Workspace, Google Cloud | (production only) | manual confirm, unchanged: they exist once and have no staging to rehearse on |
 
@@ -23,7 +24,7 @@ The settings are `auto_apply`, `trigger_on_shared_code` and `global_workspaces_a
 `terraform/modules/tf_cloud/tf_cloud_workspaces`, set in `terraform/env/<env>/tf_cloud`.
 
 The narrow production trigger is what makes two pull requests possible for shared code. A change
-to a module or a chart template merges once, and without it that merge would apply to staging
+to a module merges once, and without it that merge would apply to staging
 and production at the same moment. With it, the merge applies to staging only, and production
 picks the change up when a production pull request merges.
 
@@ -34,7 +35,7 @@ picks the change up when a production pull request merges.
 | App image | `scripts/bump_app_docker_image_version_branch.sh <tag> <sha>` (or the watcher): `values-staging.yaml`, plus the chart default and `values-development.yaml` | `scripts/bump_app_docker_image_version_branch.sh <tag> <sha> production`: `values-production.yaml`, then `argocd app sync` |
 | A per-environment setting (tfvars, a version pin, a toggle) | staging's `terraform.tfvars` | production's `terraform.tfvars` |
 | A new capability in a module | the module change, off by default behind a variable, and the toggle in staging's tfvars | the toggle in production's tfvars |
-| Shared code with nothing per-environment to change (a module refactor, a chart template, a chart or module version bump) | the change itself | `scripts/promote_to_production.sh <base\|addons\|both>`: writes the verified `main` commit to `promoted_ref` in the production working directory, which is the file the pull request changes |
+| Shared Terraform code with nothing per-environment to change (a module refactor, a module version bump) | the change itself | `scripts/promote_to_production.sh <base\|addons\|both>`: writes the verified `main` commit to `promoted_ref` in the production working directory, which is the file the pull request changes |
 | A provider or lock file bump | staging's env config directory | production's env config directory |
 
 **A chart change reaches production at the next `argocd app sync`.** ArgoCD renders the chart
@@ -88,8 +89,12 @@ What is lost: a second chance after merging. A production pull request merged by
 - **Trigger patterns are new here.** Production's workspaces use `trigger_patterns` (globs)
   where staging uses `trigger_prefixes`. The first production pull request after this lands
   should show a speculative plan in each workspace whose files it touches; if a pull request
-  that changes `values-production.yaml` gets no `ac_app_production_cluster_addons_layer`
-  status, the pattern is wrong and nothing will apply on merge.
+  that changes production's add-ons `terraform.tfvars` gets no
+  `ac_app_production_cluster_addons_layer` status, the pattern is wrong and nothing will apply
+  on merge.
+- **Image bump pull requests have no plan.** Since ArgoCD migration Phase 9 the chart triggers
+  no workspace, so neither bump pull request gets a Terraform Cloud status. Their review is the
+  diff and, on production, `argocd app diff` before the sync.
 - **The base layer's run trigger still fires.** A production base-layer apply queues an add-ons
   run, which now applies too.
 - **Docs-only and script-only pull requests** trigger nothing, as before.

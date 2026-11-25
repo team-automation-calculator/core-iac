@@ -1,9 +1,3 @@
-variable "app_chart_directory" {
-  default     = "helm/automation-calculator"
-  description = "Repository path of the app Helm chart. With trigger_on_shared_code = false, only its values-<environment_name>.yaml triggers the cluster add-ons workspace."
-  type        = string
-}
-
 variable "auto_apply" {
   description = "When true, the base cluster and cluster add-ons workspaces apply a successful plan without a confirm. The other workspaces follow global_workspaces_auto_apply."
   type        = bool
@@ -23,7 +17,7 @@ variable "base_cluster_layer_working_directory" {
 }
 
 variable "cluster_addons_layer_module_directories" {
-  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app", "terraform/modules/aws/argocd", "helm/automation-calculator"]
+  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app", "terraform/modules/aws/argocd"]
   description = "The list of module directories for the cluster addons layer"
   type        = list(string)
 }
@@ -125,7 +119,7 @@ variable "route53_domains_working_directory" {
 
 variable "trigger_on_shared_code" {
   default     = true
-  description = "When true, a change to the shared module directories or the app chart triggers the base cluster and cluster add-ons workspaces. When false, only this environment's own files do (the working directories and the chart's values-<environment_name>.yaml), so shared changes reach it with the next pull request that changes one of those (docs/promotion.md)."
+  description = "When true, a change to the shared module directories triggers the base cluster and cluster add-ons workspaces. When false, only this environment's own working directories do, so shared changes reach it with the next pull request that changes a file in one of those (docs/promotion.md). The app chart triggers neither: ArgoCD deploys it."
   type        = bool
 }
 
