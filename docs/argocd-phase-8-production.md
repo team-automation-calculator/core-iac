@@ -214,17 +214,23 @@ terraform plan | tee ../../../../../../tmp/phase8-01-production-commit-a.txt
 | `ac_app_staging_cluster_addons_layer` | Not queued (production's tfvars directory is not one of its trigger prefixes); 0 changes if a run happens for another reason. |
 | `ac_app_development_cluster_addons_layer` | No cluster; fails at `data.aws_eks_cluster` as before. |
 
-**The plan read on 2026-11-25 is `4 to add, 1 to change`.** The change is
-`module.cluster_addons.module.aws_load_balancer_controller_irsa_role.aws_iam_policy.this[0]`,
-updated in place, and it is not from this repo: the `terraform-aws-modules/iam` module is
-constrained to `~> 6.8`, not pinned, and its release v6.11.3 of that day adds one action,
-`ec2:ValidateSecurityGroupQuotasForInterface`, to the load balancer controller policy. Staging
-applied the same update at 16:23Z that day, with the run of #488. Any production add-ons run
-picks it up, with or without this PR.
+**The plan read on 2026-11-25 at 16:41Z is exactly `4 to add, 0 to change, 0 to destroy`.** Two
+earlier plans that day each showed `1 to change`, and both are worth recognising:
+
+- `module.cluster_addons.module.aws_load_balancer_controller_irsa_role.aws_iam_policy.this[0]`,
+  updated in place. Not from this repo: the `terraform-aws-modules/iam` module is constrained to
+  `~> 6.8`, not pinned, and its release v6.11.3 of that day adds one action,
+  `ec2:ValidateSecurityGroupQuotasForInterface`, to the load balancer controller policy. Staging
+  applied it at 16:23Z with the run of #488 and production at 16:37Z with the run of #490. An
+  upstream release of that module shows up this way in the next add-ons run of each environment.
+- `module.main_rails_app.helm_release.automation-calculator[0]`, updated in place: the branch
+  was behind `main` by a production bump (#490), so the plan was a rollback of the image. Merge
+  `main` into the branch and read the plan again before merging; a production bump merged while
+  this PR is open always does this.
 
 **Stop and do not merge** if the production plan shows anything on `module.main_rails_app` (the
-release, the namespace, the Secret, RDS, ACM), anything else on `module.cluster_addons`, or an
-import: none of that is this commit. The Phase 4 `import` blocks are gone (`imports_argocd_phase4.tf` was deleted
+release, the namespace, the Secret, RDS, ACM), on `module.cluster_addons`, or an import: none of
+that is this commit. The Phase 4 `import` blocks are gone (`imports_argocd_phase4.tf` was deleted
 by #463 on 2026-11-19), so no import can legitimately appear. Two artifacts that older production plans showed are now
 findings, not noise: a replacement of the ACM validation records (fixed by #404; it means a
 module-level `depends_on` crept back onto `main_rails_app`) and a `1 to add` on
