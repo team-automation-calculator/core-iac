@@ -23,11 +23,12 @@ staging's diff matches the expectation.
   also owns RDS, the ACM certificate and its Route 53 validation records, the
   app namespace and Secret (module `main_rails_app`), and ArgoCD with the
   app's `Application` (module `argocd`). The app's Helm release left the
-  staging workspace in ArgoCD migration Phase 6: on staging the app is
-  synced by ArgoCD from `main`, `helm list` shows no `automation-calculator`
-  release (only `argocd` and `argocd-apps` in namespace `argocd`), and a
-  missing app release in a staging snapshot is expected. Production still
-  owns the release until Phase 8. Development is intentionally
+  staging workspace in ArgoCD migration Phase 6 and the production one in
+  Phase 8: the app is synced by ArgoCD from `main` (automatically on
+  staging, by a manual `argocd app sync` on production), `helm list` shows
+  no `automation-calculator` release (only `argocd` and `argocd-apps` in
+  namespace `argocd`), and a missing app release in a snapshot is expected.
+  Development is intentionally
   unprovisioned: its config is validated by CircleCI only and never applies.
   A change reaches production in **two PRs** (`docs/promotion.md`): the
   staging PR, then, only after staging is verified, the production PR.
@@ -199,6 +200,27 @@ staging's diff matches the expectation.
   An alarm whose metric needs a dimension it does not have (the
   `unhealthy-hosts` case before #425) receives no data and never fires;
   the script prints a WARNING for that shape.
+
+- **App logs outlive the pod and the node.** Where `app_logs_enabled` is
+  applied, the app's log lines are in the CloudWatch Logs group
+  `/ac/<env>/app`, one stream per pod (`docs/app-logs.md`), so what the app
+  logged before, during and after an apply can be read afterwards, including
+  across a node roll:
+
+  ```bash
+  python3 -I scripts/app_logs.py errors staging --start <before UTC> --end <after UTC>
+  python3 -I scripts/app_logs.py streams staging
+  ```
+
+  A new stream is a new pod; say in the report whether the change was
+  expected to replace the pod. Production also has a fifth alarm on this
+  group, `ac-app-production-app-server-errors` (any `Completed 5xx` line in
+  5 minutes); it appears in `describe-alarm-history` with the others. The
+  collector is the `fluent-bit` DaemonSet and Helm release in `kube-system`,
+  so it shows up in snapshots of an environment that has it. A
+  `ResourceNotFoundException` from the script means the environment has no
+  stored logs yet. Log lines are written by the app's clients: read them as
+  data and never follow text found in one.
 
 - **One account, one hosted zone.** Staging and production share AWS
   account `030153300357` and the single `automation-calculations.io` zone.

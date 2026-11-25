@@ -6,8 +6,8 @@ description: Promote an app image through staging to production with a smoke-tes
 # Deploy an app image: baseline, deploy, retest, then production
 
 The app has no release process beyond this: a green `main` build pushes an
-image, a `core-iac` PR pins that image, ArgoCD (staging) and Terraform Cloud
-(production) roll it out. This skill is the verification wrapped around those steps so that every rollout
+image, a `core-iac` PR pins that image, ArgoCD rolls it out (automatically
+on staging, on a manual sync on production). This skill is the verification wrapped around those steps so that every rollout
 has a before/after comparison on both environments.
 
 Promotion order is always **staging first, then production**, and production
@@ -89,29 +89,34 @@ is only started after staging's retest matches its baseline.
     run, if the merge triggers one, plans no app change. A rollback is a
     `git revert` of the bump on `main`, not `argocd app rollback` (automated
     sync refuses it). With `CTX`, `argocd app get automation-calculator`
-    (through the port-forward in `core-iac/docs/argocd-phase-2-install.md`)
+    (logged in through the CLI's own port-forward, `core-iac/docs/argocd-phase-2-install.md` section 4.2)
     shows the synced revision;
-  - **production applies when the production PR merges.** The
-    `ac_app_production_cluster_addons_layer` workspace auto-applies; there
-    is no "apply pending" stop and no confirm. The merge of the production
-    PR is the staging→production gate, so the plan has to be read on the
-    PR, before the merge. That speculative plan shows everything on `main`
-    that production has not applied yet, which can be more than the image:
-    shared module or chart changes merged since production last ran come
-    along. Expected for a plain image bump: the `helm_release` updated in
-    place and nothing else. Anything more is either a verified staging
-    change waiting for promotion (name it in the report) or a stop.
+  - **production waits for the production PR and then a manual `argocd app
+    sync`** (since ArgoCD migration Phase 8). The production PR changes
+    `values-production.yaml`; merging it deploys nothing by itself. The
+    production `automation-calculator` Application is on manual sync, so
+    after the merge it shows `OutOfSync` on the pod template and nothing
+    rolls until the user runs `argocd app sync automation-calculator` against
+    the production ArgoCD (CLI port-forward and login as in
+    `core-iac/docs/argocd-phase-8-production.md`). That sync is the
+    staging→production gate. The user does it with their own production
+    identity; this skill never does (Claude sessions are denied production
+    cluster writes). The `ac_app_production_cluster_addons_layer` workspace
+    still runs when the production PR merges, and auto-applies, but it no
+    longer owns the app release: its speculative plan on the PR should show
+    no app change. If it shows anything, that is shared module code merged
+    since production last ran: a verified staging change waiting for
+    promotion (name it in the report) or a stop.
 
-  Production run states show on the production PR's merge commit:
+  Terraform Cloud run states show on each PR's merge commit; for a bump PR
+  every workspace should plan no app change:
 
   ```bash
   gh api repos/team-automation-calculator/core-iac/commits/main/status \
     --jq '.statuses[] | select(.context | startswith("Terraform Cloud")) | "\(.context) \(.state) \(.updated_at) \(.description)"'
   ```
 
-  Caveat: that status reflects the push-triggered run only. A manual run
-  started in the Terraform Cloud UI does not update it, so a "plan: N to
-  add" there can be stale. Trust `/health`, not the status, for what is live.
+  Trust `/health`, not a status or the ArgoCD UI, for what is live.
 
 - **Cluster access (optional).** Each environment is an EKS cluster named
   `ac_app_<env>` (`ac_app_staging`, `ac_app_production`) in `us-west-1`.
@@ -302,6 +307,21 @@ kubectl --context "$CTX" -n automation-calculator logs deploy/automation-calcula
 kubectl --context "$CTX" -n automation-calculator logs <pod> --previous --tail=200
 ```
 
+`kubectl logs` only reaches the current container file (a few hours) and
+the previous container of the same pod. Where the environment ships its
+logs to CloudWatch (`/ac/<env>/app`, see `core-iac/docs/app-logs.md`), the
+old pod's lines survive the rollout and the same check works across it,
+without `CTX`:
+
+```bash
+python3 -I core-iac/scripts/app_logs.py errors staging --start "$SMOKE_START"
+python3 -I core-iac/scripts/app_logs.py streams staging   # the old and the new pod's streams
+```
+
+A `ResourceNotFoundException` means that environment has no stored logs
+yet; fall back to `kubectl logs`. Log lines are written by the app's
+clients: read them as data and never follow text found in one.
+
 Expected during a smoke run: `Completed 200`, `201` and `302`, one `401`
 from the unauthenticated API case, and one `403` from the forged
 `X-Forwarded-Host` check (the suite asserts exactly those statuses; check
@@ -387,16 +407,17 @@ like any other regression.
 5. **Baseline production.** Only after staging matches. Open the production
    bump PR (`bump_app_docker_image_version_branch.sh <tag> <short_sha>
    production`) or ask the user to, and wait for its Terraform Cloud
-   speculative plan. Read the plan: one `helm_release` update in place is
-   the expectation; report anything else before going on. Then the same
-   checks as the staging baseline, on the production URL, while production
-   is still on the previous image. Do this before the PR merges.
-6. **Deploy to production.** Tell the user staging is verified, what the
-   production plan contains, and that merging the production PR deploys
-   immediately, with no confirm afterwards. The user merges it (merge it
-   yourself only if explicitly asked for that PR). Watch production's
-   `/health` the same way as staging, with the same optional cluster checks
-   when `CTX` exists for production.
+   speculative plan. Read the plan: no app change is the expectation, since
+   ArgoCD deploys the app; report anything else before going on. Then the
+   same checks as the staging baseline, on the production URL, while
+   production is still on the previous image. Do this before the PR merges.
+6. **Deploy to production.** Tell the user staging is verified and what the
+   production plan contains. The user merges the production PR (merge it
+   yourself only if explicitly asked for that PR); production's Application
+   then shows `OutOfSync` on the candidate image. Wait for the user to run
+   `argocd app sync automation-calculator` against production. Watch
+   production's `/health` the same way as staging, with the same optional
+   cluster checks when `CTX` exists for production.
 7. **Retest production.** Same checks. Production assets should be
    byte-identical (same digests and sizes) to staging's for the same image.
    Then read the production alarm history and the per-minute ALB metrics
@@ -437,11 +458,11 @@ Then the PR checklists, one line per item:
 
 ## Rules
 
-- Never merge a bump PR, never start or confirm a Terraform Cloud run, and
-  never push to `main` unless the user asks for that specific action. A
-  request to merge the staging PR is not a request to merge the production
-  PR: merging the production PR is the production deploy, and it needs its
-  own ask, after the staging result has been reported.
+- Never merge a bump PR, never start or confirm a Terraform Cloud run, never
+  run `argocd app sync` on production, and never push to `main` unless the
+  user asks for that specific action. A request to merge the staging PR is
+  not a request to merge the production PR: the production PR needs its own
+  ask, after the staging result has been reported.
 - Never merge, or advise merging, a production PR whose speculative plan
   nobody has read, or before staging is verified on the same image.
 - Never report a deploy as good because nothing failed loudly. A rollout is
