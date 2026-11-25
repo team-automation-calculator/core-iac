@@ -134,12 +134,12 @@ sets are provisioned, following the staging pattern above.
 
 ```bash
 # One browser login covers all profiles. The dual-stack variable is required
-# (see Troubleshooting); scripts/infra_eng_sso.py login sets it for you.
+# (see Troubleshooting); ./go infra-eng-sso login sets it for you.
 AWS_USE_DUALSTACK_ENDPOINT=true aws sso login --profile infra-eng-staging
 
 AWS_PROFILE=ac-ci-staging aws sts get-caller-identity   # verify the chain
 AWS_PROFILE=ac-ci-staging terraform plan                # terraform against an env
-AWS_PROFILE=ac-ci-staging scripts/update_kubeconfigs.sh # refresh kubeconfigs
+AWS_PROFILE=ac-ci-staging ./go update-kubeconfigs # refresh kubeconfigs
 AWS_PROFILE=ac-ci-staging-ro kubectl get pods -A        # kubectl reads (view policy)
 AWS_PROFILE=ac-ci-staging kubectl apply -f ...          # kubectl writes (cluster-admin policy)
 ```
@@ -201,7 +201,7 @@ role; if `auth whoami` shows the wrong role, recreate the context with the
 `update-kubeconfig` command above (with `--user-alias`) and pass it
 explicitly with `--context ac_app_<env>-ro`.
 
-`scripts/infra_eng_sso.py up --environment <env> --read-only` sets up the
+`./go infra-eng-sso up --environment <env> --read-only` sets up the
 read-only persona end to end (profiles, login, kubeconfig, context); note it
 writes the cluster's default kubeconfig entry rather than an alias, so it
 replaces whichever persona that entry held before.

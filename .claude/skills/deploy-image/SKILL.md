@@ -42,16 +42,15 @@ is only started after staging's retest matches its baseline.
   the pod memory limit in the first hour`, `/health → 200 with database:
   ok` (see #238 for the shape). Those items are part of this deploy's
   change-specific checks, and the PR body is where the result is recorded.
-  The repo's `scripts/pr_checklist.py` (run from the repo root) lists the
+  `./go pr-checklist` (`scripts/pr_checklist.py`, run from the repo root) lists the
   PRs between two commits, prints their checklist items, and ticks one item
   at a time with a note:
 
   ```bash
-  S=scripts/pr_checklist.py
-  python3 -I $S prs <deployed sha> <candidate sha>      # merged PRs whose merge commit is in the range
-  python3 -I $S list <pr> [<pr>...] --open               # unchecked items only
-  python3 -I $S check <pr> --match '<unique text>' --note '<what, where, when>' --dry-run
-  python3 -I $S note  <pr> --match '<unique text>' --note 'not checked: <why>'
+  ./go pr-checklist prs <deployed sha> <candidate sha>      # merged PRs whose merge commit is in the range
+  ./go pr-checklist list <pr> [<pr>...] --open               # unchecked items only
+  ./go pr-checklist check <pr> --match '<unique text>' --note '<what, where, when>' --dry-run
+  ./go pr-checklist note  <pr> --match '<unique text>' --note 'not checked: <why>'
   ```
 
   `check` ticks exactly one unchecked item and appends ` — <note>`; `note`
@@ -69,8 +68,8 @@ is only started after staging's retest matches its baseline.
   | staging | `https://staging.automation-calculations.io` |
   | production | `https://automation-calculations.io` |
 
-- **How a deploy happens.** `core-iac/scripts/bump_app_docker_image_version_branch.sh <tag> <short_sha>`
-  (or `core-iac/scripts/watch_app_docker_image_versions.py`, which runs it
+- **How a deploy happens.** `core-iac/go bump-app-docker-image-version-branch <tag> <short_sha>`
+  (or `core-iac/go watch-app-docker-image-versions`, which runs it
   when a new tag appears on Docker Hub) opens the **staging PR**: it bumps
   `image.tag` and `shortCommitHash` in `values-staging.yaml`, and in the
   chart default `values.yaml` and `values-development.yaml`, which no live
@@ -123,12 +122,12 @@ is only started after staging's retest matches its baseline.
   `ac_app_<env>` (`ac_app_staging`, `ac_app_production`) in `us-west-1`.
   The app runs as Deployment `automation-calculator` in namespace
   `automation-calculator`. `kubectl` works only through the AWS SSO chain
-  in `core-iac/docs/aws-sso-auth.md`; `core-iac/scripts/infra_eng_sso.py`
+  in `core-iac/docs/aws-sso-auth.md`; `core-iac/go infra-eng-sso`
   writes the profiles, logs in, and updates the kubeconfig entry for one
   environment:
 
   ```bash
-  eval "$(core-iac/scripts/infra_eng_sso.py up --environment staging --read-only)"
+  eval "$(core-iac/go infra-eng-sso up --environment staging --read-only)"
   ```
 
   At the start of a deploy, find out whether that access is already there,
@@ -222,7 +221,7 @@ is only started after staging's retest matches its baseline.
   aws cloudwatch describe-alarm-history --region us-west-1 --profile ac-ci-staging-ro \
     --start-date <baseline time UTC> --end-date <retest time UTC> --max-records 100 --output text \
     --query 'AlarmHistoryItems[?starts_with(AlarmName,`ac-app-production`)].[Timestamp,HistoryItemType,AlarmName,HistorySummary]'
-  AWS_PROFILE=ac-ci-staging-ro python3 -I core-iac/scripts/alb_alarm_window.py --start <baseline UTC> --end <retest UTC>
+  AWS_PROFILE=ac-ci-staging-ro core-iac/go alb-alarm-window --start <baseline UTC> --end <retest UTC>
   ```
 
   The first is the authority for what fired. The second shows the
@@ -315,8 +314,8 @@ old pod's lines survive the rollout and the same check works across it,
 without `CTX`:
 
 ```bash
-python3 -I core-iac/scripts/app_logs.py errors staging --start "$SMOKE_START"
-python3 -I core-iac/scripts/app_logs.py streams staging   # the old and the new pod's streams
+core-iac/go app-logs errors staging --start "$SMOKE_START"
+core-iac/go app-logs streams staging   # the old and the new pod's streams
 ```
 
 A `ResourceNotFoundException` means that environment has no stored logs
@@ -392,8 +391,10 @@ like any other regression.
    scripts and merged by the user (merge it yourself only if explicitly
    asked). It must not touch `values-production.yaml`. Then
    watch staging's `/health` until `short_commit_hash` equals the candidate
-   sha, polling every 20–30 s, and report any unhealthy or unreachable
-   responses seen along the way. A background monitor is the right tool; do
+   sha, and report any unhealthy or unreachable responses seen along the
+   way: `./go health-poll staging tmp/<tag>/health.log
+   --until-hash <short_sha>` from the `core-iac` checkout logs every change
+   and stops at the flip (`production` for step 6). Run it in the background; do
    not sleep-poll in the foreground. With `CTX`: run `rollout status` in
    parallel and confirm the old ReplicaSet reached zero after the flip.
 4. **Retest staging.** Same checks as the baseline, plus the change-specific
