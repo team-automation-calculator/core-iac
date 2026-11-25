@@ -88,7 +88,14 @@ shortCommitHash: "97dd335"
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-  externalTrafficPolicy: Local
+  # Cluster, not Local. With Local a node passes the ALB health check only
+  # while an app pod runs on it, so on a node roll the replacement nodes stay
+  # unhealthy until a pod lands on them, while the old node has already left
+  # the target group: staging went dark for two minutes on 2026-11-25 with
+  # two replicas and the PodDisruptionBudget in place. With Cluster every
+  # node forwards to a ready pod wherever it runs. The client address still
+  # reaches the app in the ALB's X-Forwarded-For header.
+  externalTrafficPolicy: Cluster
   port: 80
   targetPort: 3000
   type: NodePort
