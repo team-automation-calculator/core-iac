@@ -162,13 +162,17 @@ resource "aws_db_instance" "automation_calculator_app" {
   engine                      = "postgres"
   engine_version              = var.db_engine_version
   final_snapshot_identifier   = var.skip_final_snapshot ? null : coalesce(var.final_snapshot_identifier, "automation-calculator-${var.environment_name}-final")
-  instance_class              = var.db_instance_class
-  max_allocated_storage       = 64
-  password                    = random_password.database_master_user_password.result
-  port                        = var.db_port
-  skip_final_snapshot         = var.skip_final_snapshot
-  snapshot_identifier         = var.db_snapshot_identifier
-  username                    = "automation_calculator_devops"
+  # The read-only roles of db_read_only_access.tf sign in with IAM tokens.
+  # The master user and the app keep their password: only members of rds_iam
+  # are switched to tokens.
+  iam_database_authentication_enabled = var.db_read_only_access_enabled
+  instance_class                      = var.db_instance_class
+  max_allocated_storage               = 64
+  password                            = random_password.database_master_user_password.result
+  port                                = var.db_port
+  skip_final_snapshot                 = var.skip_final_snapshot
+  snapshot_identifier                 = var.db_snapshot_identifier
+  username                            = "automation_calculator_devops"
   vpc_security_group_ids = [
     aws_security_group.allow_db_access_from_eks.id,
   ]

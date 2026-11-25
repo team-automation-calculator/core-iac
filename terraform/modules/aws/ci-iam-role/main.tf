@@ -1,5 +1,7 @@
 data "aws_caller_identity" "current" {}
 
+data "aws_region" "current" {}
+
 locals {
   role_name   = "ac_ci_terraform_${var.environment_name}"
   policy_name = "ac_ci_terraform_${var.environment_name}"
@@ -195,6 +197,27 @@ data "aws_iam_policy_document" "ci_read_only_permissions" {
       "iam:List*",
     ]
     resources = ["*"]
+  }
+
+  # Sign in to the app database as the read-only role made for CI and agents
+  # (modules/aws/main_rails_app/db_read_only_access.tf,
+  # docs/db-read-only-access.md). rds-db:connect is what lets this role ask
+  # for an IAM token for that one database user; the user itself can only
+  # SELECT from the app's schema.
+  #
+  # The instance id is a wildcard because the database is created by a later
+  # layer. The environment in the user name does the scoping instead: staging
+  # and production share an AWS account, and each database holds only its own
+  # environment's roles. Not given to the read-write role, which is for
+  # Terraform, not for reading data.
+  dynamic "statement" {
+    for_each = var.db_read_only_access_enabled ? [1] : []
+
+    content {
+      sid       = "ConnectToAppDatabaseReadOnly"
+      actions   = ["rds-db:connect"]
+      resources = ["arn:aws:rds-db:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:dbuser:*/ac_read_only_ci_${var.environment_name}"]
+    }
   }
 }
 

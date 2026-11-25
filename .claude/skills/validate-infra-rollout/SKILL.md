@@ -124,10 +124,16 @@ staging's diff matches the expectation.
   user's current context. Two limits seen in practice:
   - no `_read_only` role can read Helm release Secrets, on any environment
     (`AmazonEKSViewPolicy` excludes Secrets and the `ac-ci-read-only` group
-    is bound only to a nodes ClusterRole), so `helm list` / `helm get
+    is bound only to ClusterRoles for nodes and for ArgoCD `applications` /
+    `appprojects`), so `helm list` / `helm get
     manifest` need the read-write `ac-ci-<env>` role via a separate
     context. Ask before using it; a snapshot without the Helm checks is
     acceptable and the diff still covers pods, Route 53, ACM and `/health`.
+    The ArgoCD Application's Synced/Healthy status is readable under the
+    `-ro` context where the `ac-ci-read-only-argocd` ClusterRole is applied
+    (`kubectl --context ac_app_<env>-ro -n argocd get applications.argoproj.io
+    automation-calculator`); the `argocd` CLI still needs the read-write
+    role (port-forward and the admin login).
     If the Helm checks seem to pass under a `-ro` context, the context is
     probably mislabeled: on 2026-11-04 `ac_app_staging-ro` was found
     embedding `AWS_PROFILE=ac-ci-staging` (cluster-admin). `env_snapshot.py`
