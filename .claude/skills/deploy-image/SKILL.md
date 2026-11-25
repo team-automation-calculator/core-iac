@@ -87,9 +87,9 @@ is only started after staging's retest matches its baseline.
     staging Terraform Cloud workspace no longer owns the app release; its
     run, if the merge triggers one, plans no app change. A rollback is a
     `git revert` of the bump on `main`, not `argocd app rollback` (automated
-    sync refuses it). With `CTX`, `argocd app get automation-calculator`
-    (logged in through the CLI's own port-forward, `core-iac/docs/argocd-phase-2-install.md` section 4.2)
-    shows the synced revision;
+    sync refuses it). With `CTX`, the ArgoCD check below shows the synced
+    revision, sync and health status under the read-only role; no
+    `argocd login` is needed;
   - **production waits for the production PR and then a manual `argocd app
     sync`** (since ArgoCD migration Phase 8). The production PR changes
     `values-production.yaml`; merging it deploys nothing by itself. The
@@ -154,7 +154,11 @@ is only started after staging's retest matches its baseline.
 - **Use the read-only role.** Every `kubectl` command in this skill is a
   read (`get`, `rollout status`, `logs`, `events`), and the read-only CI
   role `ac_ci_terraform_<env>_read_only` has the `AmazonEKSViewPolicy`
-  access entry on each cluster, which covers all of them. So these checks
+  access entry on each cluster, which covers all of them, plus the
+  `ac-ci-read-only-argocd` ClusterRole (#495, both clusters) for the ArgoCD
+  `applications` and `appprojects` the ArgoCD check reads. It cannot read
+  Secrets (so no `helm list`) or port-forward (so no `argocd` CLI), and no
+  step here needs either. So these checks
   must run as the read-only persona: AWS profile `ac-ci-<P>-ro`
   (`ac-ci-staging-ro`, `ac-ci-prod-ro`) chained from `infra-eng-<P>-ro`,
   set up with `infra_eng_sso.py up --environment <env> --read-only`; never
@@ -291,6 +295,69 @@ flipped is a finding; report it even when the smoke suite passes. If the
 check is unavailable, note "cluster state not checked" in the report and
 rely on watching `/health` through the whole rollout instead.
 
+**ArgoCD check (optional, when `CTX` is set).** The rollout check shows the
+pods; this shows whether ArgoCD agrees that the environment matches `main`:
+the `automation-calculator` Application's sync status, health, synced
+revision and last operation, read with `kubectl` under the read-only role
+(no `argocd login`). Watch it during the rollout:
+
+```bash
+kubectl --context "$CTX" -n argocd get applications.argoproj.io automation-calculator \
+  -o jsonpath='{.status.sync.status}/{.status.health.status} rev={.status.sync.revision} images={.status.summary.images} op={.status.operationState.phase} at={.status.operationState.finishedAt}{"\n"}'
+```
+
+and once the rollout is done, run the full verifier from the `core-iac`
+checkout, which also checks the Deployment, the newest pod's tag and
+`SHORT_COMMIT_HASH`, and `/health` against the candidate:
+
+```bash
+core-iac/go argocd-staging-verify --env staging --context "$CTX" --skip-history \
+  --expect-tag <tag> --expect-hash <short_sha>
+# production: --env production with production's CTX
+```
+
+Pass `--expect-tag` and `--expect-hash` (its defaults come from the
+checkout's `values-<env>.yaml`, which may be behind `main`). Under the
+read-only role it reports the `argocd app history` and Helm checks as "not
+checked"; that is expected, and its exit status covers the rest. What to
+expect:
+
+- **Staging** (automated sync): `OutOfSync` for up to about 3 minutes after
+  the merge, then `Synced` at the merge commit (or a later `main` commit),
+  `Progressing` while pods roll, then `Healthy`, with the last operation
+  `Succeeded` and started by `automated`.
+- **Production** (manual sync): `Synced/Healthy` on the old image before the
+  merge; `OutOfSync` on the Deployment after the merge (this is the gate:
+  the check proves the merge reached ArgoCD and nothing rolled); after the
+  user's `argocd app sync`, `Synced/Healthy` on the candidate, last
+  operation `Succeeded` and started by the user.
+
+`OutOfSync` that lasts past the window above, `Degraded`, `Missing`, or a
+last operation that is not `Succeeded` is a finding even when `/health`
+has flipped. If the Application read is `Forbidden`, the
+`ac-ci-read-only-argocd` ClusterRole is missing on that cluster: note
+"ArgoCD not checked: forbidden" and do not switch to the read-write role
+for it.
+
+**Database check (optional, staging only for now).** Where
+`db_read_only_access_enabled = true` is applied (staging; production once it
+is promoted, see `core-iac/docs/db-read-only-access.md`), an image whose
+diff adds a migration under `db/migrate/` can be checked from the database
+side: the migration's version is in `schema_migrations` and its table or
+column exists. Sign in as the CI role, never `--as infra-eng` and never the
+master user:
+
+```bash
+core-iac/go db-read-only-psql staging --as ci -- -At -c "select max(version), count(*) from schema_migrations"
+core-iac/go db-read-only-psql staging --as ci -- -At -c "select column_name, data_type from information_schema.columns where table_name = '<table>' order by 1"
+```
+
+Query schema and counts only. Rows are user data (`users` holds email
+addresses and credential hashes): never select them into a report, a PR
+body or a checklist note. If the script fails (no `psql`, the access not
+enabled on that environment, an expired SSO login), note "database not
+checked" and carry on; like `kubectl`, it never blocks a deploy.
+
 **Log check (optional, when `CTX` is set).** Run it immediately before and
 immediately after each smoke run, on the baseline and on the retest, so the
 suite's own requests are bracketed. Before: capture the recent tail so that
@@ -342,6 +409,7 @@ say explicitly what the suite cannot cover:
 | Asset pipeline (sass, terser, sprockets, precompile) | Asset check on every asset, plus the font or image URLs referenced from inside the CSS. |
 | Puma, pg, Rails major/minor | Watch `/health` through the whole rollout for any non-200 or unreachable response, not just the final flip. |
 | Host authorization, ingress, ALB controller | Forged `X-Forwarded-Host` on `/` is 403 and on `/health` is 200. |
+| Migrations (`db/migrate/`) | The database check: the new version is in `schema_migrations` and the table or column exists, on each environment where read-only access is enabled. `/health` only runs `SELECT 1`. |
 
 **PR checklist.** Before the baseline, list the unchecked items of every PR
 in the image (`pr_checklist.py prs`, then `list --open`) and sort each one
@@ -386,7 +454,9 @@ like any other regression.
 2. **Baseline staging.** Record `/health`'s hash, run the smoke suite and the
    asset check, note the numbers. Do this *before* the bump PR merges so the
    baseline is on the old image. With `CTX`: log check before and after the
-   smoke run, and a pod listing for the old image's state.
+   smoke run, a pod listing for the old image's state, and the Application's
+   status line (ArgoCD check), which should be `Synced/Healthy` on the old
+   image.
 3. **Deploy to staging.** The staging bump PR is opened by the `core-iac`
    scripts and merged by the user (merge it yourself only if explicitly
    asked). It must not touch `values-production.yaml`. Then
@@ -396,13 +466,18 @@ like any other regression.
    --until-hash <short_sha>` from the `core-iac` checkout logs every change
    and stops at the flip (`production` for step 6). Run it in the background; do
    not sleep-poll in the foreground. With `CTX`: run `rollout status` in
-   parallel and confirm the old ReplicaSet reached zero after the flip.
+   parallel, confirm the old ReplicaSet reached zero after the flip, and
+   read the Application's status line until it is `Synced/Healthy` with the
+   candidate image.
 4. **Retest staging.** Same checks as the baseline, plus the change-specific
    ones. Compare against the baseline. Any new failure, pending-count change,
    missing asset, or health miss stops the promotion here: report it, do not
-   move to production. With `CTX`: the cluster rollout check first, then the
-   bracketed log check around the smoke run; a restarted pod or a new error
-   class in the logs stops the promotion the same way a failing example does.
+   move to production. With `CTX`: the cluster rollout check and
+   `argocd-staging-verify` first, then the bracketed log check around the
+   smoke run; a restarted pod, an Application that is not `Synced/Healthy`,
+   a verifier failure, or a new error class in the logs stops the promotion
+   the same way a failing example does. For an image with migrations, the
+   database check.
    Then tick the staging items of the PR checklists that held (`check`,
    `--dry-run` first), `note` the ones that did not or could not run, and
    ask the user for the items only they can do.
@@ -416,11 +491,17 @@ like any other regression.
 6. **Deploy to production.** Tell the user staging is verified and that the
    production PR changes only the tag and the hash. The user merges the production PR (merge it
    yourself only if explicitly asked for that PR); production's Application
-   then shows `OutOfSync` on the candidate image. Wait for the user to run
+   then shows `OutOfSync` on the candidate image. With production's `CTX`,
+   confirm that with the ArgoCD check (`OutOfSync`, out-of-sync resource the
+   Deployment, pods still on the old image) and tell the user ArgoCD has
+   picked up the merge; until it shows `OutOfSync` a sync would roll
+   nothing. Wait for the user to run
    `argocd app sync automation-calculator` against production. Watch
    production's `/health` the same way as staging, with the same optional
-   cluster checks when `CTX` exists for production.
-7. **Retest production.** Same checks. Production assets should be
+   cluster and ArgoCD checks when `CTX` exists for production.
+7. **Retest production.** Same checks, including `argocd-staging-verify
+   --env production` with production's `CTX` (last operation started by the
+   user, not `automated`). Production assets should be
    byte-identical (same digests and sizes) to staging's for the same image.
    Then read the production alarm history and the per-minute ALB metrics
    from the production baseline time to now (the alarms fact above); the
@@ -446,6 +527,8 @@ the user has to act on:
 | Before (`<old sha>`, image `-<old>`) | 49 examples, 0 failures, 2 pending |
 | After (`<new sha>`, image `-<new>`) | 49 examples, 0 failures, 2 pending |
 | Cluster (optional) | 2/2 pods Ready on `-<new>`, 0 restarts, old ReplicaSet at 0 — or "not checked: no kubeconfig context" |
+| ArgoCD (optional) | `Synced/Healthy` at `<rev>` on `-<new>`, last operation Succeeded (automated / user), `argocd-staging-verify` OK (history and Helm not checked under `-ro`) — or "not checked" with the reason |
+| Database (optional, migrations only) | `schema_migrations` max `<version>`, `<table>.<column>` present — or "not checked" with the reason |
 | Logs around smoke runs (optional) | before/after: no 5xx, no exceptions — or "not checked" |
 | Alarms (production only) | no transitions 16:28Z to 16:50Z; ALB metrics: 0 ELB 5xx, 0 unhealthy-host minutes — or "alb-5xx-errors ALARM 16:42Z → OK 16:44Z during the pod swap: finding, see below" |
 
@@ -481,7 +564,11 @@ Then the PR checklists, one line per item:
   read-write context is available, switch to a read-only one when a `-ro`
   profile works, otherwise ask the user before using the read-write role
   for anything, even reads. No `rollout restart`, `delete`, `scale`,
-  `edit`, `apply` or `exec` under any role.
+  `edit`, `apply` or `exec` under any role. Read the ArgoCD Application
+  with `kubectl` under the same read-only context; the `argocd` CLI login
+  (read-write role, admin password) is the user's, for the production sync.
+- Read the database only through `db-read-only-psql --as ci`: schema and
+  counts, never rows in any report or PR.
 - Edit a PR body only through `pr_checklist.py check` / `note`, one item at
   a time, after a `--dry-run`. Tick only an item this deploy actually
   observed (or the user said they did), with a note that says what, where
