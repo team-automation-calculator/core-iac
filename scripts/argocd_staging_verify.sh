@@ -10,18 +10,27 @@
 # every production deploy after it). Production stays on manual sync, so its
 # last operation is started by a user, which is reported but not a failure.
 #
-# Read-only. Against the current kubeconfig context and the argocd CLI login it
-# prints and checks:
+# Read-only. Against the current kubeconfig context (or --context) and the
+# argocd CLI login it prints and checks:
 #   - the Application's sync status, health, sync policy, synced revision and
 #     the last operation (phase, who started it, start and finish times)
 #   - the image tag on the live Deployment, and that its rollout is complete
 #   - the image tag and the SHORT_COMMIT_HASH env var on the newest app pod
 #   - GET https://<ingress.host>/health (host from values-<env>.yaml)
-#   - the tail of `argocd app history`
+#   - the tail of `argocd app history` (skipped with --skip-history)
 #   - `helm -n <namespace> list`, which must be empty after Phase 6 (staging)
 #     and Phase 8 Commit B (production); --expect-helm-release inverts that
 #     check for the window on production between Commit A (ArgoCD adopts the
 #     app) and Commit B (Terraform forgets the release)
+#
+# Under the read-only identity (`--context ac_app_<env>-ro`, role
+# ac_ci_terraform_<env>_read_only) the Application, Deployment, pod and /health
+# checks all work (the Application read needs the ac-ci-read-only-argocd
+# ClusterRole, #495). Two do not, by design: the argocd CLI login needs a
+# port-forward and the admin password, so pass --skip-history; and Helm keeps
+# its release state in Secrets, which the role cannot read, so the Helm check
+# reports "not checked" instead of passing. Checks that could not run are
+# listed at the end and never counted as passed.
 #
 # Exits non-zero on any mismatch against the expected tag and hash, which
 # default to image.tag and shortCommitHash in helm/automation-calculator/
@@ -38,9 +47,14 @@
 #   scripts/argocd_staging_verify.sh | tee tmp/phase7-cycle-1-verify.txt
 #   scripts/argocd_staging_verify.sh --env production --expect-helm-release   # Phase 8, after Commit A, before Commit B
 #   scripts/argocd_staging_verify.sh --env production                         # Phase 8 after Commit B, and every production deploy
+#   ./go argocd-staging-verify --context ac_app_staging-ro --skip-history     # read-only persona, no argocd login
+#   ./go argocd-staging-verify --env production --context ac_app_production-ro --skip-history
 #
 # Options:
 #   --env NAME              environment (default staging); selects values-NAME.yaml
+#   --context CTX           kubeconfig context for kubectl, helm and the argocd CLI's
+#                           port-forward (default: the current context, left unchanged)
+#   --skip-history          do not run `argocd app history` (no argocd CLI or login needed)
 #   --expect-tag TAG        image tag the cluster must run (default: image.tag in values-NAME.yaml)
 #   --expect-hash HASH      SHORT_COMMIT_HASH the newest pod must carry (default: shortCommitHash in values-NAME.yaml)
 #   --expect-helm-release   expect `helm list` to still show the Terraform-managed release
@@ -70,6 +84,8 @@ EXPECT_TAG=""
 EXPECT_HASH=""
 EXPECT_HELM_RELEASE="false"
 HISTORY_LINES=5
+KUBE_CONTEXT=""
+SKIP_HISTORY="false"
 
 usage() {
   sed -n '3,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -82,6 +98,8 @@ while [ $# -gt 0 ]; do
     --expect-hash) EXPECT_HASH="$2"; shift 2 ;;
     --expect-helm-release) EXPECT_HELM_RELEASE="true"; shift ;;
     --history-lines) HISTORY_LINES="$2"; shift 2 ;;
+    --context) KUBE_CONTEXT="$2"; shift 2 ;;
+    --skip-history) SKIP_HISTORY="true"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -95,13 +113,40 @@ HEALTH_PATH="${HEALTH_PATH:-/health}"
 VALUES_FILE="${CHART_DIR}/values-${ENV_NAME}.yaml"
 
 failures=0
+unchecked=()
+
+# stderr of a read goes here, and is shown only when the read fails, so a
+# warning on stderr never ends up in the parsed output.
+ERR_FILE="$(mktemp)"
+trap 'rm -f "${ERR_FILE}"' EXIT
 
 fail() {
   echo "FAIL: $*" >&2
   failures=$((failures + 1))
 }
 
-for cli in kubectl argocd yq curl; do
+not_checked() {
+  echo "  NOT CHECKED: $*" >&2
+  unchecked+=("$*")
+}
+
+# Every cluster call goes through these, so --context never touches the
+# user's current context.
+if [ -n "${KUBE_CONTEXT}" ]; then
+  KUBECTL=(kubectl --context "${KUBE_CONTEXT}")
+  HELM=(helm --kube-context "${KUBE_CONTEXT}")
+  ARGOCD=(argocd --kube-context "${KUBE_CONTEXT}")
+else
+  KUBECTL=(kubectl)
+  HELM=(helm)
+  ARGOCD=(argocd)
+fi
+
+required_clis=(kubectl yq curl)
+if [ "${SKIP_HISTORY}" != "true" ]; then
+  required_clis+=(argocd)
+fi
+for cli in "${required_clis[@]}"; do
   if ! command -v "${cli}" >/dev/null 2>&1; then
     echo "${cli} is not installed; nothing to check." >&2
     exit 1
@@ -128,8 +173,13 @@ if [ -z "${host}" ] || [ "${host}" = "null" ]; then
   exit 1
 fi
 
-echo "Context:        $(kubectl config current-context)"
-echo "ArgoCD server:  ${ARGOCD_SERVER:-<CLI port-forward>} (ARGOCD_OPTS: ${ARGOCD_OPTS})"
+echo "Context:        ${KUBE_CONTEXT:-$(kubectl config current-context)}"
+echo "Identity:       $("${KUBECTL[@]}" auth whoami -o jsonpath='{.status.userInfo.username}' 2>/dev/null || echo unknown)"
+if [ "${SKIP_HISTORY}" = "true" ]; then
+  echo "ArgoCD server:  not used (--skip-history)"
+else
+  echo "ArgoCD server:  ${ARGOCD_SERVER:-<CLI port-forward>} (ARGOCD_OPTS: ${ARGOCD_OPTS})"
+fi
 echo "Time:           $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Values file:    values-${ENV_NAME}.yaml (image.tag ${values_tag}, shortCommitHash ${values_hash})"
 echo "Expected:       tag ${EXPECT_TAG}, SHORT_COMMIT_HASH ${EXPECT_HASH:-<empty>}"
@@ -139,11 +189,14 @@ echo
 #    below for the history tail). jsonpath cannot express "the last history
 #    entry", so the history id is taken from the CLI output instead.
 echo "Application ${ARGOCD_NAMESPACE}/${APP_NAME}:"
-app_row="$(kubectl -n "${ARGOCD_NAMESPACE}" get application.argoproj.io "${APP_NAME}" \
-  -o jsonpath='{.status.sync.status}{"\t"}{.status.health.status}{"\t"}{.status.sync.revision}{"\t"}{.spec.syncPolicy.automated}{"\t"}{.status.operationState.phase}{"\t"}{.status.operationState.operation.initiatedBy.automated}{"\t"}{.status.operationState.operation.initiatedBy.username}{"\t"}{.status.operationState.startedAt}{"\t"}{.status.operationState.finishedAt}{"\t"}{.status.operationState.message}' 2>/dev/null || true)"
-if [ -z "${app_row}" ]; then
-  fail "Application ${APP_NAME} not found in namespace ${ARGOCD_NAMESPACE}"
-else
+app_row="$("${KUBECTL[@]}" -n "${ARGOCD_NAMESPACE}" get application.argoproj.io "${APP_NAME}" \
+  -o jsonpath='{.status.sync.status}{"\t"}{.status.health.status}{"\t"}{.status.sync.revision}{"\t"}{.spec.syncPolicy.automated}{"\t"}{.status.operationState.phase}{"\t"}{.status.operationState.operation.initiatedBy.automated}{"\t"}{.status.operationState.operation.initiatedBy.username}{"\t"}{.status.operationState.startedAt}{"\t"}{.status.operationState.finishedAt}{"\t"}{.status.operationState.message}' 2>"${ERR_FILE}")" || {
+  # Not found, or Forbidden where the ac-ci-read-only-argocd ClusterRole is
+  # not applied; either way the error says which.
+  fail "cannot read Application ${ARGOCD_NAMESPACE}/${APP_NAME}: $(cat "${ERR_FILE}")"
+  app_row=""
+}
+if [ -n "${app_row}" ]; then
   sync_status="$(printf '%s' "${app_row}" | cut -f1)"
   health_status="$(printf '%s' "${app_row}" | cut -f2)"
   sync_revision="$(printf '%s' "${app_row}" | cut -f3)"
@@ -191,7 +244,7 @@ fi
 # 2. Live Deployment: image tag and rollout completeness.
 echo
 echo "Deployment ${APP_NAMESPACE}/${APP_NAME}:"
-deploy_row="$(kubectl -n "${APP_NAMESPACE}" get deploy "${APP_NAME}" \
+deploy_row="$("${KUBECTL[@]}" -n "${APP_NAMESPACE}" get deploy "${APP_NAME}" \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\t"}{.metadata.generation}{"\t"}{.status.observedGeneration}{"\t"}{.spec.replicas}{"\t"}{.status.updatedReplicas}{"\t"}{.status.availableReplicas}{"\t"}{.metadata.annotations.deployment\.kubernetes\.io/revision}' 2>/dev/null || true)"
 if [ -z "${deploy_row}" ]; then
   fail "Deployment ${APP_NAME} not found in namespace ${APP_NAMESPACE}"
@@ -223,13 +276,13 @@ fi
 #    Application's helm.releaseName, which Phase 5 fixed to APP_NAME.
 echo
 echo "Newest pod:"
-newest_pod="$(kubectl -n "${APP_NAMESPACE}" get pods \
+newest_pod="$("${KUBECTL[@]}" -n "${APP_NAMESPACE}" get pods \
   -l "app.kubernetes.io/name=${APP_NAME},app.kubernetes.io/instance=${APP_NAME}" \
   --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | tail -n 1 | sed 's#^pod/##')"
 if [ -z "${newest_pod}" ]; then
   fail "no pods found with the ${APP_NAME} selector labels in ${APP_NAMESPACE}"
 else
-  pod_row="$(kubectl -n "${APP_NAMESPACE}" get pod "${newest_pod}" \
+  pod_row="$("${KUBECTL[@]}" -n "${APP_NAMESPACE}" get pod "${newest_pod}" \
     -o jsonpath='{.metadata.creationTimestamp}{"\t"}{.status.phase}{"\t"}{.status.containerStatuses[0].ready}{"\t"}{.status.containerStatuses[0].restartCount}{"\t"}{.spec.containers[0].image}{"\t"}{.spec.containers[0].env[?(@.name=="SHORT_COMMIT_HASH")].value}')"
   pod_created="$(printf '%s' "${pod_row}" | cut -f1)"
   pod_phase="$(printf '%s' "${pod_row}" | cut -f2)"
@@ -268,7 +321,9 @@ fi
 #    under in docs/argocd-staging-soak-log.md.
 echo
 echo "argocd app history ${APP_NAME} (last ${HISTORY_LINES} lines):"
-if history_out="$(argocd app history "${APP_NAME}" 2>&1)"; then
+if [ "${SKIP_HISTORY}" = "true" ]; then
+  not_checked "argocd app history (--skip-history); the last operation above comes from the Application instead"
+elif history_out="$("${ARGOCD[@]}" app history "${APP_NAME}" 2>&1)"; then
   printf '%s\n' "${history_out}" | head -n 1 | sed 's/^/  /'
   printf '%s\n' "${history_out}" | tail -n +2 | tail -n "${HISTORY_LINES}" | sed 's/^/  /'
   latest_history_id="$(printf '%s\n' "${history_out}" | tail -n 1 | awk '{ print $1 }')"
@@ -282,13 +337,22 @@ fi
 #    env is still in the window where Terraform owns the release.
 echo
 echo "helm -n ${APP_NAMESPACE} list:"
+# A failed read (Forbidden under the read-only role, which cannot read Secrets)
+# must not look like an empty list: that used to print "empty (ok)".
+helm_ok="true"
 if command -v helm >/dev/null 2>&1; then
-  helm_releases="$(helm -n "${APP_NAMESPACE}" list -q 2>/dev/null || true)"
+  helm_releases="$("${HELM[@]}" -n "${APP_NAMESPACE}" list -q 2>"${ERR_FILE}")" || helm_ok="false"
 else
   echo "  (helm not installed; checking Helm release Secrets with kubectl instead)"
-  helm_releases="$(kubectl -n "${APP_NAMESPACE}" get secret -l owner=helm -o name 2>/dev/null || true)"
+  helm_releases="$("${KUBECTL[@]}" -n "${APP_NAMESPACE}" get secret -l owner=helm -o name 2>"${ERR_FILE}")" || helm_ok="false"
 fi
-if [ "${EXPECT_HELM_RELEASE}" = "true" ]; then
+if [ "${helm_ok}" != "true" ]; then
+  if grep -qi forbidden "${ERR_FILE}"; then
+    not_checked "Helm releases: this identity cannot read Secrets (expected under the read-only role; use the read-write role to check)"
+  else
+    fail "Helm release check failed: $(cat "${ERR_FILE}")"
+  fi
+elif [ "${EXPECT_HELM_RELEASE}" = "true" ]; then
   if [ -z "${helm_releases}" ]; then
     fail "Helm has no release in ${APP_NAMESPACE} but --expect-helm-release was given; has Terraform already forgotten it?"
   else
@@ -303,8 +367,12 @@ else
 fi
 
 echo
+if [ "${#unchecked[@]}" -gt 0 ]; then
+  echo "Not checked (${#unchecked[@]}):"
+  printf '  - %s\n' "${unchecked[@]}"
+fi
 if [ "${failures}" -gt 0 ]; then
   echo "Verify FAILED (${failures} problem(s))."
   exit 1
 fi
-echo "Verify OK: ${ENV_NAME} runs ${EXPECT_TAG} (${EXPECT_HASH:-<empty hash>}) through ArgoCD."
+echo "Verify OK: ${ENV_NAME} runs ${EXPECT_TAG} (${EXPECT_HASH:-<empty hash>}) through ArgoCD${unchecked[0]:+, with ${#unchecked[@]} check(s) not run (above)}."
