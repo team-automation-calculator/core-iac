@@ -1,3 +1,4 @@
+auto_apply                             = true
 base_cluster_layer_working_directory   = "terraform/env/production/aws/us-west-1/base-cluster-layer"
 cluster_addons_layer_working_directory = "terraform/env/production/aws/us-west-1/cluster-addons-layer"
 enable_github_org_workspace            = true
@@ -18,3 +19,4 @@ tfc_organization_members = {
 }
 tfc_owner_token_expired_at = "2027-11-18T00:00:00Z"
 tfe_workspace_tf_version   = "1.17"
+trigger_on_shared_code     = false
