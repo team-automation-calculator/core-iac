@@ -6,11 +6,17 @@ Usage:
     python3 -I scripts/env_snapshot.py take production tmp/<pr>/production-before [--context CTX] [--profile P]
     python3 -I scripts/env_snapshot.py diff tmp/<pr>/staging-before tmp/<pr>/staging-after
 
-`take` runs only reads (helm list / get manifest, kubectl get pods, Route 53 list, ACM describe,
-GET /health) under the environment's read-only persona and writes one file per check into the
-output directory. A check that fails is recorded in errors.txt and the others still run.
+`take` runs only reads (helm list / get manifest, kubectl get pods, kubectl get the ArgoCD
+Applications, Route 53 list, ACM describe, GET /health) under the environment's read-only
+persona and writes one file per check into the output directory. A check that fails is
+recorded in errors.txt and the others still run.
 `diff` prints what changed between two snapshot directories: Helm revisions and chart versions,
-rendered manifests, the host's Route 53 records, pods, the ACM certificate and /health.
+rendered manifests, the ArgoCD Applications' sync and health, the host's Route 53 records,
+pods, the ACM certificate and /health. An Application that is not Synced and Healthy in the
+after snapshot is flagged ATTENTION.
+
+The Applications are readable under the read-only identity where the ac-ci-read-only-argocd
+ClusterRole is applied (#495, both environments); Helm reads still fail under it (Secrets).
 """
 
 import argparse
@@ -48,6 +54,93 @@ ENVS = {
 ZONE_NAME = "automation-calculations.io"
 REGION = "us-west-1"
 NAMESPACES = ["automation-calculator", "kube-system", "default"]
+ARGOCD_NAMESPACE = "argocd"
+
+
+def summarize_applications(data: dict) -> list[dict]:
+    """Reduce `kubectl get applications.argoproj.io -o json` to what a rollout is judged by."""
+    rows = []
+    for app in data.get("items", []):
+        spec, status = app.get("spec", {}), app.get("status", {})
+        automated = (spec.get("syncPolicy") or {}).get("automated")
+        if automated is None:
+            policy = "manual"
+        else:
+            flags = [k for k in ("prune", "selfHeal") if automated.get(k)]
+            policy = "automated" + (f" ({', '.join(flags)})" if flags else "")
+        op = status.get("operationState") or {}
+        initiated = (op.get("operation") or {}).get("initiatedBy") or {}
+        if initiated.get("automated"):
+            initiator = "automated"
+        elif initiated.get("username"):
+            initiator = f"user {initiated['username']}"
+        else:
+            initiator = None
+        rows.append(
+            {
+                "name": app.get("metadata", {}).get("name"),
+                "sync": (status.get("sync") or {}).get("status"),
+                "revision": (status.get("sync") or {}).get("revision"),
+                "health": (status.get("health") or {}).get("status"),
+                "sync_policy": policy,
+                "images": sorted((status.get("summary") or {}).get("images", [])),
+                "out_of_sync": sorted(
+                    f"{r.get('kind')}/{r.get('name')}"
+                    for r in status.get("resources", [])
+                    if r.get("status") not in (None, "Synced")
+                ),
+                "last_operation": {
+                    "phase": op.get("phase"),
+                    "initiated_by": initiator,
+                    "finished_at": op.get("finishedAt"),
+                },
+            }
+        )
+    return rows
+
+
+def diff_applications(before: list[dict] | None, after: list[dict] | None) -> list[str]:
+    """Lines comparing two summarize_applications() results."""
+    if before is None or after is None:
+        return ["not captured on one side (see the failed checks below)"]
+    lines = []
+    b_by, a_by = {r["name"]: r for r in before}, {r["name"]: r for r in after}
+    for name in sorted(set(b_by) | set(a_by)):
+        b, a = b_by.get(name), a_by.get(name)
+        if not a:
+            lines.append(f"REMOVED  {name}")
+            continue
+        if not b:
+            lines.append(
+                f"ADDED    {name}: {a['sync']}/{a['health']}, {a['sync_policy']}"
+            )
+        else:
+            keys = ("sync", "health", "sync_policy", "images", "out_of_sync")
+            flag = "same" if all(b[k] == a[k] for k in keys) else "CHANGED"
+            lines.append(
+                f"{flag:8} {name}: {b['sync']}/{b['health']} -> {a['sync']}/{a['health']}, "
+                f"revision {(b['revision'] or '-')[:12]} -> {(a['revision'] or '-')[:12]}, "
+                f"{a['sync_policy']}"
+            )
+            if b["images"] != a["images"]:
+                lines.append(f"    images {b['images']} -> {a['images']}")
+            if b["sync_policy"] != a["sync_policy"]:
+                lines.append(
+                    f"    sync policy {b['sync_policy']} -> {a['sync_policy']}"
+                )
+        op = a["last_operation"]
+        if op["phase"]:
+            lines.append(
+                f"    last operation {op['phase']} by {op['initiated_by'] or 'unknown'} "
+                f"at {op['finished_at'] or '-'}"
+            )
+        if a["out_of_sync"]:
+            lines.append(f"    out of sync: {', '.join(a['out_of_sync'])}")
+        if (a["sync"], a["health"]) != ("Synced", "Healthy"):
+            lines.append(
+                f"ATTENTION {name} is {a['sync']}/{a['health']} after, expected Synced/Healthy"
+            )
+    return lines or ["no Applications on either side"]
 
 
 def run(cmd: list[str], env: dict) -> str:
@@ -197,6 +290,29 @@ def take(args: argparse.Namespace) -> int:
                 )
         (out / "pods.json").write_text(json.dumps(rows, indent=2) + "\n")
 
+    def argocd() -> None:
+        if not ctx:
+            raise RuntimeError("no kubectl context for this environment")
+        data = json.loads(
+            run(
+                [
+                    "kubectl",
+                    "get",
+                    "applications.argoproj.io",
+                    "-n",
+                    ARGOCD_NAMESPACE,
+                    "-o",
+                    "json",
+                    "--context",
+                    ctx,
+                ],
+                env,
+            )
+        )
+        (out / "argocd-applications.json").write_text(
+            json.dumps(summarize_applications(data), indent=2) + "\n"
+        )
+
     def route53() -> None:
         zone = run(
             [
@@ -303,6 +419,7 @@ def take(args: argparse.Namespace) -> int:
     for name, fn in [
         ("helm", helm_list),
         ("pods", pods),
+        ("argocd", argocd),
         ("route53", route53),
         ("acm", acm),
         ("health", health),
@@ -376,6 +493,13 @@ def diff(args: argparse.Namespace) -> int:
                 print(
                     f"    ... {len(lines) - args.max_lines} more lines; diff the files directly"
                 )
+
+    print("\n## ArgoCD Applications")
+    for line in diff_applications(
+        load(before, "argocd-applications.json"),
+        load(after, "argocd-applications.json"),
+    ):
+        print(line)
 
     print("\n## Route 53 records for the host")
     rb = {
