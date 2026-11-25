@@ -392,8 +392,10 @@ like any other regression.
    scripts and merged by the user (merge it yourself only if explicitly
    asked). It must not touch `values-production.yaml`. Then
    watch staging's `/health` until `short_commit_hash` equals the candidate
-   sha, polling every 20–30 s, and report any unhealthy or unreachable
-   responses seen along the way. A background monitor is the right tool; do
+   sha, and report any unhealthy or unreachable responses seen along the
+   way: `python3 -I scripts/health_poll.py staging tmp/<tag>/health.log
+   --until-hash <short_sha>` from the `core-iac` checkout logs every change
+   and stops at the flip (`production` for step 6). Run it in the background; do
    not sleep-poll in the foreground. With `CTX`: run `rollout status` in
    parallel and confirm the old ReplicaSet reached zero after the flip.
 4. **Retest staging.** Same checks as the baseline, plus the change-specific
