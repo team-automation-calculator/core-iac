@@ -1,0 +1,18 @@
+{{- /*
+Only with more than one replica. At replicaCount 1, minAvailable 1 allows no
+voluntary eviction at all: a managed node group update would wait on the drain
+until it times out and fails.
+*/ -}}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "automation-calculator.fullname" . }}
+  labels:
+    {{- include "automation-calculator.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "automation-calculator.selectorLabels" . | nindent 6 }}
+{{- end }}
