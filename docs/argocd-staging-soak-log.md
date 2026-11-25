@@ -14,9 +14,15 @@ the gate's counts); notes (TFC staging plan result, anything odd).
 
 | Date | Kind | Tag | PR | ArgoCD history ID | Time to sync | Manual intervention | Notes |
 |---|---|---|---|---|---|---|---|
+| 2026-11-24 | bump | 0.9.6-998 | #469 | 1 | 1m28s | no | Merged 23:54:50Z, synced 23:56:18Z by automated, new pod Ready by 23:56:59Z. Staging TFC plan: no changes. Verify OK. |
+| 2026-11-25 | rollback | 0.9.6-996 | #471 | 2 | 3s | no | Rollback test: revert of #469. Merged 00:08:31Z, synced 00:08:34Z by automated, Healthy by 00:08:51Z. Staging TFC plan: no changes. Verify OK. |
 
 ## Gate
 
 <!-- Managed by scripts/argocd_soak_log.py; do not edit by hand. -->
 
-Not yet evaluated: run `scripts/argocd_soak_log.py status`.
+**FAIL** as of 2026-11-25: Phase 8 may not start yet.
+
+- FAIL: 1 bump cycle(s) without manual intervention (need 3)
+- FAIL: 1 day(s) since the first clean cycle on 2026-11-24 (need 3)
+- note: 1 rollback cycle(s) recorded (the plan's revert test)
