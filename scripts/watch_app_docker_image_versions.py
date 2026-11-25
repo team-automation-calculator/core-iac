@@ -4,12 +4,14 @@
 Snapshots the current set of tags on Docker Hub, then polls every minute for
 10 minutes. If a new tag (one not present in the initial snapshot) appears,
 invokes `bump_app_docker_image_version_branch.sh` with that version to create
-the branch, commit, push, and open a PR bumping all envs.
+the branch, commit, push, and open the staging bump PR. A deploy is two PRs
+(docs/promotion.md): this script only ever opens the staging one. The
+production PR is opened by hand, after staging is verified, with
+`bump_app_docker_image_version_branch.sh <version> <hash> production`.
 
-If the startup sync check finds a bump already pending (all envs on the same
-version but Docker Hub's newest tag is different) and no PR exists yet for
-that version's bump branch, the bump runs immediately instead of waiting for
-a new tag to appear.
+If the startup sync check finds a bump already pending (staging is not on
+Docker Hub's newest tag) and no PR exists yet for that version's bump branch,
+the bump runs immediately instead of waiting for a new tag to appear.
 
 Designed for local operator use. Standard library only.
 
@@ -192,22 +194,27 @@ def main() -> int:
     for env, version in values_versions.items():
         print(f"  {env:15s}  image.tag = {version}")
 
-    deployed = set(values_versions.values())
+    # Staging leads: the staging PR is the first half of a deploy, and
+    # production trails it until the production PR merges (docs/promotion.md).
+    staging_version = values_versions["staging"]
+    production_version = values_versions["production"]
     pending_version: str | None = None
     print()
     if hub_newest is None:
         print("Sync: cannot compare (no Docker Hub tags)")
-    elif deployed == {hub_newest}:
-        print(f"Sync: all envs at {hub_newest} (matches Docker Hub newest)")
-    elif len(deployed) == 1:
-        (current,) = deployed
-        print(
-            f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)"
-        )
-        pending_version = hub_newest
+    elif staging_version == hub_newest:
+        print(f"Sync: staging at {hub_newest} (matches Docker Hub newest)")
     else:
         print(
-            f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}"
+            f"Sync: staging at {staging_version}, Docker Hub newest is {hub_newest} "
+            "(staging bump pending)"
+        )
+        pending_version = hub_newest
+    if production_version != staging_version:
+        print(
+            f"Production at {production_version}, staging at {staging_version}: "
+            "after staging is verified, open the production PR with "
+            f"{BUMP_SCRIPT.name} {staging_version} <short_commit_hash> production"
         )
     print()
 
