@@ -14,7 +14,7 @@ googleAnalyticsTrackingID: "G-1E2HD2B2RH"
 image:
   pullPolicy: Always
   repository: automationcalculationsci/automation-calculator
-  tag: 0.9.6-998
+  tag: 0.9.6-996
 ingress:
   # ALB name. Must never change for a live environment: the ALB controller replaces the ALB.
   albName: automation-calculator-alb
@@ -68,7 +68,7 @@ secrets:
   kubernetesSecretObjectName: automation-calculator-app-secrets
   secretKeyBase: ""
 securityContext: {}
-shortCommitHash: "5f8d693"
+shortCommitHash: ""
 service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
