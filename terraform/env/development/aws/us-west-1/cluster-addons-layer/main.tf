@@ -13,6 +13,7 @@ data "tfe_outputs" "base_layer_state" {
 
 module "cluster_addons" {
   alarm_email                   = var.alarm_email
+  app_logs_enabled              = var.app_logs_enabled
   ci_read_only_kubernetes_group = data.tfe_outputs.base_layer_state.nonsensitive_values.ci_read_only_kubernetes_group
   environment_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.environment_name
   eks_cluster_name              = data.tfe_outputs.base_layer_state.nonsensitive_values.eks_cluster_name
