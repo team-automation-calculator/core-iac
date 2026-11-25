@@ -1,6 +1,7 @@
 ami_type                            = "AL2023_ARM_64_STANDARD"
 ci_read_only_trusted_principal_arns = []
 ci_trusted_principal_arns           = []
+db_read_only_access_enabled         = true
 enable_sso_infra_eng                = true
 environment_name                    = "production"
 kube_proxy_addon_version            = "v1.37.0-eksbuild.39"
