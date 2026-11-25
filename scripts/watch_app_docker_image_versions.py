@@ -38,8 +38,13 @@ REGISTRY_AUTH_URL = f"https://auth.docker.io/token?service=registry.docker.io&sc
 REGISTRY_BASE_URL = f"https://registry-1.docker.io/v2/{IMAGE_REPO}"
 MANIFEST_ACCEPT = (
     "application/vnd.docker.distribution.manifest.v2+json, "
-    "application/vnd.oci.image.manifest.v1+json"
+    "application/vnd.oci.image.manifest.v1+json, "
+    "application/vnd.docker.distribution.manifest.list.v2+json, "
+    "application/vnd.oci.image.index.v1+json"
 )
+# Multi-arch tags (every build since 0.9.6-990) resolve to an image index. The
+# revision label is the same on every platform; prefer the one the clusters run.
+PREFERRED_PLATFORMS = (("linux", "arm64"), ("linux", "amd64"))
 REVISION_LABEL = "org.opencontainers.image.revision"
 HTTP_TIMEOUT_SECONDS = 15
 POLL_INTERVAL_SECONDS = 60
@@ -62,6 +67,33 @@ def fetch_version_tags() -> list[dict]:
     return [t for t in data.get("results", []) if VERSION_RE.match(t["name"])]
 
 
+def select_platform_digest(index: dict) -> str:
+    """Pick one platform image out of a multi-arch index and return its digest.
+
+    Attestation entries (platform unknown/unknown) are never picked.
+    """
+    by_platform = {}
+    for entry in index.get("manifests", []):
+        platform = entry.get("platform") or {}
+        key = (platform.get("os"), platform.get("architecture"))
+        by_platform.setdefault(key, entry["digest"])
+    for key in PREFERRED_PLATFORMS:
+        if key in by_platform:
+            return by_platform[key]
+    raise ValueError(
+        f"image index has none of {PREFERRED_PLATFORMS}: {sorted(map(str, by_platform))}"
+    )
+
+
+def fetch_manifest(reference: str, headers: dict) -> dict:
+    request = urllib.request.Request(
+        f"{REGISTRY_BASE_URL}/manifests/{reference}",
+        headers={**headers, "Accept": MANIFEST_ACCEPT},
+    )
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        return json.load(response)
+
+
 def fetch_short_commit_hash(tag: str) -> str:
     """Fetch org.opencontainers.image.revision label from the image config.
 
@@ -74,12 +106,9 @@ def fetch_short_commit_hash(tag: str) -> str:
         token = json.load(response)["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    manifest_req = urllib.request.Request(
-        f"{REGISTRY_BASE_URL}/manifests/{tag}",
-        headers={**headers, "Accept": MANIFEST_ACCEPT},
-    )
-    with urllib.request.urlopen(manifest_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
-        manifest = json.load(response)
+    manifest = fetch_manifest(tag, headers)
+    if "manifests" in manifest:
+        manifest = fetch_manifest(select_platform_digest(manifest), headers)
     config_digest = manifest["config"]["digest"]
 
     blob_req = urllib.request.Request(
