@@ -3,6 +3,24 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "app_log_retention_days" {
+  default     = 90
+  description = "Days CloudWatch Logs keeps the app's log events. Must be a value CloudWatch accepts (1, 3, 5, 7, 14, 30, 60, 90, 120, ...)."
+  type        = number
+}
+
+variable "app_logs_enabled" {
+  default     = false
+  description = "Ship the app namespace's pod logs to the CloudWatch Logs group /ac/<environment>/app with a Fluent Bit DaemonSet (plans/app-log-persistence.md). Setting it back to false deletes the group and its contents."
+  type        = bool
+}
+
+variable "app_server_error_alarm_threshold" {
+  default     = 1
+  description = "Number of 5xx responses logged by the app in 5 minutes that puts the app-server-errors alarm in ALARM. Only used when both app_logs_enabled and cloudwatch_alarms_enabled are true."
+  type        = number
+}
+
 variable "ci_read_only_kubernetes_group" {
   description = "Kubernetes group the read-only CI role is mapped to by its EKS access entry; granted cluster-scoped read on nodes"
   type        = string

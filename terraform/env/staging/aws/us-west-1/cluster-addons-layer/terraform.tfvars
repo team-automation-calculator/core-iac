@@ -1,4 +1,5 @@
 alarm_email                       = "steven.uray@automation-calculations.net"
+app_logs_enabled                  = true
 argocd_application_automated_sync = true
 argocd_application_prune          = true
 argocd_application_self_heal      = true
