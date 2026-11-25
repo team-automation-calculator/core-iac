@@ -22,6 +22,12 @@ variable "ci_trusted_principal_arns" {
   type        = list(string)
 }
 
+variable "db_read_only_access_enabled" {
+  default     = false
+  description = "Let this environment's read-only CI role and InfraEng permission sets request IAM database tokens for the read-only PostgreSQL roles (docs/db-read-only-access.md). The roles themselves are created by the cluster-addons-layer variable of the same name."
+  type        = bool
+}
+
 variable "enable_sso_infra_eng" {
   default     = false
   description = "Create the IAM Identity Center InfraEng permission set and account assignment for this environment. Enable only after the Identity Center instance exists and the Google Workspace identity provider is connected."

@@ -73,6 +73,12 @@ variable "db_engine_version" {
   type        = string
 }
 
+variable "db_read_only_access_enabled" {
+  default     = false
+  description = "Read-only database access for people and agents (docs/db-read-only-access.md): IAM database authentication on the instance, the read-only PostgreSQL roles, and the forwarder pod the read-only CI role may port-forward to. The base-cluster-layer variable of the same name grants the IAM side."
+  type        = bool
+}
+
 variable "external_dns_txt_prefix" {
   default     = ""
   description = "external-dns TXT registry prefix; empty leaves it unset. Set only after pre-creating the new-format TXT records, see docs/external-dns-txt-prefix-migration.md."
