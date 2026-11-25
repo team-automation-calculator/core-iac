@@ -107,7 +107,10 @@ Ingress and the ALB. Written from a read of the code, not yet run:
 ## What is gone, and what stays
 
 Destroyed with the add-ons layer: the app, add-on and ArgoCD Helm releases, the RDS instance and its
-automated backups, the ACM certificate and its validation records, the IRSA roles.
+automated backups, the ACM certificate and its validation records, the IRSA roles, and the app
+log group `/ac/staging/app` with every stored log event (`docs/app-logs.md`). A re-created
+staging starts with an empty group; nothing needs to be saved unless staging's log history
+matters to you.
 
 Destroyed with the base layer: the EKS cluster and node group, the VPC, subnets, NAT gateway and
 its Elastic IP, the `ac_ci_terraform_staging` and `ac_ci_terraform_staging_read_only` roles, and
