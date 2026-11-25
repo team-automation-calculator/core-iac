@@ -354,9 +354,11 @@ core-iac/go db-read-only-psql staging --as ci -- -At -c "select column_name, dat
 
 Query schema and counts only. Rows are user data (`users` holds email
 addresses and credential hashes): never select them into a report, a PR
-body or a checklist note. If the script fails (no `psql`, the access not
-enabled on that environment, an expired SSO login), note "database not
-checked" and carry on; like `kubectl`, it never blocks a deploy.
+body or a checklist note. Without a local `psql` the script runs it from
+`postgres:18-alpine` through docker (#499). If it still fails (neither
+`psql` nor docker, the access not enabled on that environment, an expired
+SSO login), note "database not checked" and carry on; like `kubectl`, it
+never blocks a deploy.
 
 **Log check (optional, when `CTX` is set).** Run it immediately before and
 immediately after each smoke run, on the baseline and on the retest, so the

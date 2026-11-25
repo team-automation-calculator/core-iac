@@ -279,9 +279,10 @@ staging's diff matches the expectation.
   `ac_read_only_ci_<env>` role, and an unchanged migration count. A
   sign-in failure after an apply that touched RDS or IAM is a finding.
   Only `--as ci`, never `--as infra-eng` or the master user; schema and
-  counts only, never rows in a report or PR (the repo is public). If the
-  access is not enabled on that environment or `psql` is missing, report
-  "database not checked".
+  counts only, never rows in a report or PR (the repo is public). Without
+  a local `psql` the script runs it through docker (#499). If the access
+  is not enabled on that environment, or neither `psql` nor docker is
+  available, report "database not checked".
 
 - **One account, one hosted zone.** Staging and production share AWS
   account `030153300357` and the single `automation-calculations.io` zone.
