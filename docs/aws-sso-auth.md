@@ -19,6 +19,41 @@ the CI roles are managed in Terraform (`terraform/modules/aws/sso-infra-eng`
 and `terraform/modules/aws/ci-iam-role`, wired per environment in
 `terraform/env/<env>/aws/us-west-1/base-cluster-layer`).
 
+## What is in code and what is not
+
+| Piece | Where it lives |
+|---|---|
+| `InfraEng<Env>` and `InfraEng<Env>ReadOnly` permission sets, their policies, and their assignment to the engineer | Terraform: `terraform/modules/aws/sso-infra-eng` |
+| CI role trust policies | Terraform: `terraform/modules/aws/ci-iam-role` |
+| The Google group that may use the AWS app, and its members | Terraform, no credentials until bootstrapped: `terraform/modules/google_workspace/aws-identity-center-access` (`docs/google-workspace-terraform.md`) |
+| The IAM Identity Center instance and its identity source (IdP metadata, certificate, SCIM) | Manual, AWS console. `sso-admin` has no operation for any of it |
+| The Identity Center user | Not Terraform: provisioned from Google or created by hand. The module only looks it up, so a plan fails if it is missing |
+| The Google **AWS Identity Center** SAML app (ACS URL, Entity ID, Start URL, certificate, Name ID) and its User access | Manual, Google Admin. Google has no API for SAML apps |
+
+The manual settings on both sides are recorded in
+`iac/specs/sso/google-workspace-saml.json`. Compare the two consoles against
+it when sign-in breaks, and update it in the same pull request as any console
+change. Instance identifiers are placeholders there because the repo is
+public. `tests/test_sso_saml_spec.py` checks that the two sides of the spec
+agree and that `scripts/infra_eng_sso.py` logs in over the endpoint kind the
+Google app accepts.
+
+Two settings matter more than they look:
+
+- **ACS URL.** Google's app takes one, and Identity Center publishes three
+  kinds (dual-stack, IPv4, alternative IPv4). A sign-in that starts on an
+  endpoint of a different kind is denied by Google. The app holds the
+  dual-stack URL, which is why the CLI login sets
+  `AWS_USE_DUALSTACK_ENDPOINT=true` (see Troubleshooting).
+- **Entity ID.** It carries the identity store id. If the Identity Center
+  instance is ever deleted and re-enabled, the id changes and every sign-in
+  fails. The `sso-infra-eng` module guards against that without the ids
+  being committed: its first apply records the live instance ARN and identity
+  store id in Terraform state (`terraform_data.identity_center_pin`), and a
+  `check` warns in every later plan when the live instance is no longer the
+  recorded one. After an intended change of instance, fix the Google app and
+  re-record with `terraform apply -replace` on that resource.
+
 ## One-time setup
 
 Requires AWS CLI v2. Either run the wizard:
@@ -30,9 +65,11 @@ aws configure sso   # start URL: your Identity Center portal URL; SSO region: us
 or paste the config below into `~/.aws/config`, filling in the account ID and
 start URL (find them in the Identity Center console or ask an existing infra
 engineer — this repo is public, so they are not committed here). The start URL
-is the **AWS access portal URL**, which comes in two forms depending on the
-instance: `https://<subdomain>.awsapps.com/start` or the newer
-`https://ssoins-<id>.portal.<region>.app.aws`.
+is the **dual-stack AWS access portal URL**,
+`https://ssoins-<id>.portal.<region>.app.aws`. The console also shows a legacy
+IPv4 portal URL, `https://<subdomain>.awsapps.com/start`. Do not use it: the
+Google app accepts sign-ins through the dual-stack endpoints only, and
+`scripts/infra_eng_sso.py` rejects it.
 
 ```ini
 # One SSO session shared by all profiles: a single login covers everything.
@@ -96,7 +133,9 @@ sets are provisioned, following the staging pattern above.
 ## Daily use
 
 ```bash
-aws sso login --profile infra-eng-staging   # one browser login covers all profiles
+# One browser login covers all profiles. The dual-stack variable is required
+# (see Troubleshooting); scripts/infra_eng_sso.py login sets it for you.
+AWS_USE_DUALSTACK_ENDPOINT=true aws sso login --profile infra-eng-staging
 
 AWS_PROFILE=ac-ci-staging aws sts get-caller-identity   # verify the chain
 AWS_PROFILE=ac-ci-staging terraform plan                # terraform against an env
@@ -123,17 +162,26 @@ release state in Secrets, which no `_read_only` role can read on any
 environment (RBAC cannot narrow a Secrets grant to Helm's own, so granting
 it would expose every Secret's contents to the read-only persona). A
 kubeconfig entry written by `aws eks update-kubeconfig` embeds the profile
-it was created with, so run it once per persona, with `--alias` to keep
-them apart:
+it was created with, so run it once per persona, with `--alias` **and**
+`--user-alias` to keep them apart:
 
 ```bash
+BEFORE=$(kubectl config current-context)
 aws eks update-kubeconfig --name ac_app_staging --region us-west-1 \
-  --profile ac-ci-staging-ro --alias ac_app_staging-ro
+  --profile ac-ci-staging-ro --alias ac_app_staging-ro --user-alias ac_app_staging-ro
+kubectl config use-context "$BEFORE"     # update-kubeconfig switches current-context; put it back
 ```
 
-The alias is only a label: re-running `update-kubeconfig` with the same
-`--alias` and a different `--profile` silently rewrites which role the
-context uses. Before trusting a `-ro` context, confirm its identity:
+Both flags matter. `--alias` only names the *context*; the credentials live
+in a *user* entry, and without `--user-alias` that entry is named after the
+cluster ARN and shared by every context on that cluster. Re-running
+`update-kubeconfig` for the same cluster with a different `--profile` then
+silently rewrites the role that **all** of those contexts use, including the
+ARN-named read-write one `update_kubeconfigs.sh` writes. With `--user-alias`
+the `-ro` context gets its own user entry and neither persona can clobber
+the other. `update-kubeconfig` also makes the new context current, so
+capture the current context first and restore it. Before trusting a `-ro`
+context, confirm its identity:
 
 ```bash
 kubectl --context ac_app_staging-ro auth whoami   # Username must end in _read_only/...
@@ -143,9 +191,15 @@ On 2026-11-04 an `ac_app_staging-ro` context was found embedding
 `AWS_PROFILE=ac-ci-staging`, so "read-only" staging checks (including
 `helm list`) had been running as cluster-admin, while the same checks on
 production, under the real `_read_only` role, failed on Helm's Secrets.
-The `validate-infra-rollout` snapshot script now refuses a context whose
-identity is not a `_read_only` role. If `auth whoami` shows the wrong
-role, recreate the context with the `update-kubeconfig` command above.
+The cause, found 2026-11-07, was the shared user entry above: both staging
+contexts pointed at the one user named by the cluster ARN, and the last
+`update-kubeconfig` run had been with the read-write profile. The same
+thing happened to the production contexts the same day. Both `-ro`
+contexts were recreated with `--user-alias`. The `validate-infra-rollout`
+snapshot script refuses a context whose identity is not a `_read_only`
+role; if `auth whoami` shows the wrong role, recreate the context with the
+`update-kubeconfig` command above (with `--user-alias`) and pass it
+explicitly with `--context ac_app_<env>-ro`.
 
 `scripts/infra_eng_sso.py up --environment <env> --read-only` sets up the
 read-only persona end to end (profiles, login, kubeconfig, context); note it
@@ -158,16 +212,37 @@ replaces whichever persona that entry held before.
 credentials" during `aws sso login`.** The local config is usually not the
 problem: `aws sso login` builds the authorization URL from a client it
 registers fresh, and this error page comes from the AWS sign-in service later
-in the browser flow — stale Identity Center / AWS sign-in session state in the
-browser, or Google federating the wrong account. In order:
+in the browser flow. In order:
 
-1. Retry in a private/incognito window and pick your **Workspace** account in
-   the Google sign-in (not a personal Google account).
-2. If a normal window is needed, clear cookies for `awsapps.com`,
+1. **Log in over the dual-stack endpoints.** `scripts/infra_eng_sso.py` does
+   this itself; a bare `aws sso login` does not:
+
+   ```bash
+   AWS_USE_DUALSTACK_ENDPOINT=true aws sso login --sso-session automation-calculator
+   ```
+
+   Identity Center publishes two sets of SAML endpoints (Settings → Identity
+   source → Manage authentication, tabs **Dual-stack** and **IPv4-only**), and
+   the Google Workspace SAML app holds one ACS URL: the dual-stack one
+   (`https://us-east-1.sso.signin.aws/platform/saml/acs/...`). A login that
+   goes through the IPv4 endpoints sends Google a reply URL the app does not
+   have, Google denies it, and AWS shows this page. Seen 2026-11-18: the plain
+   CLI login and `https://<identity-store-id>.awsapps.com/start` failed, while the
+   `https://ssoins-<id>.portal.us-east-1.app.aws` portal and the command above
+   worked. Only the login needs the variable; the cached token then works for
+   every profile without it. The sign of this cause is a **Failed Login**,
+   "User is Unauthorized" (`REQUEST_DENIED`), in Google Admin → Reporting →
+   Audit and investigation → SAML log events, even though the app's User
+   access is ON for everyone.
+2. Retry in a private/incognito window and pick your **Workspace** account in
+   the Google sign-in (not a personal Google account). `--no-browser` prints
+   the URL to paste there.
+3. If a normal window is needed, clear cookies for `awsapps.com`,
    `signin.aws.amazon.com`, and `aws.amazon.com`, then retry.
-3. Only if it persists in a private window, re-check the config: `sso_start_url`
-   must be the access portal URL (`https://<subdomain>.awsapps.com/start` or
-   `https://ssoins-<id>.portal.<region>.app.aws`) and `sso_region` must be the
+4. Only if it persists in a private window, re-check the config: `sso_start_url`
+   must be the dual-stack access portal URL
+   (`https://ssoins-<id>.portal.<region>.app.aws`, not the legacy
+   `https://<subdomain>.awsapps.com/start`) and `sso_region` must be the
    Identity Center home region (`us-east-1`).
 
 ## What is NOT used

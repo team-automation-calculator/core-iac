@@ -4,23 +4,6 @@ variable "addons_dependency" {
   type        = list(string)
 }
 
-variable "app_image_pull_policy" {
-  default     = "Always"
-  description = "The image pull policy for the automation-calculator app."
-  type        = string
-}
-
-variable "app_image_repo" {
-  default     = "automationcalculationsci/automation-calculator"
-  description = "The name of the docker image repo to pull the automation-calculator app image from."
-  type        = string
-}
-
-variable "app_version" {
-  description = "The version of the automation-calculator app to deploy."
-  type        = string
-}
-
 variable "automation_calculator_app_host" {
   default     = "automation-calculations.io"
   description = "The host name of the automation-calculator-app"
@@ -62,6 +45,12 @@ variable "db_security_group_ids" {
   type        = list(string)
 }
 
+variable "db_snapshot_identifier" {
+  default     = null
+  description = "Name of an RDS snapshot to create the app database from, e.g. the final snapshot of a destroyed environment. Read only when the instance is created: changes on an existing instance are ignored, so setting or editing it never replaces a live database. Null creates an empty database."
+  type        = string
+}
+
 variable "db_subnet_group_ids" {
   description = "The ids for the subnet group to put the DB in, note this also chooses the VPC of the DB based on the subnet."
   type        = list(string)
@@ -99,15 +88,15 @@ variable "google_oauth_app_secret" {
   type        = string
 }
 
-variable "short_commit_hash" {
-  default     = ""
-  description = "The short git commit hash of the automation-calculator app version being deployed. Sourced from the image's org.opencontainers.image.revision label at bump time."
-  type        = string
-}
-
 variable "skip_final_snapshot" {
   default     = true
   description = "Whether to skip the final DB snapshot when the RDS instance is destroyed. Defaults to true (the historical behaviour); set to false to take a final snapshot named by final_snapshot_identifier."
+  type        = bool
+}
+
+variable "manage_helm_release" {
+  default     = true
+  description = "Manage the app's Helm release (helm_release.automation-calculator[0]) from Terraform. ArgoCD migration Phase 6: an env sets this to false only AFTER its workspace has run `terraform state rm` on the release, so that ArgoCD becomes the app's only controller without Terraform ever planning a destroy (prevent_destroy on the release fails the plan if the order is wrong). The namespace, Secret, RDS and ACM resources of this module are unaffected. Runbook: docs/argocd-phase-6-retire-staging-release.md."
   type        = bool
 }
 

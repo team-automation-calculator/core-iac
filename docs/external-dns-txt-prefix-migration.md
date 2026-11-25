@@ -54,6 +54,10 @@ scripts/external_dns_txt_prefix_migration.py plan -e staging            # profil
 scripts/external_dns_txt_prefix_migration.py create-new -e staging
 scripts/external_dns_txt_prefix_migration.py create-new -e staging --apply
 scripts/external_dns_txt_prefix_migration.py delete-old -e staging --apply
+
+# Post-0.23 cleanup of the legacy cname-extdns.* records (step 7)
+scripts/external_dns_txt_prefix_migration.py delete-legacy-cname -e staging --profile ac-ci-staging-ro   # dry run on the -ro profile
+scripts/external_dns_txt_prefix_migration.py delete-legacy-cname -e staging --apply
 ```
 
 How the script behaves:
@@ -70,6 +74,10 @@ How the script behaves:
   expected value. It removes only the `owner=default` external-dns value. If a
   TXT RRset also holds other values (for example SPF or site verification at
   the apex), it UPSERTs the remaining values instead of deleting the RRset.
+- **delete-legacy-cname.** Post-0.23 cleanup (step 7). For each host it
+  refuses to run unless `a-extdns.<host>` exists with the `owner=default`
+  value, then removes that value from `cname-extdns.<host>` with the same
+  shared-RRset handling as delete-old. It never touches `aaaa-extdns.*`.
 - **Undo.** Every write prints its change batch and the **inverse batch**. Save
   the inverse batch: it is your rollback. Apply it with
   `aws route53 change-resource-record-sets --hosted-zone-id Z0212130UA03VYHTN72T --change-batch file://undo.json --profile ac-ci-<env>`.
@@ -205,6 +213,64 @@ legacy record, `www.` legacy, `cname-www.`, `aaaa-www.`) and save the inverse
 batch.
 
 *Rollback:* same as step 4.
+
+### 7. Cleanup after the 0.23 upgrade: legacy `cname-extdns` records
+
+**Why the warning appears.** Up to v0.21 the AWS provider keyed the ownership
+TXT of an A ALIAS record on the type token `cname`, which is why the migration
+above created `cname-extdns.<host>`. From v0.22.0 (upstream issue #2903) the
+registry keys it on the endpoint's real type, `a`, so with our prefix the
+ownership record of each alias A host is now `a-extdns.<host>`. On upgrade to
+chart 1.23.0 / app 0.23.0 (2026-11-04) external-dns still read the `cname-`
+record as a fallback, wrote the `a-extdns.<host>` twin on its first sync, and
+since then logs for each of the four hosts:
+
+```
+level=warning msg="Obsolete legacy TXT record \"cname-extdns.<host>\" for A ALIAS \"<host>\" can be removed; now using \"a-extdns.<host>\" (see scripts/aws-cleanup-legacy-txt-records.py)."
+```
+
+The referenced upstream script (`--alias-cname-cleanup` mode) deletes a
+`cname-` TXT only when its `a-` twin exists. Our `delete-legacy-cname` command
+does the same for our hosts, with the script's usual guards and inverse batch.
+
+**What is not touched.** AAAA endpoints still use the `aaaa` token in 0.23
+(`registry/txt/registry.go` only applies the `cname` fallback to A ALIAS
+endpoints, and the upstream cleanup only rewrites `cname-` to `a-`), so
+`aaaa-extdns.<host>` stays the live ownership record for each host's AAAA
+alias and must stay. The command only considers `cname-extdns.<host>` for hosts
+that have an alias A record, and only removes the `owner=default` value.
+
+**Guard.** Like `delete-old`, it refuses (non-zero exit) unless
+`a-extdns.<host>` exists with the `owner=default` ownership value for *every*
+host of the environment. Verified read-only on 2026-11-04: all four
+`a-extdns.*` records are present with the expected value, and the dry run
+proposes exactly two DELETEs per environment (`cname-extdns.staging.…`,
+`cname-extdns.www.staging.…`; `cname-extdns.automation-calculations.io`,
+`cname-extdns.www.…`).
+
+**Run order.** Staging first, then production, each as a dry run on the `-ro`
+profile and then `--apply` on the write profile:
+
+```bash
+scripts/external_dns_txt_prefix_migration.py delete-legacy-cname -e staging --profile ac-ci-staging-ro
+scripts/external_dns_txt_prefix_migration.py delete-legacy-cname -e staging --apply     # save the inverse batch
+kubectl -n kube-system logs deploy/external-dns -f
+#   next sync: no "Obsolete legacy TXT record" lines, still "All records are already up to date"
+# then the same with -e production (--profile ac-ci-prod-ro for the dry run)
+```
+
+Do this only after the 0.23 soak in `docs/dependency-upgrade-plan-2026-q4.md`:
+once the `cname-extdns` records are gone, a `helm rollback` to 0.21 would find
+no ownership record it recognises and freeze DNS in that environment, exactly
+as described in "The danger" above. The warning dedups once per record per
+process, so a quiet log after a pod restart is the confirmation to look for.
+
+After the cleanup, the 0.21-era `plan` command reports `cname-extdns.<host>`
+as `MISSING -> create-new` and no value source. That is expected: `plan`,
+`create-new` and `delete-old` model the 0.21 token layout and are finished.
+
+*Rollback:* apply the saved inverse batch (it re-CREATEs the two records with
+their original value and TTL).
 
 ## HCL gotcha: `%%{`
 

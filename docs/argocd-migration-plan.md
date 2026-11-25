@@ -45,7 +45,7 @@ cluster is intentionally unprovisioned).
 | Where the `Application` lives | Terraform, via a second `helm_release` of the `argocd-apps` chart, plus an `AppProject` | Avoids the `kubernetes_manifest` "CRD must exist at plan time" problem. Lets Terraform inject the ACM certificate ARN so it never lands in this public repo. |
 | Source of truth for the image tag | `helm/automation-calculator/values-<env>.yaml` in git, starting in Phase 1 | One source of truth from day one. Terraform reads the same file during the overlap, so there is no drift between the two controllers. A bump becomes one YAML key per env. |
 | App secrets | A Terraform-managed `kubernetes_secret_v1` with today's name and keys; the chart stops rendering its own Secret | Secrets stay out of git without a new operator. |
-| ArgoCD admin login | The chart-generated `argocd-initial-admin-secret`, rotated with `argocd account update-password` | Terraform's `bcrypt()` returns a different hash on every call, so a Terraform-managed password would make every run an ArgoCD upgrade. |
+| ArgoCD admin login | Terraform generates the password in the `argocd` module (`random_password`) and passes its `bcrypt_hash`, plus a `time_static` mtime, to the chart through `set_sensitive`; the plaintext is a sensitive output of the cluster-addons workspace (`docs/argocd-phase-2-install.md`, section 4) | Nothing to set by hand before an install, rotation is one tfvars line in a PR, and the chart never creates `argocd-initial-admin-secret`. `random_password.bcrypt_hash` is computed once and kept in state, unlike Terraform's `bcrypt()` function, which salts differently on every call and would make every run an ArgoCD upgrade. The plaintext sits in workspace state beside the database password that is generated the same way. The password is the second gate behind the cluster-admin SSO role, so this does not change who can reach ArgoCD. |
 | ArgoCD UI access | `kubectl port-forward` through the existing SSO to `ac_ci_terraform_<env>` chain (`docs/aws-sso-auth.md`); `server.insecure=true`; no Ingress, no Dex | No new attack surface, DNS or ALB. Revisit if the team grows. |
 | Production deploy gate | Production `Application` uses **manual** sync. The gate becomes `argocd app sync` after the bump PR merges. Staging gets automated sync with self-heal and prune once cut over. | Mirrors today's "production needs a human" TFC confirm. Can be flipped later. |
 | Per-env cutover mechanism | `terraform state rm` of the release in that env's TFC workspace, plus a `manage_helm_release` count toggle on the shared module | A Terraform `removed` block cannot be applied per env: `main_rails_app` is shared by all three addons workspaces, and `removed` requires deleting the resource block from the module. |
@@ -56,10 +56,16 @@ cluster is intentionally unprovisioned).
 
 Runbook with the exact commands: `docs/argocd-phase-0-preflight.md`.
 
-- **Capacity.** Each cluster is one `t3.medium` (desired 1, max 2, no autoscaler;
-  `terraform/modules/aws/base-cluster-layer/variables.tf`). The binding limit is **pod count**, not
-  CPU or memory: a `t3.medium` allows 17 pods. Today's baseline is roughly 9 to 10 pods and ArgoCD
-  adds 4 (controller, repo-server, server, redis). Check before installing with
+- **Capacity.** Each cluster is one arm64 `t4g.medium` (2 vCPU, 4 GiB; desired 1, max 2, no
+  autoscaler; `node_group_instance_types` in each env's `base-cluster-layer/terraform.tfvars`, moved
+  from `t3.medium` by #409 and #410 in 2026-11). The binding limit is **pod count**, not CPU or
+  memory: a `t4g.medium` allows 17 pods, the same as the `t3.medium` it replaced. Today's baseline
+  is roughly 9 to 10 pods and ArgoCD adds 4 (controller, repo-server, server, redis). Requests are
+  not tight but are no longer near zero: since #402 and #403 the ALB controller (2 x 50m / 128Mi)
+  and external-dns (20m / 64Mi) carry requests, about 120m CPU and 320Mi together, next to the app
+  (250m / 512Mi); ArgoCD's requests below add 210m and 480Mi. The argo-cd chart's images
+  (`quay.io/argoproj/argocd`, the upstream Redis image) are published for `linux/arm64`, so the
+  node architecture needs no chart setting. Check before installing with
   `scripts/argocd_preflight.sh` (read-only; exits non-zero when fewer than 4 pod slots would be
   left after ArgoCD, or when the `helm` / `argocd` CLIs are missing). By hand:
 
@@ -137,14 +143,17 @@ kubectl -n automation-calculator annotate secret automation-calculator-app-secre
 
 ### Phase 2: install ArgoCD on staging (Terraform)
 
+Runbook with the exact commands: `docs/argocd-phase-2-install.md`.
+
 - New module `terraform/modules/aws/argocd/` (`main.tf`, `variables.tf`, `versions.tf`, lock file)
   with `helm_release.argocd`: chart `argo-cd`, namespace `argocd`, `create_namespace = true`, pinned
   `version`, `wait = true`, `atomic = false`, `cleanup_on_fail = false`, `timeout = 900`. An automatic
   rollback of ArgoCD is not customer-facing and feeds the "values written on failed apply" state bug,
   so `atomic` stays off here.
-- Values: `dex.enabled=false`, `notifications.enabled=false`, `applicationSet.enabled=false`,
-  `redis-ha.enabled=false`, single replicas, `configs.params."server.insecure"=true`, and explicit
-  resource requests. Suggested starting point:
+- Values: `dex.enabled=false`, `notifications.enabled=false`, `applicationSet.replicas=0` (the
+  chart dropped `applicationSet.enabled` in 7.0 and always renders the controller; zero replicas
+  keeps it off the pod count), `redis-ha.enabled=false`, single replicas,
+  `configs.params."server.insecure"=true`, and explicit resource requests. Suggested starting point:
 
   | Component | Requests | Memory limit |
   |---|---|---|
@@ -153,7 +162,10 @@ kubectl -n automation-calculator annotate secret automation-calculator-app-secre
   | server | 50m / 64Mi | 256Mi |
   | redis | 10m / 32Mi | 128Mi |
 
-  No IRSA: the repo is public and ArgoCD makes no AWS calls. No admin password management.
+  No IRSA: the repo is public and ArgoCD makes no AWS calls. The admin password is generated by
+  the module and passed as a bcrypt hash through `set_sensitive` (see the "ArgoCD admin login"
+  decision and `docs/argocd-phase-2-install.md`, section 4), so the chart never creates
+  `argocd-initial-admin-secret`.
 - Wire into each `terraform/env/<env>/aws/us-west-1/cluster-addons-layer/main.tf` as
   `module "argocd"` with `count = var.argocd_enabled ? 1 : 0` and
   `depends_on = [module.cluster_addons]`. `argocd_enabled` defaults to `false`; set it to `true` in
@@ -166,35 +178,54 @@ Validate:
 
 ```bash
 kubectl -n argocd get pods
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-argocd login localhost:8080 --username admin --plaintext
+kubectl -n argocd get secret argocd-initial-admin-secret   # NotFound: Terraform set the password
+export ARGOCD_OPTS='--port-forward --port-forward-namespace argocd --plaintext'   # the CLI's own port-forward
+argocd login --username admin   # password from the workspace output argocd_admin_password
 argocd app list   # empty
 ```
 
 ### Phase 3: dry run on a scratch copy (staging)
 
+Runbook with the exact commands: `docs/argocd-phase-3-dry-run.md`. Manifests: `argocd/scratch/`.
+
 Learn the tool on something that cannot touch the ALB or the real database. Through the UI or CLI,
 not Terraform:
 
-- `AppProject` `scratch`, destinations limited to namespace `argocd-canary`.
+- `AppProject` `scratch`, source limited to this repo, destinations limited to namespace
+  `argocd-canary`, `clusterResourceWhitelist` holding only the `argocd-canary` `Namespace` (the
+  `CreateNamespace=true` PreSync task goes through the project permission check like any other
+  resource).
 - `Application` `ac-canary`: same repo and path, `fullnameOverride=ac-canary`,
-  `ingress.enabled=false`, `secrets.create=true` with dummy values, **with** the
-  `resources-finalizer.argocd.argoproj.io` finalizer so delete cleans up.
+  `ingress.enabled=false`, `secrets.create=true` with dummy values into a Secret of its own name
+  (`ac-canary-app-secrets`), manual sync, **with** the `resources-finalizer.argocd.argoproj.io`
+  finalizer so delete cleans up.
 - Exercise: sync; bump `image.tag` on a branch and point `targetRevision` at it; `argocd app rollback`
-  (with auto-sync off); prune; delete.
-- Confirm the real namespace's Secret and Deployment are untouched throughout.
+  (with auto-sync off); prune; delete. ArgoCD does not track the auto-created namespace, so the
+  runbook deletes `argocd-canary` by hand afterwards.
+- Confirm the real namespace's Secret and Deployment are untouched throughout
+  (`scripts/argocd_canary_check.sh`, read-only, before and after every step).
 
 ### Phase 4: Terraform owns the app namespace and Secret (all envs)
+
+Runbook with the pre-checks, expected plans and rollback: `docs/argocd-phase-4-secret-adoption.md`.
 
 - In `main_rails_app`, add `kubernetes_namespace_v1.automation_calculator` and
   `kubernetes_secret_v1.app_secrets` (name `automation-calculator-app-secrets`, `type = "Opaque"`,
   `data` = the six values built from the same expressions the `set_sensitive` blocks use today).
-  Add `kubernetes ~> 2.16` to the module's `versions.tf`.
-- Root-module `import` blocks in each env config, so the live objects are adopted rather than
-  recreated: id `automation-calculator` for the namespace and
-  `automation-calculator/automation-calculator-app-secrets` for the Secret.
-- Same PR: `secrets.create: false` in every `values-<env>.yaml`; delete the six `set_sensitive`
+  Add `kubernetes ~> 3.4` to the module's `versions.tf`. The namespace ignores label and
+  annotation changes (its metadata is not Terraform's) and carries `prevent_destroy` (deleting it
+  deletes the Ingress and the ALB). The Secret declares the labels and annotations Helm left on the
+  live object, including `meta.helm.sh/release-*`, so the import plans clean and a revert can
+  re-adopt it into the release.
+- Root-module `import` blocks in the staging and production env configs
+  (`imports_argocd_phase4.tf`), so the live objects are adopted rather than recreated: id
+  `automation-calculator` for the namespace and
+  `automation-calculator/automation-calculator-app-secrets` for the Secret. Development gets no
+  import blocks: its cluster is unprovisioned, so there is nothing to adopt and an `import` of a
+  missing object fails the plan; a future development apply creates both resources. The import
+  files are deleted in a follow-up PR once both environments have applied.
+- Same PR: `secrets.create: false` in every `values-<env>.yaml` (`values.yaml` keeps the default
+  `true` for standalone renders such as the Phase 3 canary); delete the six `set_sensitive`
   blocks. Helm leaves the Secret in place because of the `keep` policy, so there is no window
   without a Secret. The post-import plan is at most an in-place label update.
 - Validate per env: Secret data checksum unchanged, pods not restarted,
@@ -202,6 +233,9 @@ not Terraform:
   confirm promptly (the import reads the live Secret with the plan-time token).
 
 ### Phase 5: the real Application on staging, adopted in place
+
+Runbook with the expected plan, the diff inspection, the first sync, the checks and the rollback:
+`docs/argocd-phase-5-adopt-application.md`.
 
 Add to the `argocd` module a `helm_release.argocd_apps` (chart `argocd-apps`,
 `depends_on = [helm_release.argocd]`) that creates:
@@ -236,33 +270,57 @@ must never reconcile the same Deployment.
 
 ### Phase 6: retire the Terraform release on staging only
 
+Runbook with the state-address reasoning, the expected plan per step and the rollback:
+`docs/argocd-phase-6-retire-staging-release.md`.
+
 - Add `manage_helm_release` (default `true`) to `main_rails_app` and `count` on the `helm_release`.
+  The instance address becomes `helm_release.automation-calculator[0]`; a `moved` block in the
+  module records the move (Phase 9 deletes it with the resource). The release also gets
+  `prevent_destroy`, so flipping the toggle before the `state rm` fails the plan instead of
+  running `helm uninstall`. Each env's `cluster-addons-layer` gets `manage_app_helm_release` and
+  the three `argocd_application_{automated_sync,prune,self_heal}` variables (defaults false).
 - Runbook, run back to back within minutes, with no other merges in the window (staging
   auto-applies):
   1. From `terraform/env/staging/aws/us-west-1/cluster-addons-layer` with `TFE_TOKEN` set:
      `terraform init`, then
-     `terraform state rm module.main_rails_app.helm_release.automation-calculator`.
-  2. Merge the PR that sets `manage_helm_release = false` in staging's `terraform.tfvars`. Staging
-     plans 0 changes; production plans 0 changes. Preview both with local speculative
-     `terraform plan` runs before merging.
+     `terraform state rm module.main_rails_app.helm_release.automation-calculator` (un-indexed:
+     the state was last written by a configuration without `count`; Phase 8 on production will
+     `state rm` the indexed `[0]` address because production applies this PR's move).
+  2. Merge the PR that sets `manage_app_helm_release = false` in staging's `terraform.tfvars`.
+     Staging plans 0 changes; production plans the state move only (`0 to add, 0 to change, 0 to
+     destroy`, but the run **needs a confirm** to record the move). Preview both with local
+     speculative `terraform plan` runs before merging: staging errors with `Instance cannot be
+     destroyed` until the `state rm` is done, and must not be merged while it does.
   3. Delete the Helm history only:
      `kubectl -n automation-calculator delete secret -l owner=helm,name=automation-calculator`.
-     **Never run `helm uninstall`**: it deletes the Ingress, which deletes the ALB.
-- Flip the staging Application to `syncPolicy.automated: { prune: true, selfHeal: true }`. Prune is
-  safe because the Terraform-managed Secret carries no ArgoCD tracking annotation.
+     **Never run `helm uninstall`**: it deletes the Ingress, which deletes the ALB. The history
+     stays until after the merge on purpose: while it exists, a stray run in the `state rm` window
+     fails on `cannot re-use a name` instead of re-adopting the release.
+- Flip the staging Application to `syncPolicy.automated: { prune: true, selfHeal: true }` through
+  `argocd_application_automated_sync = true`, `argocd_application_prune = true`,
+  `argocd_application_self_heal = true` in staging's tfvars, as its own merge after step 3 (a
+  separate commit on the Phase 6 branch). Prune is safe because the Terraform-managed Secret
+  carries no ArgoCD tracking annotation; the runbook lists what to check before enabling it.
 - Rollback after this point is a git revert PR (ArgoCD syncs it) or a manual
   `helm upgrade --install`.
 
 ### Phase 7: prove and soak the new path on staging
 
+Runbook with the exact commands, the failure triage and the definition of "manual intervention":
+`docs/argocd-phase-7-staging-soak.md`. Cycles are recorded in `docs/argocd-staging-soak-log.md`.
+
 - Run a real bump through the updated script, merge, and watch ArgoCD sync (polling default is
   3 minutes). Verify `https://staging.automation-calculations.io/health`, the `SHORT_COMMIT_HASH`
-  env var on the new pod, and `argocd app history automation-calculator`. Confirm the staging TFC
-  workspace planned 0 changes for that merge.
+  env var on the new pod, and `argocd app history automation-calculator`
+  (`scripts/argocd_staging_verify.sh`, read-only, checks all of that against `values-staging.yaml`
+  and that `helm list` is still empty). Confirm the staging TFC workspace planned 0 changes for
+  that merge.
 - Test the real rollback path: a revert PR, synced by ArgoCD. (`argocd app rollback` is refused
   while automated sync is on.)
-- Soak gate before production: at least three bump cycles and at least one week without manual
-  intervention.
+- Soak gate before production: at least three bump cycles and at least three days without manual
+  intervention (reduced from one week on 2026-11-24). `scripts/argocd_soak_log.py add` records
+  each cycle and `scripts/argocd_soak_log.py status` evaluates the gate and writes the result
+  into the log.
 
 ### Phase 8: production
 
@@ -285,7 +343,7 @@ must never reconcile the same Deployment.
 - Remove `helm/automation-calculator` and `terraform/modules/aws/main_rails_app` from
   `cluster_addons_layer_module_directories` so chart changes stop queueing TFC runs (and stale
   production plans).
-- Update `.circleci/config.yml`, `CLAUDE.md` (commands, scripts, how deploys work), the README setup
+- Update `.circleci/config.yml`, `AGENTS.md` (commands, scripts, how deploys work; `CLAUDE.md` imports it), the README setup
   steps, and the status line at the top of this document.
 
 ## Risks and mitigations
@@ -293,7 +351,13 @@ must never reconcile the same Deployment.
 - **Ingress deletion means ALB deletion**, and external-dns can leave an orphaned TXT ownership record
   that blocks recreating the A record. Mitigation: adopt in place, no finalizer on the real
   Application, no `helm uninstall`, no prune until Terraform has forgotten the release.
-- **Pod-count ceiling on `t3.medium`.** Mitigation: Phase 0 count; bump `desired_size` if needed.
+- **Renaming the Ingress or its namespace** gives the ALB controller a new stack, so the target
+  group tag `ingress.k8s.aws/stack=automation-calculator/automation-calculator` changes. The
+  unhealthy-hosts alarm (#425, `cluster-addons-layer/cloudwatch_alarms.tf`) finds its target group
+  by that tag and would fail to plan or lose its data. Mitigation: the Application keeps
+  `fullnameOverride: automation-calculator` and namespace `automation-calculator`, the same as the
+  Helm release it adopts.
+- **Pod-count ceiling on `t4g.medium`.** Mitigation: Phase 0 count; bump `desired_size` if needed.
 - **Stale TFC plans on production.** Mitigation: fresh runs only, confirmed immediately; local
   speculative plans before every production-affecting merge.
 - **Two controllers on one Deployment.** Mitigation: ArgoCD stays on manual sync until
