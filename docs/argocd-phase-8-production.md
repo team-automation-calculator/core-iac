@@ -302,7 +302,7 @@ argocd proj get automation-calculator       # sources: this repo; destinations: 
 argocd app get automation-calculator        # Project automation-calculator, Sync OutOfSync, Health Healthy, Sync Policy Manual
 kubectl -n argocd get application.argoproj.io automation-calculator -o jsonpath='{.metadata.finalizers}'; echo   # empty
 kubectl -n argocd get application.argoproj.io automation-calculator -o jsonpath='{.spec.syncPolicy}'; echo       # {"syncOptions":["CreateNamespace=true"]}; no "automated"
-argocd app manifests automation-calculator | yq -N '[.kind, .metadata.name] | join(" ")'   # Service, Deployment, Ingress automation-calculator; nothing else
+argocd app manifests automation-calculator | yq -N '[.kind, .metadata.name] | join(" ")'   # Service, Deployment, Ingress, PodDisruptionBudget automation-calculator (the PDB since #474); nothing else
 argocd app diff automation-calculator | tee tmp/phase8-02-diff.txt   # exits 1: there is a diff
 scripts/argocd_staging_verify.sh --env production --expect-helm-release | tee tmp/phase8-02-verify-before-sync.txt
 ```
@@ -310,7 +310,7 @@ scripts/argocd_staging_verify.sh --env production --expect-helm-release | tee tm
 The finalizer must be empty and the sync policy must have no `automated` key; stop if either is
 wrong, the module rendered something it should not have.
 
-The diff must be, for each of the three objects, exactly one added annotation
+The diff must be, for each of the four objects, exactly one added annotation
 `argocd.argoproj.io/tracking-id`, and nothing under `spec`. Phase 5 section 4 lists what a `spec`
 line means (a pending bump, a wrong release name, an ALB annotation change) and why each one
 means **do not sync**.
@@ -328,7 +328,7 @@ argocd app get automation-calculator        # Synced, Healthy
 argocd app history automation-calculator    # ID 0 at the current main SHA
 ```
 
-The sync applies the three manifests; since nothing under `spec` differed, the only writes are the
+The sync applies the four manifests; since nothing under `spec` differed, the only writes are the
 tracking annotation and `kubectl.kubernetes.io/last-applied-configuration`. No new ReplicaSet, no
 new pod, no Ingress change.
 
@@ -561,7 +561,7 @@ there is no second look after the sync.
 **Moving production to automated sync** is a separate decision, not part of this phase. It would be
 `argocd_application_automated_sync = true` (with `prune` and `self_heal`) in production's tfvars,
 one in-place change to `module.argocd[0].helm_release.argocd_apps[0]`, after the Phase 6 step 6
-prune checks on production (`argocd app resources` lists only the Service, Deployment and Ingress;
+prune checks on production (`argocd app resources` lists only the Service, Deployment, Ingress and PodDisruptionBudget;
 the Secret has no tracking annotation). It makes PR review the only gate for production and takes
 `argocd app rollback` away. Leave it off until that trade has been decided on its own.
 
@@ -582,7 +582,7 @@ the `argocd` namespace goes with them, the CRDs stay). Either applies when its P
 
 ### 9.2 After the first sync, before the `state rm`
 
-Same as 9.1. The tracking annotations stay on the three objects; they are harmless and ArgoCD
+Same as 9.1. The tracking annotations stay on the four objects; they are harmless and ArgoCD
 re-adopts them when the Application comes back.
 
 ### 9.3 After the `state rm`, Commit B not merged
