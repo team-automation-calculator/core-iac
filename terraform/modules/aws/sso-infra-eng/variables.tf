@@ -1,3 +1,15 @@
+variable "db_read_only_access_enabled" {
+  default     = false
+  description = "Let both InfraEng permission sets request IAM database tokens for the PostgreSQL role ac_read_only_infra_eng_<environment_name> (docs/db-read-only-access.md). The role itself is created by main_rails_app when its variable of the same name is true."
+  type        = bool
+}
+
+variable "db_region" {
+  default     = "us-west-1"
+  description = "AWS region of the app database, for the rds-db:connect resource ARN. This module's provider targets the Identity Center region instead."
+  type        = string
+}
+
 variable "environment_name" {
   description = "The application development environment, i.e development/staging/production."
   type        = string

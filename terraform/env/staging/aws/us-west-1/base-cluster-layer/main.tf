@@ -24,6 +24,7 @@ locals {
 }
 
 module "ci_iam_role" {
+  db_read_only_access_enabled      = var.db_read_only_access_enabled
   environment_name                 = var.environment_name
   read_only_trusted_principal_arns = concat(local.sso_infra_eng_read_only_role_arn_patterns, var.ci_read_only_trusted_principal_arns)
   source                           = "../../../../../modules/aws/ci-iam-role"
@@ -37,9 +38,10 @@ module "ci_iam_role" {
 # Gated off until the Google Workspace identity provider is connected and
 # the user is provisioned — manual console steps.
 module "sso_infra_eng" {
-  count            = var.enable_sso_infra_eng ? 1 : 0
-  environment_name = var.environment_name
-  source           = "../../../../../modules/aws/sso-infra-eng"
+  count                       = var.enable_sso_infra_eng ? 1 : 0
+  db_read_only_access_enabled = var.db_read_only_access_enabled
+  environment_name            = var.environment_name
+  source                      = "../../../../../modules/aws/sso-infra-eng"
   providers = {
     aws = aws.us_east_1
   }

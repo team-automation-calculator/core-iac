@@ -22,6 +22,36 @@ variable "backup_retention_period" {
   type        = number
 }
 
+variable "ci_read_only_kubernetes_group" {
+  default     = ""
+  description = "Kubernetes group the read-only CI role is mapped to by its EKS access entry. When db_read_only_access_enabled is true, the group may port-forward to the database forwarder's namespace. Empty creates no binding."
+  type        = string
+}
+
+variable "db_read_only_access_enabled" {
+  default     = false
+  description = "Read-only database access for people and agents (docs/db-read-only-access.md): turns on IAM database authentication on the instance, runs a Job that creates the roles ac_read_only_ci_<env> and ac_read_only_infra_eng_<env> (SELECT on the app's schema, nothing else), and runs a TCP forwarder pod in the ac-db-access namespace that the read-only CI role may port-forward to. Setting it back to false removes the forwarder and turns IAM authentication off; the roles stay in the database and can no longer sign in."
+  type        = bool
+}
+
+variable "db_read_only_connection_limit" {
+  default     = 3
+  description = "Connection limit of each read-only login role, so that observers cannot use up the instance's connections (79 on db.t4g.micro) during an incident."
+  type        = number
+}
+
+variable "db_read_only_psql_image" {
+  default     = "public.ecr.aws/docker/library/postgres:16.13-alpine"
+  description = "Image whose psql runs the read-only roles SQL. Must carry linux/arm64. Any psql at or above the server's major version works."
+  type        = string
+}
+
+variable "db_read_proxy_image" {
+  default     = "public.ecr.aws/docker/library/haproxy:3.2-alpine"
+  description = "Image of the TCP forwarder in front of the database. Must carry linux/arm64."
+  type        = string
+}
+
 variable "db_engine_version" {
   default     = null
   description = "The PostgreSQL engine version for the RDS instance. If null, AWS uses its default."
