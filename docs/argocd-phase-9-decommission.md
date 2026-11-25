@@ -5,16 +5,27 @@ Companion to Phase 9 of `argocd-migration-plan.md`. After Phase 6 (staging) and 
 state and neither cluster has a Helm release for the app any more: the ArgoCD `Application` is the
 only controller of the Service, Deployment and Ingress. This phase deletes the code that is dead as
 a result, and stops chart changes from queueing TFC runs. **It changes nothing on the app.** The
-applies are in-place updates of `trigger_prefixes` on the three cluster-addons TFC workspaces
-(made by the `tf_cloud` workspaces), the state-only destroy of the dead `terraform_data` ordering
-handle, and the `atomic` flip on the ArgoCD release (a no-op `helm upgrade`, section 3).
+applies are in-place updates of the triggers on the three cluster-addons TFC workspaces
+(`trigger_prefixes` on staging and development, `trigger_patterns` on production; made by the
+`tf_cloud` workspaces), the state-only destroy of the dead `terraform_data` ordering handle, and
+the `atomic` flip on the ArgoCD release (a no-op `helm upgrade`, section 3).
 
 The one rule: **the resource block may only be deleted from a module whose every consumer has
 already forgotten the resource.** Deleting a resource block for an instance that is still in state
 plans a destroy, and the `prevent_destroy` guard goes away with the block, so nothing would stop
 that destroy: it would be `helm uninstall`, which deletes the Ingress and the ALB. Section 2 is
-how to prove the precondition before merging; staging auto-applies, so it must be proven **before**
-the merge, not watched after.
+how to prove the precondition before merging; both environments auto-apply, so it must be proven
+**before** the merge, not watched after.
+
+**This PR applies to staging and production in one merge**, an exception to the two-PR rule of
+`docs/promotion.md`. Deleting a module variable needs every caller to stop passing it in the same
+commit, so the PR edits production's working directory (`main.tf`, `variables.tf`,
+`terraform.tfvars`), and that triggers production's add-ons run alongside staging's, with no
+confirm on either. Both speculative plans are on the PR; read both. Production's plan also
+carries any shared code on `main` that production has not applied yet: promote that first
+(`scripts/promote_to_production.sh addons`) so the plan here is only what section 3 lists. If
+the `atomic` flip should be seen on staging before production gets it, move that one line to
+its own PR ahead of this one and promote it the usual way.
 
 ## 1. What the PR changes
 
@@ -53,6 +64,10 @@ the merge, not watched after.
   - `imports_argocd_phase4.tf` (staging and production) is not part of this PR: #463 deleted
     both files on 2026-11-19, once both envs had applied the Phase 4 imports (section 2 still
     checks that the two objects are in state).
+- `terraform/modules/tf_cloud/tf_cloud_workspaces/locals.tf`: production's add-ons
+  `trigger_patterns` (#477) lose `helm/automation-calculator/values-production.yaml`, and the
+  `app_chart_directory` variable that named it is deleted. A production bump PR then triggers no
+  workspace: the file is read by ArgoCD only.
 - `terraform/modules/tf_cloud/tf_cloud_workspaces/variables.tf` and
   `terraform/env/development/tf_cloud/variables.tf`: `helm/automation-calculator` leaves
   `cluster_addons_layer_module_directories`. **`terraform/modules/aws/main_rails_app` stays** in
@@ -153,17 +168,17 @@ plan shows:
   not this PR. A replacement of the ACM validation records means a module-level `depends_on`
   came back onto `main_rails_app` (#404).
 
-Also confirm in the TFC UI that both addons workspaces are idle (no run planning or waiting for a
-confirm) and that their last applied runs planned 0 changes.
+Also check in the TFC UI that both addons workspaces are idle (no run planning or applying) and
+that their latest runs applied or planned no changes.
 
 ## 3. Expected TFC plans
 
 | Workspace | Expected plan for the merge |
 |---|---|
 | `ac_app_staging_cluster_addons_layer` | **1 to change**, in place: `module.argocd[0].helm_release.argocd`, `atomic: false => true`. **1 to destroy**: `module.main_rails_app.terraform_data.cluster_addons` (state only, no API call). Nothing else. Auto-applies: the provider runs a `helm upgrade` with the same chart and values, which records a new Helm revision and changes no objects (no pod restarts; `argocd app get` stays Synced/Healthy). The release deletion itself plans nothing: the resource left state in Phase 6. |
-| `ac_app_production_cluster_addons_layer` | **1 to change**, in place: the same `atomic` flip, and the same **1 to destroy** of `terraform_data.cluster_addons`. **Confirm promptly**: the apply is a `helm upgrade` against EKS with the plan-time token, so a stale plan fails with the credentials error. Nothing from the release deletion: it left state in Phase 8. |
+| `ac_app_production_cluster_addons_layer` | **1 to change**, in place: the same `atomic` flip, and the same **1 to destroy** of `terraform_data.cluster_addons`. Auto-applies at the same merge, because the PR changes production's working directory (the `helm upgrade` is the same no-op as on staging). Nothing from the release deletion: it left state in Phase 8. |
 | `ac_app_development_cluster_addons_layer` | No cluster: fails at `data.aws_eks_cluster` as it did before this PR. |
-| each env's `tf_cloud` workspace | **1 to change**, in place: `module.tf_cloud_workspaces.tfe_workspace.cluster_addons_tfe_workspace`, `trigger_prefixes` loses `helm/automation-calculator`. Nothing else: no replacement, no change to the base-cluster workspace or the run trigger. |
+| each env's `tf_cloud` workspace | **1 to change**, in place: `module.tf_cloud_workspaces.tfe_workspace.cluster_addons_tfe_workspace`. On staging and development `trigger_prefixes` loses `helm/automation-calculator`; on production `trigger_patterns` loses `/helm/automation-calculator/values-production.yaml`. Nothing else: no replacement, no change to the base-cluster workspace or the run trigger. |
 
 The `tf_cloud` workspaces do not auto-apply; confirm each one. There is no staleness concern here:
 the `tfe` provider talks only to Terraform Cloud, never to EKS, so the plan does not expire with
@@ -175,8 +190,9 @@ value, which is why both files change.)
 
 With section 2 green: merge. There is no ordering constraint and no window on the app side: the
 only addons change is the `atomic` flip on the ArgoCD release (section 3), and the `tf_cloud`
-applies touch workspace settings only. Staging auto-applies. Confirm the production addons run
-the moment it is planned, then the three `tf_cloud` runs when they come up.
+applies touch workspace settings only. The staging and production addons runs auto-apply; watch
+both (`python3 -I scripts/wait_commit_status.py` on the merge commit). Then confirm the three
+`tf_cloud` runs when they come up.
 
 ## 5. After the merge
 
@@ -186,17 +202,19 @@ kubectl -n automation-calculator get deploy,svc,ingress,secret    # all four, bo
 argocd app get automation-calculator                              # Synced, Healthy, both clusters
 ```
 
-In TFC, each cluster-addons workspace's settings now list
+In TFC, the staging and development cluster-addons workspaces' settings now list
 `terraform/env/<env>/aws/us-west-1/cluster-addons-layer`, `terraform/modules/aws/cluster-addons-layer`,
 `terraform/modules/aws/main_rails_app` and `terraform/modules/aws/argocd` as trigger prefixes, and
-not `helm/automation-calculator`.
+not `helm/automation-calculator`. Production's lists one trigger pattern, its own working
+directory.
 
-The proof that the decommission did what it set out to do is the **next bump PR**: when it merges,
-no cluster-addons run is queued at all (before this phase each merge queued a 0-change run per env,
-and on production a stale-plan hazard with it). Staging syncs itself within ArgoCD's polling
-interval; production is synced by hand as in `argocd-phase-8-production.md` section 8. A change
-under `terraform/modules/aws/main_rails_app` (a DB engine version, a Secret value expression)
-still queues all three addons runs, as it must.
+The proof that the decommission did what it set out to do is the **next deploy**: neither the
+staging bump PR nor the production bump PR gets a Terraform Cloud status, and merging them queues
+no cluster-addons run (before this phase each queued a 0-change run in its environment). Staging
+syncs itself within ArgoCD's polling interval; production is synced by hand as in
+`argocd-phase-8-production.md` section 8. A change under `terraform/modules/aws/main_rails_app`
+(a DB engine version, a Secret value expression) still runs on staging at merge and on production
+with its promotion PR, as it must.
 
 ## 6. Rollback
 
@@ -208,9 +226,9 @@ a bad deploy is a git revert of the bump (synced by ArgoCD) or, on production,
 workspaces (that flip is an in-place `helm upgrade` with unchanged values): the revert brings the
 resource block back with `count = var.manage_helm_release ? 1 : 0` *and* brings back
 `manage_app_helm_release = false` in both tfvars, so the count is 0 and the state still has no
-release. The chart directory
-goes back onto the trigger prefixes (three `tf_cloud` runs, 1 to change each). That is the whole
-revert; it only restores dead code.
+release. The chart goes back onto the workspace triggers (three `tf_cloud` runs, 1 to change
+each). That is the whole revert; it only restores dead code. Like this PR, the revert changes
+production's working directory, so it applies to both environments at its merge.
 
 **Putting the app back under Terraform is hard, and is not a revert.** The state has no release
 and the clusters have no Helm history, so there is nothing to import. It is the path of last
@@ -256,8 +274,8 @@ without `--cascade=false`; adding a `helm_release` for the app back to the modul
   and **1 to destroy** (`module.main_rails_app.terraform_data.cluster_addons`), nothing to add, on both `ac_app_staging_cluster_addons_layer` and
   `ac_app_production_cluster_addons_layer`, and both applied; `helm -n argocd history argocd` shows
   one new revision per cluster with no pod restarts. The three `tf_cloud` runs applied one in-place
-  change each and the workspaces' trigger prefixes no longer list `helm/automation-calculator`.
+  change each and no workspace's triggers list the chart or a values file any more.
 - `helm -n automation-calculator list` is empty and `argocd app get automation-calculator` is
   Synced and Healthy on both clusters, same pods as before the merge.
-- The next merged bump PR queued no cluster-addons run.
+- The next staging and production bump PRs queued no cluster-addons run.
 - `argocd-migration-plan.md` says implemented, with the PR per phase.

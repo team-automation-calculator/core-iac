@@ -373,8 +373,9 @@ objects in both states), the expected plans and the rollback: `docs/argocd-phase
   feeding it) goes too: with no release it orders nothing, and its destroy is state only.
 - Each env's `cluster-addons-layer` loses `manage_app_helm_release` and the chart-path input, and
   staging and production lose `imports_argocd_phase4.tf` (applied in Phase 4).
-- Remove `helm/automation-calculator` from `cluster_addons_layer_module_directories` so chart
-  changes stop queueing TFC runs (and stale production plans). `terraform/modules/aws/main_rails_app`
+- Remove `helm/automation-calculator` from `cluster_addons_layer_module_directories`, and
+  `values-production.yaml` from production's trigger patterns (#477), so chart changes and bump
+  PRs stop queueing TFC runs. `terraform/modules/aws/main_rails_app`
   **stays** in the list, unlike what this bullet first said: the module still owns the namespace,
   the Secret, RDS and ACM in every addons workspace, so changes to it must keep queueing their runs.
 - Update `AGENTS.md` (layout, apply order, how deploys work, scripts; `CLAUDE.md` imports it since
