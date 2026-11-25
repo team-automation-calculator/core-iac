@@ -32,6 +32,14 @@ picks the change up when a production pull request merges.
 | Shared code with nothing per-environment to change (a module refactor, a chart template, a chart or module version bump) | the change itself | `scripts/promote_to_production.sh <base\|addons\|both>`: writes the verified `main` commit to `promoted_ref` in the production working directory, which is the file the pull request changes |
 | A provider or lock file bump | staging's env config directory | production's env config directory |
 
+**A chart change needs a chart version bump to reach production.** The production
+`helm_release` installs the chart from a local directory, and Terraform plans a release update
+only when the chart `version` (read from `Chart.yaml`) or the values change. A template or
+`values.yaml` change with the same version gives a production plan of "no changes": #474 sat
+unapplied on production this way, and its promotion pull request (#480) planned nothing. Bump
+`version` in `helm/automation-calculator/Chart.yaml` in the same pull request as the chart
+change, and expect the production plan to show the `helm_release` update.
+
 Prefer a per-environment variable over `promoted_ref` when the change can be written that way:
 the production pull request then says what it turns on.
 
