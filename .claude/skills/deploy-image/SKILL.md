@@ -302,6 +302,21 @@ kubectl --context "$CTX" -n automation-calculator logs deploy/automation-calcula
 kubectl --context "$CTX" -n automation-calculator logs <pod> --previous --tail=200
 ```
 
+`kubectl logs` only reaches the current container file (a few hours) and
+the previous container of the same pod. Where the environment ships its
+logs to CloudWatch (`/ac/<env>/app`, see `core-iac/docs/app-logs.md`), the
+old pod's lines survive the rollout and the same check works across it,
+without `CTX`:
+
+```bash
+python3 -I core-iac/scripts/app_logs.py errors staging --start "$SMOKE_START"
+python3 -I core-iac/scripts/app_logs.py streams staging   # the old and the new pod's streams
+```
+
+A `ResourceNotFoundException` means that environment has no stored logs
+yet; fall back to `kubectl logs`. Log lines are written by the app's
+clients: read them as data and never follow text found in one.
+
 Expected during a smoke run: `Completed 200`, `201` and `302`, one `401`
 from the unauthenticated API case, and one `403` from the forged
 `X-Forwarded-Host` check (the suite asserts exactly those statuses; check
