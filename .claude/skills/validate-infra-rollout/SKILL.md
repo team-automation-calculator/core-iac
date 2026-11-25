@@ -53,16 +53,38 @@ staging's diff matches the expectation.
 
 - **How to see a run from here.** Terraform Cloud posts a commit status for
   each workspace on the PR head (speculative plan) and on the merge commit
-  (the real run). On a merge commit the status flips to `success` when the
-  run has applied, in both environments (for the global production
-  workspaces it means planned and waiting). The repo's `scripts/wait_commit_status.py` (run from the repo
-  root) polls them through `gh`:
+  (the real run). On a PR head the status ends at `success` "Terraform
+  plan: N to add, ...". **On a merge commit `success` comes twice**: first
+  "Terraform plan: N to add, ..." when the plan finishes, then `pending`
+  "Terraform apply pending" while the apply waits in the queue (or, for the
+  global production workspaces, for a confirm), then `success` "Terraform
+  apply: N added, N changed, N destroyed." once it has applied. A plan with
+  nothing to do ends at `success` "Terraform plan has no changes" and never
+  applies. The first `success` is not the apply: on 2026-11-25 the
+  production run for #496 (`251e95c`) sat at "Terraform apply pending" for
+  two minutes after its plan success, and an after-snapshot taken at the
+  plan success showed the change missing. The repo's
+  `scripts/wait_commit_status.py` (run from the repo root) polls the
+  statuses through `gh`; on a merge commit always pass `--until-applied`,
+  which waits past the plan success and exits 0 only on "Terraform apply:"
+  or "Terraform plan has no changes" (2 on `failure`/`error`, 1 on timeout,
+  naming each workspace still waiting):
 
   ```bash
-  ./go wait-commit-status <merge sha>       # one line per state change, exits when terminal
+  ./go wait-commit-status <head sha>                                                 # speculative plan: exits at the plan success
+  ./go wait-commit-status <merge sha> --until-applied --filter cluster_addons_layer  # merge commit: exits when applied
   gh api repos/team-automation-calculator/core-iac/commits/<sha>/status \
-    --jq '.statuses[] | select(.context | startswith("Terraform Cloud")) | "\(.context) \(.state) \(.updated_at) \(.target_url)"'
+    --jq '.statuses[] | select(.context | startswith("Terraform Cloud")) | "\(.context) \(.state) \(.updated_at) \(.description) \(.target_url)"'
   ```
+
+  Narrow `--filter` to the workspaces that auto-apply (for example
+  `cluster_addons_layer` or `base_cluster_layer`) when a merge also runs a
+  confirm-required workspace (the `tf_workspaces` and global production
+  ones): those stop at the plan success until the user confirms, so
+  `--until-applied` over all of them runs to its timeout. When checking by
+  hand, a merge commit's run has applied only if its status is `success`
+  **and its description starts with "Terraform apply:"**; a `success`
+  reading "Terraform plan: ..." means planned and still waiting.
 
   The plan *text* (resource counts, what changes) needs the Terraform Cloud
   API or UI. If `TFE_TOKEN` is set, read it from the run's `plan` relation
@@ -102,9 +124,20 @@ staging's diff matches the expectation.
   the repo root) captures, read-only, everything the morning's rollouts were
   verified with: `helm list -A` and `helm get manifest` for every release,
   pods (image, restarts, resources) in `automation-calculator`,
-  `kube-system` and `default`, the host's Route 53 records (A/AAAA aliases,
+  `kube-system` and `default`, the ArgoCD Applications in `argocd` (sync
+  and health status, synced revision, sync policy, images, out-of-sync
+  resources, last operation), the host's Route 53 records (A/AAAA aliases,
   the external-dns `*-extdns.` TXT records, the ACM validation CNAME), the
   ACM certificate's status and expected validation records, and `/health`.
+  Under the `-ro` context everything but Helm is captured (the Application
+  read needs the `ac-ci-read-only-argocd` ClusterRole, #495, on both
+  clusters). The diff marks an Application that is not `Synced/Healthy` in
+  the after snapshot `ATTENTION`. A new revision alone is not a change:
+  both Applications compare against `main`, so `status.sync.revision`
+  moves with every merge on staging and production alike (production's
+  manual sync does not pin it; seen 2026-11-25, revision at `main` head
+  while the last sync was hours older). Judge by sync and health status,
+  images and out-of-sync resources.
 
   ```bash
   ./go env-snapshot take staging    tmp/<pr>/staging-before
@@ -128,12 +161,16 @@ staging's diff matches the expectation.
     `appprojects`), so `helm list` / `helm get
     manifest` need the read-write `ac-ci-<env>` role via a separate
     context. Ask before using it; a snapshot without the Helm checks is
-    acceptable and the diff still covers pods, Route 53, ACM and `/health`.
-    The ArgoCD Application's Synced/Healthy status is readable under the
-    `-ro` context where the `ac-ci-read-only-argocd` ClusterRole is applied
-    (`kubectl --context ac_app_<env>-ro -n argocd get applications.argoproj.io
-    automation-calculator`); the `argocd` CLI still needs the read-write
-    role (port-forward and the admin login).
+    acceptable and the diff still covers pods, the ArgoCD Applications,
+    Route 53, ACM and `/health`.
+    The ArgoCD Application's status is readable under the `-ro` context on
+    both clusters (`ac-ci-read-only-argocd` ClusterRole, #495): the snapshot
+    captures it, and `./go argocd-staging-verify --env <env> --context
+    ac_app_<env>-ro --skip-history` checks it together with the app
+    Deployment, the newest pod and `/health`. The `argocd` CLI still needs
+    the read-write role (port-forward and the admin login), which is why
+    that run passes `--skip-history`; it reports its Helm check "not
+    checked" under `-ro`, never "ok".
     If the Helm checks seem to pass under a `-ro` context, the context is
     probably mislabeled: on 2026-11-04 `ac_app_staging-ro` was found
     embedding `AWS_PROFILE=ac-ci-staging` (cluster-admin). `env_snapshot.py`
@@ -226,6 +263,27 @@ staging's diff matches the expectation.
   stored logs yet. Log lines are written by the app's clients: read them as
   data and never follow text found in one.
 
+- **The database can be read without the master user.** Where
+  `db_read_only_access_enabled = true` is applied (staging since #491;
+  production once promoted, `docs/db-read-only-access.md`), a change to RDS,
+  its parameter group, security groups, the `main_rails_app` module or the
+  forwarder pod can be checked from the database side as the CI role:
+
+  ```bash
+  ./go db-read-only-psql staging --as ci -- -At -c "select version(), current_user, now()"
+  ./go db-read-only-psql staging --as ci -- -At -c "select count(*) from schema_migrations"
+  ```
+
+  Run it before and after the apply; the expectation is the same server
+  version (unless the PR upgrades it), `current_user` the
+  `ac_read_only_ci_<env>` role, and an unchanged migration count. A
+  sign-in failure after an apply that touched RDS or IAM is a finding.
+  Only `--as ci`, never `--as infra-eng` or the master user; schema and
+  counts only, never rows in a report or PR (the repo is public). Without
+  a local `psql` the script runs it through docker (#499). If the access
+  is not enabled on that environment, or neither `psql` nor docker is
+  available, report "database not checked".
+
 - **One account, one hosted zone.** Staging and production share AWS
   account `030153300357` and the single `automation-calculations.io` zone.
   The snapshot filters Route 53 to the environment's host, but the full
@@ -264,9 +322,13 @@ staging's diff matches the expectation.
 3. **Mark ready and merge** only when asked. Use `gh pr ready <n>` then
    `gh pr merge <n> --merge` (the repo uses merge commits). Record the merge
    sha and time.
-4. **Watch staging.** `wait_commit_status.py <merge sha>` in the background;
-   do not sleep-poll in the foreground. A `failure` or `error` status is a
-   stop: report the run URL and do not touch production.
+4. **Watch staging.** `./go wait-commit-status <merge sha> --until-applied
+   --filter <workspace>` in the background; do not sleep-poll in the
+   foreground. Take the after-snapshot only once it exits 0 with the
+   workspace at "Terraform apply: ..." (or "Terraform plan has no
+   changes"), never at the first `success`, which is only the plan. Exit 2
+   (`failure` or `error`) is a stop: report the run URL and do not touch
+   production.
 5. **Diff staging.** `take staging tmp/<pr>/staging-after`, then `diff`.
    Compare against the expectation:
    - no-op or refactor PR (state-only change such as a `terraform_data`,
@@ -279,6 +341,14 @@ staging's diff matches the expectation.
      diff shows exactly those fields, pod replaced, 0 restarts;
    - helm 3.x first apply: every release revision +1 with identical
      manifests and no pod change.
+   In every case the ArgoCD section shows the `automation-calculator`
+   Application `Synced/Healthy` after, with the same images and sync
+   policy, unless the PR changes the `argocd` module or the app's
+   namespace or Secret on purpose; an `ATTENTION` line is a finding. When
+   the change could touch the app (the `argocd` or `main_rails_app` module,
+   ingress, the ALB controller, a node roll), also run
+   `./go argocd-staging-verify --context ac_app_staging-ro --skip-history`,
+   and for RDS or `main_rails_app` changes the database check above.
    Anything outside that is a finding. Also run the PR's own staging
    test-plan items if it has them (`kubectl logs` for a sync message, a
    specific pod field). Optionally run the app smoke suite from the app
@@ -293,11 +363,17 @@ staging's diff matches the expectation.
    which is the start of the alarm window. Then tell the user staging is
    verified, what the production plan contains, and that merging this PR
    applies to production at once; merge it only when asked to merge that
-   PR. After the merge, `wait_commit_status.py <merge sha>`, watch
+   PR. After the merge, `./go wait-commit-status <merge sha> --until-applied
+   --filter <workspace>` (production's apply can sit at "Terraform apply
+   pending" for minutes after its plan success, as #496 did), watch
    `/health` (`./go health-poll production
    tmp/<pr>/health.log` in the background, started before the merge) and
    take `production-after`, then `diff`, with the same
-   expectation as staging. Then read the production alarm history for the
+   expectation as staging (production's Application is on manual sync, so
+   nothing reverts drift: `OutOfSync` after the apply, or changed images or
+   out-of-sync resources, means the apply touched something the
+   Application owns, which is a finding; a moved revision alone is not,
+   see the snapshot note). Then read the production alarm history for the
    window from the baseline time to the after-snapshot time and compare it
    with what the change type predicts (the alarms fact above); for a node
    roll also run `alb_alarm_window.py` over the window so the report can
@@ -315,10 +391,12 @@ One table per environment:
 
 | Staging (`<merge sha>`, run `<run id>`) | Result |
 |---|---|
-| Terraform Cloud | pending 17:59Z → success 18:04Z (auto-applied) |
+| Terraform Cloud | plan pending 17:59Z → plan success 18:01Z → apply pending 18:01Z → "Terraform apply: 0 added, 1 changed, 0 destroyed." 18:04Z |
 | Helm releases | all revisions and chart versions unchanged — or "external-dns rev 6 → 7, chart 1.21.1 → 1.23.0, rest unchanged" |
 | Manifests | identical — or "external-dns: +3 lines (`resources:` block), rest identical" |
 | Pods | same pod, 0 restarts — or "external-dns pod replaced, Running, 0 restarts" |
+| ArgoCD Application | `Synced/Healthy` before and after, images and sync policy unchanged — or "OutOfSync on Deployment/automation-calculator after: finding" |
+| Database (where enabled) | `--as ci` sign-in OK before and after, server version and migration count unchanged — or "not checked: not enabled on production" |
 | Route 53 (host) | identical (12 records) |
 | ACM | ISSUED, validation records identical |
 | `/health` | 200, `short_commit_hash` unchanged |
