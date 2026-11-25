@@ -157,7 +157,7 @@ Left behind:
    Check that the plan creates `aws_db_instance.automation_calculator_app` with the expected
    `snapshot_identifier`, then confirm it promptly, for the same token reason as above. If no run
    was queued, start one.
-4. Refresh local access: `scripts/infra_eng_sso.py`, then check `/health` on
+4. Refresh local access: `./go infra-eng-sso`, then check `/health` on
    `staging.automation-calculations.io`.
 
 Notes for the re-create:
@@ -224,7 +224,7 @@ the us-west-1 rate.
 
 #### Logical dump and restore
 
-Before the destroy, `pg_dump` the database from a pod (`scripts/launch_psql_pod.sh`) and keep the
+Before the destroy, `pg_dump` the database from a pod (`./go launch-psql-pod`) and keep the
 file. After the re-create, load it with `pg_restore` into the new, empty instance.
 
 - No Terraform change, and it works across PostgreSQL major versions.
