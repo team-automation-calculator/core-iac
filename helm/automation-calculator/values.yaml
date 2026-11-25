@@ -36,7 +36,18 @@ livenessProbe:
 logToStdout: true
 nameOverride: ""
 podAnnotations: {}
+# Rendered only when replicaCount is above 1: with a single replica,
+# minAvailable 1 would block every node drain until the node group update
+# times out.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
 podSecurityContext: {}
+# Seconds a terminating pod keeps serving before it gets SIGTERM. On a node
+# roll the replacement pod is on a new node, which the ALB only starts using
+# after 2 health checks 15s apart (instance targets, externalTrafficPolicy
+# Local), so the old pod has to outlive that window. 0 disables the hook.
+preStopSleepSeconds: 40
 railsEnv: production
 readinessProbe:
   httpGet:
@@ -45,7 +56,12 @@ readinessProbe:
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
-replicaCount: 1
+# Two replicas plus the PodDisruptionBudget are what keep the app serving while
+# a node is drained (AMI release, EKS upgrade): one pod is evicted, starts on
+# the new node and turns Ready before the other may be evicted. The app's rate
+# limiter counts per pod, so every limit is effectively doubled at 2
+# (plans/rate-limit-shared-cache-store.md).
+replicaCount: 2
 resources:
   limits:
     cpu: 750m
@@ -83,4 +99,7 @@ startupProbe:
   periodSeconds: 5
   timeoutSeconds: 5
   failureThreshold: 36
+# Must exceed preStopSleepSeconds by the time Puma needs to finish in-flight
+# requests after SIGTERM.
+terminationGracePeriodSeconds: 70
 tolerations: []
