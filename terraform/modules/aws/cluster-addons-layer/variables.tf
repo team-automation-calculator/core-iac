@@ -3,6 +3,11 @@ variable "alarm_email" {
   type        = string
 }
 
+variable "ci_read_only_kubernetes_group" {
+  description = "Kubernetes group the read-only CI role is mapped to by its EKS access entry; granted cluster-scoped read on nodes"
+  type        = string
+}
+
 variable "cloudwatch_alarms_enabled" {
   description = "Set to true to create the CloudWatch alarms and SNS alerting resources. Requires the app ALB to exist, so must be false on initial bootstrap."
   type        = bool
@@ -12,6 +17,14 @@ variable "cloudwatch_alarms_enabled" {
 variable "environment_name" {
   default     = "development"
   description = "The application development environment, i.e development/staging/production."
+  type        = string
+}
+
+# external-dns expands "%{record_type}" in the prefix, but "%{" starts a
+# Terraform template directive: in .tf/.tfvars write it as "%%{record_type}".
+variable "external_dns_txt_prefix" {
+  default     = ""
+  description = "external-dns --txt-prefix for its TXT ownership records. Empty leaves it unset (chart default). Changing it requires the Route 53 migration in docs/external-dns-txt-prefix-migration.md."
   type        = string
 }
 

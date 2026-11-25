@@ -7,28 +7,43 @@
     },
     {
       "minor_version": "1.10",
-      "initial_release_date": "2024-11-06",
+      "initial_release_date": "2024-11-27",
       "notes": "Last patch: 1.10.5. Superseded by 1.11."
     },
     {
       "minor_version": "1.11",
-      "initial_release_date": "2025-02-04",
-      "notes": "Used in TFE workspaces (tfe_workspace_tf_version = \"1.11\")."
+      "initial_release_date": "2025-02-27",
+      "notes": "Last patch: 1.11.4. TFE workspace version until the Q4 2026 upgrade to 1.17 (docs/dependency-upgrade-plan-2026-q4.md, Phase 1)."
     },
     {
       "minor_version": "1.12",
-      "initial_release_date": "2025-04-08",
-      "notes": "Introduces ephemeral values and write-only attributes."
+      "initial_release_date": "2025-05-14",
+      "notes": "Last patch: 1.12.2. Introduces ephemeral values and write-only attributes. Upgrade note: Linux kernel 3.2 or later required."
     },
     {
       "minor_version": "1.13",
-      "initial_release_date": "2025-06-10",
-      "notes": "Provider-defined functions generally available."
+      "initial_release_date": "2025-08-20",
+      "notes": "Last patch: 1.13.5. Upgrade note: external variables referenced in terraform test files should have a matching variable block in the test file."
+    },
+    {
+      "minor_version": "1.14",
+      "initial_release_date": "2025-11-19",
+      "notes": "Last patch: 1.14.9. Adds list resources, terraform query and actions. Upgrade note: reduced parallelism in container runtimes with a CPU bandwidth limit."
     },
     {
       "minor_version": "1.15",
-      "initial_release_date": "2025-12-09",
-      "notes": "Used in CI (hashicorp/terraform:1.15.2). Required version constraint in repo: >= 1.5.7."
+      "initial_release_date": "2026-04-29",
+      "notes": "Last patch: 1.15.9. CI image until the Q4 2026 upgrade to 1.17 (hashicorp/terraform:1.15.2). Upgrade note: S3 backend AWS_USE_FIPS_ENDPOINT and AWS_USE_DUALSTACK_ENDPOINT accept only true or false."
+    },
+    {
+      "minor_version": "1.16",
+      "initial_release_date": "2026-08-26",
+      "notes": "Last patch: 1.16.7. Adds the terraform_data store block and import blocks inside modules. Upgrade note: provisioner bastion_host_key is now applied; no provisioners in this repo."
+    },
+    {
+      "minor_version": "1.17",
+      "initial_release_date": "2026-10-21",
+      "notes": "Used in TFC workspaces (tfe_workspace_tf_version = \"1.17\") and in CI (hashicorp/terraform:1.17.0). Required version constraint in repo: >= 1.5.7. Provider requirements accept variables and locals, -minimal-refresh planning option, Terraform Policy GA. No upgrade notes."
     }
   ]
 }

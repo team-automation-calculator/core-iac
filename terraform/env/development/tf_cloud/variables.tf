@@ -10,7 +10,7 @@ variable "base_cluster_layer_working_directory" {
 }
 
 variable "cluster_addons_layer_module_directories" {
-  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app", "helm/automation-calculator"]
+  default     = ["terraform/modules/aws/cluster-addons-layer", "terraform/modules/aws/main_rails_app", "terraform/modules/aws/argocd", "helm/automation-calculator"]
   description = "The list of module directories for the cluster addons layer"
   type        = list(string)
 }
@@ -58,5 +58,5 @@ variable "TF_VAR_GITHUB_TOKEN" {
 variable "tfe_workspace_tf_version" {
   description = "Allows for version pinning of tfe workspaces that have been created, because otherwise TF Cloud just chooses the latest one."
   type        = string
-  default     = "1.3.7"
+  default     = "1.17"
 }

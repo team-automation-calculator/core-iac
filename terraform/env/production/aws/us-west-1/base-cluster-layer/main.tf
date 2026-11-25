@@ -17,6 +17,10 @@ locals {
     "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_${local.sso_permission_set_name_read_only}_*",
     "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_${local.sso_permission_set_name_read_only}_*",
   ]
+
+  # Kubernetes group the read-only CI role is mapped to by its EKS access
+  # entry; cluster-addons-layer grants it cluster-scoped read on nodes.
+  ci_read_only_kubernetes_group = "ac-ci-read-only"
 }
 
 module "ci_iam_role" {
@@ -42,12 +46,14 @@ module "sso_infra_eng" {
 }
 
 module "eks_cluster" {
-  environment_name = var.environment_name
-  cluster_version  = var.kubernetes_cluster_version
-  source           = "../../../../../modules/aws/base-cluster-layer"
-  subnet_ids       = module.networking_layer.private_eks_subnet_ids
-  vpc_id           = module.networking_layer.vpc.id
-  ami_type         = var.ami_type
+  environment_name          = var.environment_name
+  cluster_version           = var.kubernetes_cluster_version
+  kube_proxy_addon_version  = var.kube_proxy_addon_version
+  source                    = "../../../../../modules/aws/base-cluster-layer"
+  subnet_ids                = module.networking_layer.private_eks_subnet_ids
+  vpc_id                    = module.networking_layer.vpc.id
+  ami_type                  = var.ami_type
+  node_group_instance_types = var.node_group_instance_types
   node_group_scaling_config = {
     desired_size = 1
     max_size     = 2
@@ -58,7 +64,10 @@ module "eks_cluster" {
   # Human InfraEng access flows through the same roles: SSO users assume
   # them (see ci_iam_role trust policies), so no per-user entries are
   # needed. The read-only role gets the view policy, matching its
-  # plan-and-inspect-only IAM permissions.
+  # plan-and-inspect-only IAM permissions. The view policy covers only
+  # namespaced resources, so the entry also joins a Kubernetes group that
+  # cluster-addons-layer binds to a nodes-only read ClusterRole (needed by
+  # scripts/argocd_preflight.sh).
   access_entries = {
     ci_terraform = {
       principal_arn = module.ci_iam_role.role_arn
@@ -70,7 +79,8 @@ module "eks_cluster" {
       }
     }
     ci_terraform_read_only = {
-      principal_arn = module.ci_iam_role.read_only_role_arn
+      principal_arn     = module.ci_iam_role.read_only_role_arn
+      kubernetes_groups = [local.ci_read_only_kubernetes_group]
       policy_associations = {
         view = {
           policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"

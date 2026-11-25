@@ -13,12 +13,32 @@
     {
       "version": "0.68.0",
       "release_date": "2025-02-18",
-      "notes": "Current major minor used in this repo."
+      "notes": "Minor line used in this repo until the Q4 2026 upgrade to 0.82 (docs/dependency-upgrade-plan-2026-q4.md, Phase 2a)."
     },
     {
       "version": "0.68.2",
       "release_date": "2025-03-11",
-      "notes": "Exact version pinned in all tf_cloud env configs (version = \"0.68.2\")."
+      "notes": "Exact version pinned in all tf_cloud and cluster-addons-layer env configs (version = \"0.68.2\") until Phase 2a replaced the pin with ~> 0.82."
+    },
+    {
+      "version": "0.69.0",
+      "release_date": "2025-09-15",
+      "notes": "Breaking: all resources moved to the latest plugin protocol; requires Terraform >= 1.0.0. r/tfe_oauth_client oauth_token no longer forces replacement on its own."
+    },
+    {
+      "version": "0.75.0",
+      "release_date": "2026-03-24",
+      "notes": "Breaking: write-only attributes (tfe_variable value_wo, notification token_wo, ssh_key key_wo, etc.) gained *_wo_version counterparts. None used in this repo."
+    },
+    {
+      "version": "0.80.0",
+      "release_date": "2026-08-13",
+      "notes": "Breaking: r/tfe_workspace hyok_enabled became computed read-only; configs that set it error after upgrade. Not set in this repo."
+    },
+    {
+      "version": "0.82.0",
+      "release_date": "2026-10-08",
+      "notes": "Constraint ~> 0.82 in the tf_cloud_workspaces module and all tf_cloud and cluster-addons-layer env configs since Phase 2a; lock files resolve to 0.82.0. No breaking changes."
     }
   ]
 }

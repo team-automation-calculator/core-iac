@@ -1,0 +1,67 @@
+# ArgoCD migration Phase 3 (docs/argocd-phase-3-dry-run.md): a scratch copy
+# of the app chart, deployed by ArgoCD into argocd-canary on staging so the
+# tool can be exercised (sync, branch switch, rollback, prune, delete) on
+# something that cannot touch the ALB or the real database. Applied by hand
+# with kubectl, never by Terraform. Contrast with the real Application in
+# Phase 5: that one must NOT carry the resources-finalizer.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ac-canary
+  namespace: argocd
+  # Cascade delete: `argocd app delete ac-canary` removes the Deployment,
+  # Service and (keep-annotated resources excepted) everything else it synced.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: scratch
+  source:
+    repoURL: https://github.com/team-automation-calculator/core-iac.git
+    # Switched to a branch during the exercise with
+    # `argocd app set ac-canary --revision <branch>`; back to main afterwards.
+    targetRevision: main
+    path: helm/automation-calculator
+    helm:
+      # Feeds app.kubernetes.io/instance in the Deployment selector; the
+      # canary gets its own value so it can never match the real pods.
+      releaseName: ac-canary
+      valueFiles:
+        - values.yaml
+        - values-staging.yaml
+      parameters:
+        # Deployment and Service names (values.yaml pins automation-calculator).
+        - name: fullnameOverride
+          value: ac-canary
+        # Never enable this on the canary: values-staging.yaml carries the real
+        # ALB name (ac-app-staging), so a second Ingress would fight the real
+        # one for the ALB.
+        - name: ingress.enabled
+          value: "false"
+        # The chart renders its own Secret from these dummy values. The Secret
+        # gets its own name so that even a mistaken destination could not
+        # overwrite automation-calculator-app-secrets. The database URL points
+        # at nothing: the canary pod is expected to crash-loop on /health.
+        - name: secrets.create
+          value: "true"
+        - name: secrets.kubernetesSecretObjectName
+          value: ac-canary-app-secrets
+        - name: secrets.databaseUrl
+          value: postgres://canary:canary@127.0.0.1:5432/canary
+        - name: secrets.githubOAuthAppId
+          value: canary-github-oauth-app-id
+        - name: secrets.githubOAuthAppSecret
+          value: canary-github-oauth-app-secret
+        - name: secrets.googleOAuthAppId
+          value: canary-google-oauth-app-id
+        - name: secrets.googleOAuthAppSecret
+          value: canary-google-oauth-app-secret
+        - name: secrets.secretKeyBase
+          value: canary-secret-key-base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd-canary
+  # Manual sync on purpose: `argocd app rollback` is refused while automated
+  # sync is on, and every step of the runbook is an explicit `argocd app sync`.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

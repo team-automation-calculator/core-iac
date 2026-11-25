@@ -2,21 +2,24 @@
 # Manual edits may be lost in future updates.
 
 provider "registry.terraform.io/hashicorp/tfe" {
-  version     = "0.68.2"
-  constraints = "<= 0.68.2"
+  version     = "0.82.0"
+  constraints = "~> 0.82"
   hashes = [
-    "h1:Lm0m9dTJ7OPaIlCXexLgN/GQo9V0GMRRwQQz11WWlxU=",
-    "zh:0d393692c080f3d44c8a5ba495d4e33a0dd5a5c3800e90cdb3101009e4a7edb7",
-    "zh:12432a6b4cabae79991d8b6762fbd2d9748d3136f88a1788d89802639399a9f1",
-    "zh:17749bc9c6df204f5793e15b209af5ac405d1638cc5a9b3c4f677de30b27b193",
-    "zh:3f0a6149f67354a962036780e0571e10fdf8be94b25659442b26d3707407ee8e",
-    "zh:456e7381715ca904de4e124798133989daf3fee2fbbec90f1c2e1ab552095c89",
-    "zh:7c7346c40e002d7b4ff11ea54cdbbf1c91f7a020e199fd6be2cff52b194fb2f5",
-    "zh:80958ae61afad3038a743229dba2c408ee1a61a19eadc6ee8c25fc9276cd1b37",
-    "zh:8aede5896eb80305c3c8d9dbb868e4f3fb0288416cc9feb94811b6ac94febad3",
-    "zh:8c0037d33a510e21f928cd2ac4552c304f858c233031f9fc579bfb349c5b082f",
-    "zh:8e03a47f757948b2614e967eb89422a64877c87e57766d647c49f8c16b7a7bf8",
-    "zh:98387599bea34f66e8ca749f95732c641825220e8d3885ea259991120b414c56",
-    "zh:d95ec293fa70e946b6cd657912b33155f8be3413e6128ed2bfa5a493f788e439",
+    "h1:+cbn2xXKd85V6WKPsJiQqjd0TbmcAOOemxw3uYP256k=",
+    "h1:03Ui9Fd9mgPnXqpuHbxbgmLnNjhjG4Jl7w23A0yR6gk=",
+    "h1:xSoHNsXiKI2BYlJ3KPSlMlYBMrdULDLvjGar+9uXmbc=",
+    "zh:1b95f0fb000763607e2d11e728f596c082593d1aaa77d562f6c8e9e1de9cbaed",
+    "zh:3c7be167acca5c4e36b6aab72ab89e1a8d1fc753c1ae6a2a6e860035396b19c4",
+    "zh:541d4532c875b2ee7ecb98da9a1461e76788893b623b0adf7c634d9fff7770e3",
+    "zh:55a56c653617c675ceb9cdb490f13026bafaadf65a7934218b4bbf3f2a7c459c",
+    "zh:6eaabe7db659562bcf9bb73308a242a64cce7b4e854a77855522648eac2dd83c",
+    "zh:7ffaa78d3728f0078da60f4443fafca5ff71c535652a13c17afddd2b6e19e917",
+    "zh:954b5003c97d2d474a960d7ca72828d00dc9be9b6ba7e717b882f922574d9caa",
+    "zh:a403e2a38ef300631b81df17a219e84b4c0887a3ab21d85dbe57ee124c2c7a5a",
+    "zh:c0a23e953a6a97857f3d5b2d25381c7388acc2a828b1f79ab132255f2342fdc3",
+    "zh:c748f76f6e6cc85af5b519eeea0183be0ebb9abd61b4b013fea233f45c4586d7",
+    "zh:d3c88478fa8bf38475c96821ee1eb7288569207fa807ee08bd3676a408a160bd",
+    "zh:f9f51c7e7999c452d86fc16124e384340bd1e2783c3bcd0c4e36903c60e62018",
+    "zh:fa1240339f3deb6159fc13ca12e4e7b6b9a42b72cae3d7c0dbc0e62bfe35e35e",
   ]
 }

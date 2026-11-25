@@ -32,22 +32,26 @@ Without eval, copy the printed export line, or print it again any time with:
     eval "$(scripts/infra_eng_sso.py export --environment staging)"
 
 First run needs --sso-start-url and --account-id; both are persisted in
-~/.aws/config and read back on later runs. The start URL must be the AWS
-access portal URL — https://<subdomain>.awsapps.com/start or the newer
-https://ssoins-<id>.portal.<region>.app.aws — not the Identity Center
-instance URL (https://identitycenter.amazonaws.com/ssoins-...) also shown
-in the console. Runs on the standard library plus the aws CLI (v2, for
-sso-session support).
+~/.aws/config and read back on later runs. The start URL must be the
+dual-stack AWS access portal URL, https://ssoins-<id>.portal.<region>.app.aws.
+The legacy https://<subdomain>.awsapps.com/start portal URL and the Identity
+Center instance URL (https://identitycenter.amazonaws.com/ssoins-...) also
+shown in the console are both rejected. Runs on the standard library plus the
+aws CLI (v2, for sso-session support).
 """
 
 from __future__ import annotations
 
 import argparse
 import configparser
+import logging
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SSO_SESSION_NAME = "automation-calculator"
 SSO_REGION = "us-east-1"  # Identity Center organization instance region
@@ -59,32 +63,43 @@ AWS_CONFIG_PATH = Path.home() / ".aws" / "config"
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]+\]\s*$")
 
-# The documented sso_start_url value is the AWS access portal URL, in either
-# the legacy form (https://<subdomain>.awsapps.com/start) or the newer form
-# (https://ssoins-<id>.portal.<region>.app.aws). The Identity Center console
-# also shows an instance/issuer URL
-# (https://identitycenter.amazonaws.com/ssoins-...); logins with it can work,
-# but it is not the documented start URL and diverges from the profile
-# reference in docs/aws-sso-auth.md, so reject it before persisting.
-PORTAL_URL_RES = (
-    re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com/start/?$"),
-    re.compile(r"^https://ssoins-[a-z0-9]+\.portal\.[a-z0-9-]+\.app\.aws/?$"),
+# The only sso_start_url accepted is the dual-stack AWS access portal URL
+# (https://ssoins-<id>.portal.<region>.app.aws). Two other URLs are rejected
+# before they are persisted:
+# - The legacy IPv4 portal URL (https://<subdomain>.awsapps.com/start). The
+#   Google Workspace SAML app holds the dual-stack ACS URL only (see LOGIN_ENV
+#   below), and a sign-in through this portal failed on 2026-11-18.
+# - The instance/issuer URL the Identity Center console also shows
+#   (https://identitycenter.amazonaws.com/ssoins-...). It is not a portal URL.
+# tests/test_sso_saml_spec.py ties this to acs_endpoint_kind in
+# iac/specs/sso/google-workspace-saml.json: if the Google app ever moves to an
+# IPv4 ACS URL, this has to change with it.
+PORTAL_URL_RE = re.compile(
+    r"^https://ssoins-[a-z0-9]+\.portal\.[a-z0-9-]+\.app\.aws/?$"
 )
+LEGACY_PORTAL_URL_RE = re.compile(r"^https://[a-z0-9.-]+\.awsapps\.com(/.*)?$")
 ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
 
 
 def validate_sso_start_url(sso_start_url: str) -> None:
-    if any(pattern.match(sso_start_url) for pattern in PORTAL_URL_RES):
+    if PORTAL_URL_RE.match(sso_start_url):
         return
-    message = f"error: {sso_start_url!r} is not an AWS access portal URL"
-    if "identitycenter.amazonaws.com" in sso_start_url:
-        message += ":\nthis is the Identity Center instance (issuer) URL, not the portal URL"
+    message = f"error: {sso_start_url!r} is not the dual-stack AWS access portal URL"
+    if LEGACY_PORTAL_URL_RE.match(sso_start_url):
+        message += (
+            ":\nthis is the legacy IPv4 portal URL. The Google Workspace SAML app"
+            "\naccepts sign-ins through the dual-stack endpoints only"
+        )
+    elif "identitycenter.amazonaws.com" in sso_start_url:
+        message += (
+            ":\nthis is the Identity Center instance (issuer) URL, not the portal URL"
+        )
     sys.exit(
         message
-        + "\nexpected form: https://<subdomain>.awsapps.com/start"
-        + "\n            or https://ssoins-<id>.portal.<region>.app.aws"
-        + "\n(Identity Center console -> Settings -> AWS access portal URL;"
-        + "\nre-run configure with --sso-start-url to replace a persisted value)"
+        + "\nexpected form: https://ssoins-<id>.portal.<region>.app.aws"
+        + "\n(Identity Center console -> Settings -> AWS access portal URL,"
+        + "\nthe Dual-stack one; re-run configure with --sso-start-url to"
+        + "\nreplace a persisted value)"
     )
 
 
@@ -122,7 +137,9 @@ def upsert_section(config_text: str, header: str, body: dict[str, str]) -> str:
     the user's comments and reformat unrelated profiles.
     """
     lines = config_text.splitlines()
-    section_lines = [f"[{header}]"] + [f"{key} = {value}" for key, value in body.items()]
+    section_lines = [f"[{header}]"] + [
+        f"{key} = {value}" for key, value in body.items()
+    ]
 
     start = next(
         (i for i, line in enumerate(lines) if line.strip() == f"[{header}]"),
@@ -134,14 +151,20 @@ def upsert_section(config_text: str, header: str, body: dict[str, str]) -> str:
         lines.extend(section_lines)
     else:
         end = next(
-            (i for i in range(start + 1, len(lines)) if SECTION_HEADER_RE.match(lines[i])),
+            (
+                i
+                for i in range(start + 1, len(lines))
+                if SECTION_HEADER_RE.match(lines[i])
+            ),
             len(lines),
         )
         lines[start:end] = section_lines + ([""] if end < len(lines) else [])
     return "\n".join(lines) + "\n"
 
 
-def persisted_value(config: configparser.ConfigParser, section: str, key: str) -> str | None:
+def persisted_value(
+    config: configparser.ConfigParser, section: str, key: str
+) -> str | None:
     if config.has_section(section) and config.has_option(section, key):
         return config.get(section, key)
     return None
@@ -150,12 +173,16 @@ def persisted_value(config: configparser.ConfigParser, section: str, key: str) -
 def discover_account_id(config: configparser.ConfigParser) -> str | None:
     """Find the account id from any previously configured InfraEng SSO profile."""
     for section in config.sections():
-        if section.startswith("profile infra-eng-") and config.has_option(section, "sso_account_id"):
+        if section.startswith("profile infra-eng-") and config.has_option(
+            section, "sso_account_id"
+        ):
             return config.get(section, "sso_account_id")
     return None
 
 
-def configure(environment: str, read_only: bool, sso_start_url: str | None, account_id: str | None) -> str:
+def configure(
+    environment: str, read_only: bool, sso_start_url: str | None, account_id: str | None
+) -> str:
     """Write the sso-session and profile chain; return the chained profile name."""
     config = read_config()
 
@@ -165,7 +192,10 @@ def configure(environment: str, read_only: bool, sso_start_url: str | None, acco
     account_id = account_id or discover_account_id(config)
     missing = [
         flag
-        for flag, value in [("--sso-start-url", sso_start_url), ("--account-id", account_id)]
+        for flag, value in [
+            ("--sso-start-url", sso_start_url),
+            ("--account-id", account_id),
+        ]
         if not value
     ]
     if missing or sso_start_url is None or account_id is None:
@@ -211,44 +241,76 @@ def configure(environment: str, read_only: bool, sso_start_url: str | None, acco
 
     AWS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     AWS_CONFIG_PATH.write_text(config_text)
-    print(f"configured profiles {sso_profile} -> {ci_profile} in {AWS_CONFIG_PATH}", file=sys.stderr)
+    logger.info(
+        "configured profiles %s -> %s in %s", sso_profile, ci_profile, AWS_CONFIG_PATH
+    )
     return ci_profile
 
 
-def aws(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
+def aws(
+    *args: str, capture: bool = False, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
+    env = {**os.environ, **extra_env} if extra_env else None
     if capture:
-        return subprocess.run(["aws", *args], check=True, text=True, capture_output=True)
+        return subprocess.run(
+            ["aws", *args], check=True, text=True, capture_output=True, env=env
+        )
     # Uncaptured aws output (login prompts, kubeconfig updates) goes to
     # stderr: stdout is reserved for the eval-able AWS_PROFILE export line.
-    return subprocess.run(["aws", *args], check=True, text=True, stdout=sys.stderr)
+    return subprocess.run(
+        ["aws", *args], check=True, text=True, stdout=sys.stderr, env=env
+    )
+
+
+# The Google Workspace SAML app holds one ACS URL, and it is Identity Center's
+# dual-stack one (https://us-east-1.sso.signin.aws/...). Without this the CLI
+# login goes through the IPv4 sign-in endpoints, Google denies the SAML request
+# ("User is Unauthorized" in its SAML log) and the browser shows "Something
+# doesn't compute". Only the login needs it: the cached token then works for
+# every profile on the default endpoints. Set on the login call alone rather
+# than as use_dualstack_endpoint in the profiles, which would move every
+# service call (EKS, STS, ...) to dual-stack endpoints too.
+LOGIN_ENV = {"AWS_USE_DUALSTACK_ENDPOINT": "true"}
 
 
 def login(ci_profile: str) -> None:
     try:
-        aws("sso", "login", "--sso-session", SSO_SESSION_NAME)
+        aws("sso", "login", "--sso-session", SSO_SESSION_NAME, extra_env=LOGIN_ENV)
     except subprocess.CalledProcessError as error:
         sys.exit(
             f"error: aws sso login exited with status {error.returncode}\n"
-            'if the browser showed "Something doesn\'t compute - We couldn\'t verify\n'
-            'your sign-in credentials", the local config is usually not the problem:\n'
-            "that page comes from stale AWS sign-in state in the browser or from\n"
-            "federating the wrong Google account. Retry in a private window and pick\n"
-            "your Workspace account, or clear cookies for awsapps.com and\n"
-            "signin.aws.amazon.com. See docs/aws-sso-auth.md#troubleshooting."
+            "if the browser showed \"Something doesn't compute - We couldn't verify\n"
+            'your sign-in credentials", check Google Admin -> Reporting -> SAML log\n'
+            'events: a "User is Unauthorized" failure there means the Google app\'s\n'
+            "ACS URL does not match the endpoint the login used. Otherwise it is\n"
+            "stale AWS sign-in state in the browser or the wrong Google account:\n"
+            "retry in a private window with your Workspace account.\n"
+            "See docs/aws-sso-auth.md#troubleshooting."
         )
     identity = aws(
-        "sts", "get-caller-identity", "--profile", ci_profile, "--output", "text",
-        "--query", "Arn", capture=True,
+        "sts",
+        "get-caller-identity",
+        "--profile",
+        ci_profile,
+        "--output",
+        "text",
+        "--query",
+        "Arn",
+        capture=True,
     ).stdout.strip()
-    print(f"logged in; {ci_profile} resolves to {identity}", file=sys.stderr)
+    logger.info("logged in; %s resolves to %s", ci_profile, identity)
 
 
 def kubectl(*args: str, capture: bool = False) -> subprocess.CompletedProcess:
     try:
         if capture:
-            return subprocess.run(["kubectl", *args], check=True, text=True, capture_output=True)
+            return subprocess.run(
+                ["kubectl", *args], check=True, text=True, capture_output=True
+            )
         # Like aws(): uncaptured output goes to stderr, stdout stays eval-able.
-        return subprocess.run(["kubectl", *args], check=True, text=True, stdout=sys.stderr)
+        return subprocess.run(
+            ["kubectl", *args], check=True, text=True, stdout=sys.stderr
+        )
     except FileNotFoundError:
         sys.exit("error: kubectl not found on PATH")
 
@@ -263,8 +325,14 @@ def update_kubeconfig(ci_profile: str, environment: str) -> None:
     cluster = cluster_name(environment)
     try:
         aws(
-            "eks", "update-kubeconfig", "--name", cluster,
-            "--profile", ci_profile, "--region", CLUSTER_REGION,
+            "eks",
+            "update-kubeconfig",
+            "--name",
+            cluster,
+            "--profile",
+            ci_profile,
+            "--region",
+            CLUSTER_REGION,
         )
     except subprocess.CalledProcessError as error:
         sys.exit(
@@ -276,7 +344,9 @@ def update_kubeconfig(ci_profile: str, environment: str) -> None:
 def use_context(environment: str) -> None:
     """Point kubectl's current context at this environment's cluster."""
     cluster = cluster_name(environment)
-    contexts = kubectl("config", "get-contexts", "-o", "name", capture=True).stdout.split()
+    contexts = kubectl(
+        "config", "get-contexts", "-o", "name", capture=True
+    ).stdout.split()
     matches = [c for c in contexts if c == cluster or c.endswith(f"/{cluster}")]
     if not matches:
         sys.exit(
@@ -300,7 +370,9 @@ def main() -> int:
             "up, login, and export print an eval-able AWS_PROFILE export line"
         ),
     )
-    parser.add_argument("--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True)
+    parser.add_argument(
+        "--environment", "-e", choices=list(SHORT_ENV_NAMES), required=True
+    )
     parser.add_argument(
         "--read-only",
         action="store_true",
@@ -309,13 +381,19 @@ def main() -> int:
     parser.add_argument(
         "--sso-start-url",
         help=(
-            "AWS access portal URL, https://<subdomain>.awsapps.com/start or "
-            "https://ssoins-<id>.portal.<region>.app.aws — not the "
-            "identitycenter.amazonaws.com instance URL (first run only)"
+            "dual-stack AWS access portal URL, "
+            "https://ssoins-<id>.portal.<region>.app.aws — not the legacy "
+            "awsapps.com/start URL or the identitycenter.amazonaws.com "
+            "instance URL (first run only)"
         ),
     )
     parser.add_argument("--account-id", help="AWS account id (first run only)")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     _, ci_profile = profile_names(args.environment, args.read_only)
 
@@ -333,17 +411,20 @@ def main() -> int:
         use_context(args.environment)
 
     if args.command in ("up", "login"):
-        hint = (
-            "\nexport line follows on stdout; to adopt the profile in the "
-            "current shell,\nrun this command as "
-            f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
-        )
-        if args.command == "up":
-            hint += (
-                "\nkubectl already works: the kubeconfig embeds the profile and "
-                f"the current context\npoints at {cluster_name(args.environment)}."
+        hints = [
+            (
+                "export line follows on stdout; to adopt the profile in the "
+                "current shell, run this command as "
+                f'eval "$({Path(sys.argv[0])} ...)" or copy the line below.'
             )
-        print(hint + "\n", file=sys.stderr)
+        ]
+        if args.command == "up":
+            hints.append(
+                "kubectl already works: the kubeconfig embeds the profile and "
+                f"the current context points at {cluster_name(args.environment)}."
+            )
+        for hint in hints:
+            logger.info("%s", hint)
         print(f"export AWS_PROFILE={ci_profile}")
     return 0
 

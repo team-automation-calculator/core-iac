@@ -2,55 +2,188 @@ locals {
   www_redirect_name = "www.${var.automation_calculator_app_host}"
 }
 
-resource "helm_release" "automation-calculator" {
-  atomic           = true
-  name             = "automation-calculator"
-  namespace        = "automation-calculator"
-  chart            = var.automation_calculator_helm_release_local_path
-  create_namespace = true
-  version          = "0.1.0"
+# ArgoCD migration Phase 4 (docs/argocd-migration-plan.md): Terraform owns the
+# app namespace and the app Secret. The chart no longer renders the Secret
+# (secrets.create is false in every values-<env>.yaml), so ArgoCD can deploy
+# the app from git alone later without a secret value ever entering the repo.
+#
+# Both objects already existed on the live clusters: Helm created the namespace
+# through create_namespace and rendered the Secret until this phase. Staging
+# and production adopted them on 2026-11-19 with `import` blocks
+# (imports_argocd_phase4.tf, deleted once both had applied) instead of
+# recreating them. Runbook: docs/argocd-phase-4-secret-adoption.md.
+resource "kubernetes_namespace_v1" "automation_calculator" {
+  metadata {
+    name = "automation-calculator"
+  }
 
+  lifecycle {
+    # Terraform sets nothing on the namespace but its name. Helm's
+    # create_namespace created the live one bare (Kubernetes adds the
+    # kubernetes.io/metadata.name label itself, and the provider already drops
+    # *.kubernetes.io keys from state). Anything that labels or annotates the
+    # namespace later, such as pod-security-admission labels applied by hand
+    # or ArgoCD's CreateNamespace metadata, is not Terraform's to remove, so
+    # the adoption and every later plan stay free of metadata churn.
+    ignore_changes = [metadata[0].labels, metadata[0].annotations]
+    # Deleting the namespace deletes the Ingress, and the ALB with it (the
+    # top risk in docs/argocd-migration-plan.md). Any plan that would destroy
+    # or replace it must fail instead. Note that this guard only holds while
+    # the resource block exists: removing the block from the module plans a
+    # destroy. Rollback is `terraform state rm`, never a revert that drops the
+    # resource (docs/argocd-phase-4-secret-adoption.md).
+    prevent_destroy = true
+  }
+}
+
+resource "kubernetes_secret_v1" "app_secrets" {
+  metadata {
+    name      = "automation-calculator-app-secrets"
+    namespace = kubernetes_namespace_v1.automation_calculator.metadata[0].name
+
+    # Everything below mirrors what Helm left on the live Secret, so that the
+    # import produces a clean plan (no metadata update on production). None of
+    # it is functional once Terraform owns the object; Phase 9 may drop it.
+    annotations = {
+      # Rendered by the chart since Phase 1 and applied by hand per its
+      # runbook. It is also what made Helm leave the Secret in place when this
+      # phase dropped it from the release manifest.
+      "helm.sh/resource-policy" = "keep"
+      # Helm 3.2+ stamps every object it installs or upgrades with the owning
+      # release. Harmless now that the chart no longer renders the Secret:
+      # Helm never looks at this object again.
+      "meta.helm.sh/release-name"      = "automation-calculator"
+      "meta.helm.sh/release-namespace" = "automation-calculator"
+    }
+
+    # The chart's common labels (templates/_helpers.tpl) as rendered by release
+    # automation-calculator of chart automation-calculator 0.1.0 (appVersion
+    # 1.0.0), plus the managed-by label Helm adds itself.
+    #
+    # app.kubernetes.io/instance is the one to watch: ArgoCD's *label* tracking
+    # method treats any object carrying `app.kubernetes.io/instance: <Application
+    # name>` as part of that Application and would prune it. ArgoCD 3.x, which
+    # Phase 2 installs, tracks by annotation, so the label is inert; Phase 6
+    # confirms that with `argocd app resources` before enabling prune.
+    labels = {
+      "app.kubernetes.io/instance"   = "automation-calculator"
+      "app.kubernetes.io/managed-by" = "Helm"
+      "app.kubernetes.io/name"       = "automation-calculator"
+      "app.kubernetes.io/version"    = "1.0.0"
+      "helm.sh/chart"                = "automation-calculator-0.1.0"
+    }
+  }
+
+  type = "Opaque"
+
+  # The six keys the chart's templates/secret.yaml rendered until this phase
+  # (as stringData; the API server stores them as data, which is what this
+  # attribute reads back), built from the same expressions the release's
+  # set_sensitive blocks used. The Deployment reads them through secretKeyRef
+  # at pod start, so a changed value here takes effect on the next rollout,
+  # not on apply.
+  #
+  # trimspace on the four OAuth variables reproduces what the chart did: its
+  # template rendered each value as an unquoted YAML scalar, so surrounding
+  # whitespace in a Terraform Cloud variable never reached the Secret. Without
+  # it the staging import planned a data change (2026-11-19: the staging
+  # google_oauth_app_secret variable carries one trailing whitespace
+  # character), which would have broken Google sign-in at the next pod start.
+  data = {
+    databaseUrl          = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
+    githubOAuthAppId     = trimspace(var.github_oauth_app_id)
+    githubOAuthAppSecret = trimspace(var.github_oauth_app_secret)
+    googleOAuthAppId     = trimspace(var.google_oauth_app_id)
+    googleOAuthAppSecret = trimspace(var.google_oauth_app_secret)
+    secretKeyBase        = random_password.rails_app_secret_key_base.result
+  }
+}
+
+# Ordering handle for the Helm release only. A depends_on inside a module
+# cannot name resources outside it, so the caller passes the add-on Helm
+# release names in through var.addons_dependency and the release waits on this
+# resource instead. Do not express this as a module-level depends_on in the
+# caller: that defers data.aws_route53_zone to apply time whenever the add-ons
+# have pending changes, zone_id becomes unknown, and the ACM validation records
+# (zone_id is force-new) are planned for replacement on every add-ons change.
+# The RDS, ACM and Route 53 resources here do not need the add-ons at all.
+resource "terraform_data" "cluster_addons" {
+  input = var.addons_dependency
+}
+
+# ArgoCD migration Phase 6 (docs/argocd-migration-plan.md): the release is
+# behind manage_helm_release so each env can hand the app over to ArgoCD on
+# its own schedule (staging in Phase 6, production in Phase 8) while the
+# module stays shared. Adding `count` changes the instance address from
+# helm_release.automation-calculator to helm_release.automation-calculator[0];
+# the `moved` block below records that so an env that keeps the release
+# (count = 1) plans a state move and nothing else.
+#
+# Setting manage_helm_release = false is NOT how an env stops managing the
+# release: with the instance still in state, count = 0 plans a destroy, which
+# is `helm uninstall`, which deletes the Ingress and the ALB. The env's
+# workspace must `terraform state rm` the release first, then flip the
+# variable; prevent_destroy below turns the wrong order into a plan error.
+# Runbook: docs/argocd-phase-6-retire-staging-release.md.
+resource "helm_release" "automation-calculator" {
+  count = var.manage_helm_release ? 1 : 0
+
+  atomic    = true
+  name      = "automation-calculator"
+  namespace = "automation-calculator"
+  chart     = var.automation_calculator_helm_release_local_path
+  # A no-op since Phase 4: the namespace is the Terraform resource above and
+  # the release depends on it. Left in place so this phase's release diff is
+  # only the removed set_sensitive blocks; Phase 9 deletes the release.
+  create_namespace = true
+  # Read from Chart.yaml so there is one place to bump. The chart is a local
+  # directory, and Terraform plans a release update only when this version
+  # or the values change: a template or values.yaml change with the same
+  # chart version plans as "no changes" and never reaches the cluster (#474
+  # did exactly that on production). Bump `version` in Chart.yaml with every
+  # chart change.
+  version = yamldecode(file("${var.automation_calculator_helm_release_local_path}/Chart.yaml")).version
+
+  # The add-ons first (the Ingress needs the ALB controller's IngressClass and
+  # webhook; see terraform_data.cluster_addons). On a fresh environment the
+  # namespace and the Secret must also exist before the chart's Deployment
+  # references the Secret through secretKeyRef.
+  depends_on = [
+    terraform_data.cluster_addons,
+    kubernetes_namespace_v1.automation_calculator,
+    kubernetes_secret_v1.app_secrets,
+  ]
+
+  # Image tag, short commit hash, host and ALB name come from the chart's
+  # values-<env>.yaml in git (single source of truth, shared with ArgoCD later).
+  # Terraform only injects what must not live in this public repo: the ACM
+  # certificate ARN. The secrets are a Terraform-managed Secret (above), not
+  # chart values, since Phase 4.
   values = [
+    file("${var.automation_calculator_helm_release_local_path}/values-${var.environment_name}.yaml"),
     templatefile("${path.module}/values.yml", {
-      app_image_pull_policy          = var.app_image_pull_policy
-      app_image_repo                 = var.app_image_repo
-      app_version                    = var.app_version
-      automation_calculator_app_host = var.automation_calculator_app_host
-      alb_name                       = "ac-app-${var.environment_name}"
-      cert_arn                       = tostring(aws_acm_certificate.automation_calculator_app.arn)
-      short_commit_hash              = var.short_commit_hash
+      cert_arn = tostring(aws_acm_certificate.automation_calculator_app.arn)
     })
   ]
 
-  set_sensitive {
-    name  = "secrets.databaseUrl"
-    value = "postgres://${aws_db_instance.automation_calculator_app.username}:${random_password.database_master_user_password.result}@${aws_db_instance.automation_calculator_app.endpoint}/${aws_db_instance.automation_calculator_app.db_name}"
+  lifecycle {
+    # Destroying the release is `helm uninstall`: it deletes the Ingress and
+    # therefore the ALB (the top risk in docs/argocd-migration-plan.md). Any
+    # plan that would destroy it, in particular a count of 0 while the
+    # instance is still in state (manage_helm_release flipped before the
+    # `terraform state rm`), must fail instead. Like the namespace guard
+    # above, this only holds while the resource block exists; Phase 9 removes
+    # the block only after every env has forgotten the release.
+    prevent_destroy = true
   }
+}
 
-  set_sensitive {
-    name  = "secrets.githubOAuthAppId"
-    value = var.github_oauth_app_id
-  }
-
-  set_sensitive {
-    name  = "secrets.githubOAuthAppSecret"
-    value = var.github_oauth_app_secret
-  }
-
-  set_sensitive {
-    name  = "secrets.googleOAuthAppId"
-    value = var.google_oauth_app_id
-  }
-
-  set_sensitive {
-    name  = "secrets.googleOAuthAppSecret"
-    value = var.google_oauth_app_secret
-  }
-
-  set_sensitive {
-    name  = "secrets.secretKeyBase"
-    value = random_password.rails_app_secret_key_base.result
-  }
+# Phase 6: the instance address gained an index when `count` was added.
+# Terraform would propose this move by itself; the block makes it explicit and
+# deterministic. Phase 9 deletes it together with the resource.
+moved {
+  from = helm_release.automation-calculator
+  to   = helm_release.automation-calculator[0]
 }
 
 resource "aws_security_group" "allow_db_access_from_eks" {
@@ -90,19 +223,30 @@ resource "aws_db_instance" "automation_calculator_app" {
   apply_immediately           = true
   allow_major_version_upgrade = true
   auto_minor_version_upgrade  = true
+  backup_retention_period     = var.backup_retention_period
   db_name                     = "automation_calculator_app"
   db_subnet_group_name        = aws_db_subnet_group.db_access_subnet_group.name
   engine                      = "postgres"
   engine_version              = var.db_engine_version
+  final_snapshot_identifier   = var.skip_final_snapshot ? null : coalesce(var.final_snapshot_identifier, "automation-calculator-${var.environment_name}-final")
   instance_class              = var.db_instance_class
   max_allocated_storage       = 64
   password                    = random_password.database_master_user_password.result
   port                        = var.db_port
-  skip_final_snapshot         = true
+  skip_final_snapshot         = var.skip_final_snapshot
+  snapshot_identifier         = var.db_snapshot_identifier
   username                    = "automation_calculator_devops"
   vpc_security_group_ids = [
     aws_security_group.allow_db_access_from_eks.id,
   ]
+
+  # snapshot_identifier forces replacement when it changes. It only means
+  # anything at create time (restore the instance from that snapshot), so
+  # ignore later changes: editing or clearing var.db_snapshot_identifier must
+  # never replace a running database.
+  lifecycle {
+    ignore_changes = [snapshot_identifier]
+  }
 }
 
 resource "random_password" "database_master_user_password" {

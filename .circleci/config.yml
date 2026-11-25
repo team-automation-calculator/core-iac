@@ -5,13 +5,17 @@
 version: 2.1
 
 orbs:
-  terraform: circleci/terraform@3.1
-  helm: circleci/helm@2.0.1
+  terraform: circleci/terraform@3.7
+  helm: circleci/helm@3.2
 
 executors:
   terraform:
     docker:
-      - image: hashicorp/terraform:1.15.2
+      - image: hashicorp/terraform:1.17.0
+  python:
+    docker:
+      # Matches .python-version.
+      - image: cimg/python:3.12.12
 
 jobs:
   lint_helm_chart:
@@ -19,8 +23,8 @@ jobs:
       - image: cimg/base:stable
     steps:
       - checkout
-      - helm/install-helm-client:
-          version: 'v3.10.2'
+      - helm/install_helm_client:
+          version: 'v4.3.1'
       - run: helm lint "helm/automation-calculator" --strict
 
   validate_development_tf_cloud_env:
@@ -48,7 +52,7 @@ jobs:
       - terraform/fmt:
           path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
       - terraform/validate:
-          path: ./terraform/env/development/aws/us-west-1/
+          path: ./terraform/env/development/aws/us-west-1/cluster-addons-layer
   
   validate_staging_tf_cloud_env:
     executor: terraform
@@ -113,6 +117,34 @@ jobs:
       - terraform/validate:
           path: ./terraform/modules/tf_cloud/tf_cloud_workspaces
 
+  validate_tf_cloud_org_members_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/tf_cloud/tf_cloud_org_members
+      - terraform/validate:
+          path: ./terraform/modules/tf_cloud/tf_cloud_org_members
+      - run:
+          name: Run the module tests (mocked provider, no TFE_TOKEN)
+          command: |
+            terraform -chdir=terraform/modules/tf_cloud/tf_cloud_org_members init -backend=false -input=false
+            terraform -chdir=terraform/modules/tf_cloud/tf_cloud_org_members test
+
+  validate_sso_infra_eng_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/aws/sso-infra-eng
+      - terraform/validate:
+          path: ./terraform/modules/aws/sso-infra-eng
+      - run:
+          name: Run the module tests (mocked provider, no AWS credentials)
+          command: |
+            terraform -chdir=terraform/modules/aws/sso-infra-eng init -backend=false -input=false
+            terraform -chdir=terraform/modules/aws/sso-infra-eng test
+
   validate_base_cluster_layer_module:
     executor: terraform
     steps:
@@ -130,6 +162,15 @@ jobs:
           path: ./terraform/modules/aws/cluster-addons-layer
       - terraform/validate:
           path: ./terraform/modules/aws/cluster-addons-layer
+
+  validate_argocd_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/aws/argocd
+      - terraform/validate:
+          path: ./terraform/modules/aws/argocd
 
   validate_main_rails_app_module:
     executor: terraform
@@ -167,16 +208,97 @@ jobs:
       - terraform/validate:
           path: ./terraform/env/production/aws/us-east-1/route53-domains
 
+  validate_org_ci_access_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/github/org-ci-access
+      - terraform/validate:
+          path: ./terraform/modules/github/org-ci-access
+
+  validate_production_github_org:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/github/org
+      - terraform/validate:
+          path: ./terraform/env/production/github/org
+
+  validate_aws_identity_center_access_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_workspace/aws-identity-center-access
+      - terraform/validate:
+          path: ./terraform/modules/google_workspace/aws-identity-center-access
+
+  validate_production_google_workspace:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/google_workspace
+      - terraform/validate:
+          path: ./terraform/env/production/google_workspace
+
+  validate_google_cloud_organization_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_cloud/organization
+      - terraform/validate:
+          path: ./terraform/modules/google_cloud/organization
+
+  validate_google_cloud_project_module:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/modules/google_cloud/project
+      - terraform/validate:
+          path: ./terraform/modules/google_cloud/project
+
+  validate_production_google_cloud:
+    executor: terraform
+    steps:
+      - checkout
+      - terraform/fmt:
+          path: ./terraform/env/production/google_cloud
+      - terraform/validate:
+          path: ./terraform/env/production/google_cloud
+
+  validate_python:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          # The image ships an older Poetry that rejects poetry.lock; pin the
+          # version that generated the lock file.
+          name: Install Poetry
+          command: pipx install --force poetry==2.3.2
+      - run:
+          name: Install dependencies
+          command: poetry install --with dev
+      - run:
+          name: Lint (compile check, Black, Ruff, bash -n)
+          command: ./go lint
+      - run:
+          name: Test (pytest)
+          command: ./go test
+
   validate_app_docker_image_versions:
-    docker:
-      - image: cimg/base:stable
+    executor: python
     steps:
       - checkout
       - run:
           name: Validate app Docker image versions exist on Docker Hub
           command: |
             git fetch origin main
-            python3 scripts/check_app_docker_image_versions.py --base origin/main
+            ./go check-images
 
 workflows:
   validate:
@@ -185,6 +307,8 @@ workflows:
       - validate_base_cluster_layer_module
       - validate_cluster_addons_module
       - validate_tf_cloud_workspaces_module
+      - validate_tf_cloud_org_members_module
+      - validate_sso_infra_eng_module
       - validate_development_aws_base_cluster_layer
       - validate_development_aws_cluster_addons_layer
       - validate_development_tf_cloud_env
@@ -194,10 +318,19 @@ workflows:
       - validate_production_tf_cloud_env
       - validate_production_aws_base_cluster_layer
       - validate_production_aws_cluster_addons_layer
+      - validate_argocd_module
       - validate_main_rails_app_module
       - validate_networking_module
       - validate_route53_domain_module
       - validate_production_aws_route53_domains
+      - validate_org_ci_access_module
+      - validate_production_github_org
+      - validate_aws_identity_center_access_module
+      - validate_production_google_workspace
+      - validate_google_cloud_organization_module
+      - validate_google_cloud_project_module
+      - validate_production_google_cloud
+      - validate_python
       - validate_app_docker_image_versions:
           filters:
             branches:

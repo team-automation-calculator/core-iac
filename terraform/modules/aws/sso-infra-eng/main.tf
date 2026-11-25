@@ -4,8 +4,45 @@ data "aws_caller_identity" "current" {}
 # provider passed to this module must target the instance's primary region
 # (us-east-1 for this organization) — ssoadmin/identitystore APIs only
 # respond there. Connecting the external identity provider is a manual
-# console step with no AWS API.
+# console step with no AWS API (sso-admin has no operation for the identity
+# source, the IdP metadata or SCIM), so the expected values of that link are
+# recorded in iac/specs/sso/google-workspace-saml.json.
 data "aws_ssoadmin_instances" "this" {}
+
+# The Google Workspace SAML app is configured by hand for one specific
+# Identity Center instance: its Entity ID carries the identity store id and
+# the access portal URL carries the instance id. If the instance is ever
+# deleted and re-enabled, both ids change, every sign-in fails, and nothing
+# else in a plan would say why.
+#
+# The repo is public, so the ids are not committed. Instead the first apply
+# records the live ids in state, and ignore_changes keeps that record as it
+# was, so a later plan can compare the live instance against it. After an
+# intended change of instance (and the matching edits in Google Admin),
+# re-record with: terraform apply -replace=<address of this resource>
+resource "terraform_data" "identity_center_pin" {
+  input = sensitive({
+    identity_store_id = local.identity_store_id
+    instance_arn      = local.instance_arn
+  })
+
+  lifecycle {
+    ignore_changes = [input]
+  }
+}
+
+# A check only warns; it never blocks an apply.
+check "identity_center_instance_matches_pin" {
+  assert {
+    condition     = nonsensitive(terraform_data.identity_center_pin.output.instance_arn == local.instance_arn)
+    error_message = "The IAM Identity Center instance is no longer the one recorded when this module was first applied. The Google Workspace SAML app and ~/.aws/config still point at the old instance: update the app's ACS URL and Entity ID in Google Admin (iac/specs/sso/google-workspace-saml.json lists the settings), then re-record with terraform apply -replace on terraform_data.identity_center_pin."
+  }
+
+  assert {
+    condition     = nonsensitive(terraform_data.identity_center_pin.output.identity_store_id == local.identity_store_id)
+    error_message = "The IAM Identity Center identity store is no longer the one recorded when this module was first applied. The Google Workspace SAML app's Entity ID carries the old id: update it in Google Admin, then re-record with terraform apply -replace on terraform_data.identity_center_pin."
+  }
+}
 
 locals {
   instance_arn      = tolist(data.aws_ssoadmin_instances.this.arns)[0]
@@ -64,6 +101,17 @@ locals {
     "sns:Get*",
     "sns:List*",
   ]
+
+  # Searching CloudWatch Logs, for both InfraEng personas: the same three
+  # actions as the SearchLogs statement of the CI read-only role
+  # (modules/aws/ci-iam-role), so the engineer's own SSO session can search
+  # the app log group without first assuming that role. The verb patterns
+  # above do not match them (plans/app-log-persistence.md).
+  search_logs_actions = [
+    "logs:FilterLogEvents",
+    "logs:StartQuery",
+    "logs:StopQuery",
+  ]
 }
 
 resource "aws_ssoadmin_permission_set" "infra_eng" {
@@ -87,6 +135,12 @@ data "aws_iam_policy_document" "infra_eng" {
   statement {
     sid       = "ReadInfrastructureServices"
     actions   = local.read_only_infrastructure_actions
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "SearchLogs"
+    actions   = local.search_logs_actions
     resources = ["*"]
   }
 }
@@ -121,6 +175,12 @@ data "aws_iam_policy_document" "infra_eng_read_only" {
   statement {
     sid       = "ReadInfrastructureServices"
     actions   = local.read_only_infrastructure_actions
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "SearchLogs"
+    actions   = local.search_logs_actions
     resources = ["*"]
   }
 }

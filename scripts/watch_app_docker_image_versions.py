@@ -4,12 +4,14 @@
 Snapshots the current set of tags on Docker Hub, then polls every minute for
 10 minutes. If a new tag (one not present in the initial snapshot) appears,
 invokes `bump_app_docker_image_version_branch.sh` with that version to create
-the branch, commit, push, and open a PR bumping all envs.
+the branch, commit, push, and open the staging bump PR. A deploy is two PRs
+(docs/promotion.md): this script only ever opens the staging one. The
+production PR is opened by hand, after staging is verified, with
+`bump_app_docker_image_version_branch.sh <version> <hash> production`.
 
-If the startup sync check finds a bump already pending (all envs on the same
-version but Docker Hub's newest tag is different) and no PR exists yet for
-that version's bump branch, the bump runs immediately instead of waiting for
-a new tag to appear.
+If the startup sync check finds a bump already pending (staging is not on
+Docker Hub's newest tag) and no PR exists yet for that version's bump branch,
+the bump runs immediately instead of waiting for a new tag to appear.
 
 Designed for local operator use. Standard library only.
 
@@ -34,29 +36,31 @@ TAGS_URL = (
     f"https://hub.docker.com/v2/repositories/{IMAGE_REPO}/tags/"
     "?page_size=25&ordering=last_updated"
 )
-REGISTRY_AUTH_URL = (
-    f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
-)
+REGISTRY_AUTH_URL = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{IMAGE_REPO}:pull"
 REGISTRY_BASE_URL = f"https://registry-1.docker.io/v2/{IMAGE_REPO}"
-MANIFEST_ACCEPT = ", ".join([
-    "application/vnd.docker.distribution.manifest.v2+json",
-    "application/vnd.oci.image.manifest.v1+json",
-])
+MANIFEST_ACCEPT = (
+    "application/vnd.docker.distribution.manifest.v2+json, "
+    "application/vnd.oci.image.manifest.v1+json, "
+    "application/vnd.docker.distribution.manifest.list.v2+json, "
+    "application/vnd.oci.image.index.v1+json"
+)
+# Multi-arch tags (every build since 0.9.6-990) resolve to an image index. The
+# revision label is the same on every platform; prefer the one the clusters run.
+PREFERRED_PLATFORMS = (("linux", "arm64"), ("linux", "amd64"))
 REVISION_LABEL = "org.opencontainers.image.revision"
 HTTP_TIMEOUT_SECONDS = 15
 POLL_INTERVAL_SECONDS = 60
 POLL_DURATION_SECONDS = 600
 STARTUP_TAGS_TO_DISPLAY = 5
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-\d+$")
-APP_VERSION_RE = re.compile(r'^\s*app_version\s*=\s*"([^"]+)"', re.MULTILINE)
+# `image.tag` is the only `tag:` key in the per-env values files; bare or quoted.
+IMAGE_TAG_RE = re.compile(r'^\s+tag:\s*"?([^"\s#]+)"?', re.MULTILINE)
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
 BUMP_SCRIPT = SCRIPTS_DIR / "bump_app_docker_image_version_branch.sh"
-TFVARS_ENVS = ("development", "staging", "production")
-TFVARS_FILES = {
-    env: REPO_ROOT / f"terraform/env/{env}/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-    for env in TFVARS_ENVS
-}
+CHART_DIR = REPO_ROOT / "helm/automation-calculator"
+VALUES_ENVS = ("development", "staging", "production")
+VALUES_FILES = {env: CHART_DIR / f"values-{env}.yaml" for env in VALUES_ENVS}
 
 
 def fetch_version_tags() -> list[dict]:
@@ -65,35 +69,63 @@ def fetch_version_tags() -> list[dict]:
     return [t for t in data.get("results", []) if VERSION_RE.match(t["name"])]
 
 
+def select_platform_digest(index: dict) -> str:
+    """Pick one platform image out of a multi-arch index and return its digest.
+
+    Attestation entries (platform unknown/unknown) are never picked.
+    """
+    by_platform = {}
+    for entry in index.get("manifests", []):
+        platform = entry.get("platform") or {}
+        key = (platform.get("os"), platform.get("architecture"))
+        by_platform.setdefault(key, entry["digest"])
+    for key in PREFERRED_PLATFORMS:
+        if key in by_platform:
+            return by_platform[key]
+    raise ValueError(
+        f"image index has none of {PREFERRED_PLATFORMS}: {sorted(map(str, by_platform))}"
+    )
+
+
+def fetch_manifest(reference: str, headers: dict) -> dict:
+    request = urllib.request.Request(
+        f"{REGISTRY_BASE_URL}/manifests/{reference}",
+        headers={**headers, "Accept": MANIFEST_ACCEPT},
+    )
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        return json.load(response)
+
+
 def fetch_short_commit_hash(tag: str) -> str:
     """Fetch org.opencontainers.image.revision label from the image config.
 
     Returns "" if the label is absent. The Docker Hub registry requires a bearer
     token even for public repos, but it's anonymous and free.
     """
-    with urllib.request.urlopen(REGISTRY_AUTH_URL, timeout=HTTP_TIMEOUT_SECONDS) as response:
+    with urllib.request.urlopen(
+        REGISTRY_AUTH_URL, timeout=HTTP_TIMEOUT_SECONDS
+    ) as response:
         token = json.load(response)["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    manifest_req = urllib.request.Request(
-        f"{REGISTRY_BASE_URL}/manifests/{tag}",
-        headers={**headers, "Accept": MANIFEST_ACCEPT},
-    )
-    with urllib.request.urlopen(manifest_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
-        manifest = json.load(response)
+    manifest = fetch_manifest(tag, headers)
+    if "manifests" in manifest:
+        manifest = fetch_manifest(select_platform_digest(manifest), headers)
     config_digest = manifest["config"]["digest"]
 
-    blob_req = urllib.request.Request(f"{REGISTRY_BASE_URL}/blobs/{config_digest}", headers=headers)
+    blob_req = urllib.request.Request(
+        f"{REGISTRY_BASE_URL}/blobs/{config_digest}", headers=headers
+    )
     with urllib.request.urlopen(blob_req, timeout=HTTP_TIMEOUT_SECONDS) as response:
         config = json.loads(response.read().decode("utf-8"), strict=False)
     labels = config.get("config", {}).get("Labels") or {}
     return labels.get(REVISION_LABEL, "")
 
 
-def read_tfvars_versions() -> dict[str, str]:
+def read_values_versions() -> dict[str, str]:
     versions: dict[str, str] = {}
-    for env, path in TFVARS_FILES.items():
-        match = APP_VERSION_RE.search(path.read_text())
+    for env, path in VALUES_FILES.items():
+        match = IMAGE_TAG_RE.search(path.read_text())
         versions[env] = match.group(1) if match else "<not found>"
     return versions
 
@@ -103,15 +135,22 @@ def find_bump_pr(version: str) -> dict | None:
     branch = f"bump-app-docker-image-version-{version}"
     result = subprocess.run(
         [
-            "gh", "pr", "list",
-            "--head", branch,
-            "--state", "all",
-            "--json", "url,state",
-            "--limit", "1",
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "all",
+            "--json",
+            "url,state",
+            "--limit",
+            "1",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gh pr list failed")
@@ -122,7 +161,9 @@ def find_bump_pr(version: str) -> dict | None:
 def run_bump(version: str, short_commit_hash: str) -> int:
     print(f"Invoking {BUMP_SCRIPT.name} {version} {short_commit_hash or '<empty>'}")
     result = subprocess.run(
-        [str(BUMP_SCRIPT), version, short_commit_hash], cwd=BUMP_SCRIPT.parent
+        [str(BUMP_SCRIPT), version, short_commit_hash],
+        cwd=BUMP_SCRIPT.parent,
+        check=False,
     )
     return result.returncode
 
@@ -176,32 +217,43 @@ def main() -> int:
         print("Docker Hub: no version tags found")
         hub_newest = None
 
-    tfvars_versions = read_tfvars_versions()
+    values_versions = read_values_versions()
     print()
-    print("Local tfvars (cluster-addons-layer):")
-    for env, version in tfvars_versions.items():
-        print(f"  {env:15s}  app_version = {version}")
+    print("Local Helm values (helm/automation-calculator/values-<env>.yaml):")
+    for env, version in values_versions.items():
+        print(f"  {env:15s}  image.tag = {version}")
 
-    deployed = set(tfvars_versions.values())
+    # Staging leads: the staging PR is the first half of a deploy, and
+    # production trails it until the production PR merges (docs/promotion.md).
+    staging_version = values_versions["staging"]
+    production_version = values_versions["production"]
     pending_version: str | None = None
     print()
     if hub_newest is None:
         print("Sync: cannot compare (no Docker Hub tags)")
-    elif deployed == {hub_newest}:
-        print(f"Sync: all envs at {hub_newest} (matches Docker Hub newest)")
-    elif len(deployed) == 1:
-        (current,) = deployed
-        print(f"Sync: all envs at {current}, Docker Hub newest is {hub_newest} (bump pending)")
-        pending_version = hub_newest
+    elif staging_version == hub_newest:
+        print(f"Sync: staging at {hub_newest} (matches Docker Hub newest)")
     else:
-        print(f"Sync: envs differ ({sorted(deployed)}), Docker Hub newest is {hub_newest}")
+        print(
+            f"Sync: staging at {staging_version}, Docker Hub newest is {hub_newest} "
+            "(staging bump pending)"
+        )
+        pending_version = hub_newest
+    if production_version != staging_version:
+        print(
+            f"Production at {production_version}, staging at {staging_version}: "
+            "after staging is verified, open the production PR with "
+            f"{BUMP_SCRIPT.name} {staging_version} <short_commit_hash> production"
+        )
     print()
 
     if pending_version is not None:
         try:
             pr = find_bump_pr(pending_version)
         except (OSError, RuntimeError, json.JSONDecodeError) as exc:
-            print(f"Could not check for an existing bump PR: {exc}; watching for new tags instead")
+            print(
+                f"Could not check for an existing bump PR: {exc}; watching for new tags instead"
+            )
         else:
             if pr is None:
                 print(f"No PR found for pending bump to {pending_version}; bumping now")

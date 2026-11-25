@@ -16,7 +16,7 @@
       "major_version": "6",
       "initial_release_date": "2025-04-02",
       "end_of_life_date": null,
-      "notes": "Current. Used in this repo (version = \"~> 6.0\"). Requires AWS provider source hashicorp/aws."
+      "notes": "Current. Used in this repo (version = \"~> 6.0\"); lock files resolve to 6.70.0 (released 2026-10-21) since the Q4 2026 upgrade (docs/dependency-upgrade-plan-2026-q4.md, Phase 2a). Requires AWS provider source hashicorp/aws."
     }
   ]
 }

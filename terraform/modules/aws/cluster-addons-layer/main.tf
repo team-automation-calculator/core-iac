@@ -1,6 +1,6 @@
 module "aws_load_balancer_controller_irsa_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
-  version = "~> 6.0"
+  version = "~> 6.8"
 
   name                                   = "${var.environment_name}_eks_lb"
   attach_load_balancer_controller_policy = true
@@ -38,48 +38,87 @@ resource "helm_release" "aws_load_balancer_controller" {
   namespace  = "kube-system"
   repository = "https://aws.github.io/eks-charts"
 
-  set {
-    name  = "clusterName"
-    value = var.eks_cluster_name
-  }
-
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = kubernetes_service_account_v1.aws_load_balancer_controller_service_account.metadata[0].name
-  }
-
-  set {
-    name  = "vpcId"
-    value = var.vpc_id
-  }
-
-  set {
-    name  = "image.repository"
-    value = "public.ecr.aws/eks/aws-load-balancer-controller"
-  }
-
-  # Watch discovery.k8s.io/v1 EndpointSlices instead of the v1 Endpoints API,
-  # which is deprecated as of Kubernetes 1.33. Defaults to false in 2.x.
-  set {
-    name  = "enableEndpointSlices"
-    value = "true"
-  }
-
-  # Chart 1.5.0+ defaults this to true, which makes the controller claim every
-  # new Service of type LoadBalancer. Keep the pre-upgrade behavior.
-  set {
-    name  = "enableServiceMutatorWebhook"
-    value = "false"
-  }
+  set = [
+    {
+      name  = "clusterName"
+      value = var.eks_cluster_name
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "false"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = kubernetes_service_account_v1.aws_load_balancer_controller_service_account.metadata[0].name
+    },
+    {
+      name  = "vpcId"
+      value = var.vpc_id
+    },
+    {
+      name  = "image.repository"
+      value = "public.ecr.aws/eks/aws-load-balancer-controller"
+    },
+    # Watch discovery.k8s.io/v1 EndpointSlices instead of the v1 Endpoints API,
+    # which is deprecated as of Kubernetes 1.33. 3.x defaults this to true; keep
+    # it explicit so the flag always renders and a default change can't flip it.
+    {
+      name  = "enableEndpointSlices"
+      value = "true"
+    },
+    # Chart 1.5.0+ defaults this to true, which makes the controller claim every
+    # new Service of type LoadBalancer. Keep the pre-upgrade behavior.
+    {
+      name  = "enableServiceMutatorWebhook"
+      value = "false"
+    },
+    # Chart 3.x defaults keepTLSSecret to false, which regenerates the webhook CA
+    # and serving cert on every helm upgrade. 1.x defaulted to true. Keep reusing
+    # the existing aws-load-balancer-tls secret so upgrades don't churn the
+    # webhook caBundle.
+    {
+      name  = "keepTLSSecret"
+      value = "true"
+    },
+    # Controller 3.x defaults the Gateway API controllers on (2.x: off) and relies
+    # on CRD auto-detection to turn them back off. We only use Ingress and have no
+    # Gateway API CRDs installed; pin the gates off so the behavior is explicit.
+    {
+      name  = "controllerConfig.featureGates.ALBGatewayAPI"
+      value = "false"
+    },
+    {
+      name  = "controllerConfig.featureGates.NLBGatewayAPI"
+      value = "false"
+    },
+    # Resource requests/limits for the controller container (chart default is
+    # resources: {}, i.e. BestEffort with no scheduling guarantee). Observed on
+    # staging after 9 days: 1-2m CPU and 24-29Mi memory per replica (2 replicas,
+    # one t3.medium node). Requests sit ~4x above idle so the pods get scheduling
+    # weight and Burstable QoS without over-reserving: 2 x 50m / 128Mi is ~5% of
+    # the node's CPU and ~8% of its memory. The memory limit is ~9x idle so a
+    # cache growth bug is contained before it starves the node, but reconciling
+    # a few dozen Ingresses/target groups stays well under it. No CPU limit on
+    # purpose: CFS throttling slows reconciles and webhook responses (which
+    # block Ingress/Pod admission) with no benefit on a mostly idle node.
+    {
+      name  = "resources.requests.cpu"
+      value = "50m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "128Mi"
+    },
+    {
+      name  = "resources.limits.memory"
+      value = "256Mi"
+    },
+  ]
 
   # Chart CRDs live in crds/, which helm upgrade never touches; apply them
-  # manually before upgrading (see the PR that bumped this from 1.4.6).
-  version = "1.17.1"
+  # manually before upgrading (see the PRs that bumped this from 1.4.6 and
+  # from 1.17.1).
+  version = "3.6.1"
 }
 
 resource "kubernetes_secret_v1" "aws_load_balancer_controller_service_account" {
@@ -102,36 +141,79 @@ resource "helm_release" "external-dns" {
   name       = "external-dns"
   repository = "https://kubernetes-sigs.github.io/external-dns/"
   chart      = "external-dns"
-  version    = "1.21.1"
+  version    = "1.23.0"
   namespace  = "kube-system"
 
-  set {
-    name  = "provider.name"
-    value = "aws"
-  }
-
-  set {
-    name  = "extraArgs[0]"
-    value = "--aws-zone-type=public"
-  }
-
-  # Chart defaults (policy=upsert-only, txt registry, owner id "default")
-  # match the previous Bitnami deployment, so existing Route 53 TXT
-  # ownership records stay valid across the migration.
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = "external-dns"
-  }
+  # The trailing conditional element only adds txtPrefix when configured, so
+  # environments without it render exactly as before (no helm diff). Changing
+  # it orphans the existing TXT ownership records: pre-create the new-format
+  # records first, see docs/external-dns-txt-prefix-migration.md.
+  set = concat(
+    [
+      {
+        name  = "provider.name"
+        value = "aws"
+      },
+      {
+        name  = "extraArgs[0]"
+        value = "--aws-zone-type=public"
+      },
+      # policy has no chart default since 1.22.0 (the schema requires it).
+      # upsert-only is what the chart used to default to and what the previous
+      # Bitnami deployment ran; anything else lets external-dns delete records.
+      {
+        name  = "policy"
+        value = "upsert-only"
+      },
+      # Chart defaults for the rest (txt registry, owner id "default") match
+      # the previous Bitnami deployment, so existing Route 53 TXT ownership
+      # records stay valid across the migration.
+      {
+        name  = "serviceAccount.create"
+        value = "false"
+      },
+      {
+        name  = "serviceAccount.name"
+        value = "external-dns"
+      },
+      # Resource requests/limits for the single external-dns replica. Observed
+      # usage with one public hosted zone is ~1m CPU / ~15Mi (staging, 9 days
+      # uptime, 0 restarts), so these leave several times headroom for the
+      # startup Route 53 listing and sync bursts. No CPU limit: CFS throttling
+      # only slows reconciliation, and the request already reserves capacity.
+      # Memory limit gives the kubelet a bound to OOM-kill a leak instead of
+      # letting it pressure kube-system node memory. The chart schema types
+      # these as strings, so type is pinned to keep "20m"/"64Mi" from being
+      # coerced.
+      {
+        name  = "resources.requests.cpu"
+        type  = "string"
+        value = "20m"
+      },
+      {
+        name  = "resources.requests.memory"
+        type  = "string"
+        value = "64Mi"
+      },
+      {
+        name  = "resources.limits.memory"
+        type  = "string"
+        value = "128Mi"
+      },
+    ],
+    var.external_dns_txt_prefix == "" ? [] : [
+      {
+        name  = "txtPrefix"
+        type  = "string"
+        value = var.external_dns_txt_prefix
+      }
+    ],
+  )
 }
 
 module "external_dns_irsa_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
-  version = "~> 6.0"
+  version = "~> 6.8"
 
   name                          = "${var.environment_name}_eks_external_dns"
   attach_external_dns_policy    = true
@@ -176,5 +258,5 @@ resource "helm_release" "metrics-server" {
   name       = "metrics-server"
   repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
-  version    = "3.8.3"
+  version    = "3.14.0"
 }

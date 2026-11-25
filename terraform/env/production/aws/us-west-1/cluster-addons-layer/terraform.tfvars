@@ -1,6 +1,7 @@
-alarm_email                    = "steven.uray@automation-caluclations.net"
-app_version                    = "0.9.6-872"
+alarm_email                    = "steven.uray@automation-calculations.net"
 automation_calculator_app_host = "automation-calculations.io"
+backup_retention_period        = 7
 db_engine_version              = "16.13"
-short_commit_hash              = "7fb8339"
+external_dns_txt_prefix        = "%%{record_type}-extdns."
+skip_final_snapshot            = false
 tfe_base_layer_workspace_name  = "ac_app_production_base_cluster_layer"

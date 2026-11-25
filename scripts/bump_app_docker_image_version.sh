@@ -2,37 +2,58 @@
 
 set -euo pipefail
 
-# This script is used to bump the version of the docker image used by the helm chart/terraform
-
-# Usage: ./bump_app_docker_image_version.sh <new_version> <short_commit_hash>
-# Example: ./bump_app_docker_image_version.sh 1.2.3 a1b2c3d
+# Bump the app Docker image tag (and the short commit hash baked into the pods)
+# in the Helm chart's values files. These files are the single source of truth
+# for what is deployed: ArgoCD (staging) and Terraform (production) read
+# values-<env>.yaml.
+#
+# A deploy is two pull requests (docs/promotion.md): staging first, production
+# after staging is verified. The target decides which files change:
+#
+#   staging     values-staging.yaml, plus the chart default values.yaml and
+#               values-development.yaml, which no live environment reads
+#   production  values-production.yaml only
+#
+# Usage: scripts/bump_app_docker_image_version.sh <new_version> <short_commit_hash> [staging|production]
+# Example: scripts/bump_app_docker_image_version.sh 0.9.6-997 a1b2c3d            # staging
+#          scripts/bump_app_docker_image_version.sh 0.9.6-997 a1b2c3d production
 # This script assumes that the docker image has already been pushed to the registry
 
-HELM_VALUES_FILE="../helm/automation-calculator/values.yaml"
-DEV_TFVARS="../terraform/env/development/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-STAGING_TFVARS="../terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
-PROD_TFVARS="../terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHART_DIR="${SCRIPT_DIR}/../helm/automation-calculator"
 
-if [ $# -ne 2 ]; then
-    echo "Usage: $0 <new_version> <short_commit_hash>"
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    echo "Usage: $0 <new_version> <short_commit_hash> [staging|production]"
     exit 1
 fi
 
 NEW_VERSION=${1}
 NEW_HASH=${2}
+TARGET=${3:-staging}
 
-ls ${HELM_VALUES_FILE}
-ls ${DEV_TFVARS}
-ls ${STAGING_TFVARS}
-ls ${PROD_TFVARS}
+case "${TARGET}" in
+    staging)
+        VALUES_FILES=(
+            "${CHART_DIR}/values.yaml"
+            "${CHART_DIR}/values-development.yaml"
+            "${CHART_DIR}/values-staging.yaml"
+        )
+        ;;
+    production)
+        VALUES_FILES=(
+            "${CHART_DIR}/values-production.yaml"
+        )
+        ;;
+    *)
+        echo "Unknown target '${TARGET}': expected staging or production"
+        exit 1
+        ;;
+esac
 
-YQ_EXPRESSION=".image.tag=\"${NEW_VERSION}\""
+for VALUES_FILE in "${VALUES_FILES[@]}"; do
+    ls "${VALUES_FILE}"
+done
 
-OLD_TAG_VALUE=$(yq -r .image.tag ${HELM_VALUES_FILE})
-
-yq -i ${HELM_VALUES_FILE} --expression ${YQ_EXPRESSION}
-
-for TFVARS_FILE in "${DEV_TFVARS}" "${STAGING_TFVARS}" "${PROD_TFVARS}"; do
-    sed -i '' "s/${OLD_TAG_VALUE}/${NEW_VERSION}/g" "${TFVARS_FILE}"
-    sed -i '' -E "s/^(short_commit_hash[[:space:]]*=[[:space:]]*)\"[^\"]*\"/\1\"${NEW_HASH}\"/" "${TFVARS_FILE}"
+for VALUES_FILE in "${VALUES_FILES[@]}"; do
+    yq -i ".image.tag = \"${NEW_VERSION}\" | .shortCommitHash = \"${NEW_HASH}\"" "${VALUES_FILE}"
 done

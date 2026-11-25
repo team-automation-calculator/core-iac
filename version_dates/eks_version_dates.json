@@ -23,6 +23,12 @@
       "eks_ga_date": "2026-06-02",
       "standard_support_end": "2027-08-02",
       "extended_support_end": "2028-08-02"
+    },
+    {
+      "version": "1.37",
+      "eks_ga_date": "2026-10-01",
+      "standard_support_end": "2027-12-01",
+      "extended_support_end": "2028-12-01"
     }
   ]
 }
