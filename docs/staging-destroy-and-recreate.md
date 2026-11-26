@@ -8,11 +8,36 @@ Written 2026-11-18 from a read of the code, re-checked after the ArgoCD phase 1 
 steps have not been run yet; correct
 this document after the first destroy and the first re-create.
 
-## Turn `auto_apply` off for staging before the destroy
+## Do a trial cycle first
 
-`terraform/env/staging/tf_cloud/terraform.tfvars` still sets `auto_apply = true`. It has to be
-`false` before staging is destroyed; that change is left to a later PR. The rest of this document
-assumes it has been made.
+Because none of this has been run, the first destroy should be followed straight away by a
+re-create, and only a staging that came back correctly is destroyed for the long pause. The trial
+costs an hour or two of staging downtime and little AWS spend, and it exercises what can only be
+learned by running it:
+
+- the app Ingress and ALB clean-up before the add-ons destroy (see "Destroy", step 1)
+- whether the `terraform state rm` of the namespace is enough to get past `prevent_destroy`
+- the snapshot restore (storage size, regenerated password, the app connecting afterwards)
+- external-dns adopting the existing Route 53 records again
+- the base layer bringing back the SSO permission sets and CI roles, so `./go infra-eng-sso` and
+  the `-ro` kube contexts work again
+- how long each step takes, which is the real cost of bringing staging back
+
+Suggested order:
+
+1. Merge and apply the `auto_apply = false` change (below).
+2. Take a baseline with `./go env-snapshot` under `--context ac_app_staging-ro`.
+3. Destroy, then re-create from the final snapshot.
+4. Take a second snapshot, diff it against the baseline, and check `/health`.
+5. Correct this document with what actually happened, in a PR.
+6. Set a per-cycle `final_snapshot_identifier` (see "Saving and restoring the database": the
+   trial's final snapshot holds the default name), then do the long-term destroy.
+
+## Why `auto_apply` is off for staging
+
+`terraform/env/staging/tf_cloud/terraform.tfvars` sets `auto_apply = false`. It was `true` until
+the staging destroy was planned, and it has to be `false`, and applied, before staging is
+destroyed.
 
 The staging base workspace triggers on its own directory and on
 `terraform/modules/aws/networking` and `terraform/modules/aws/base-cluster-layer`. With
@@ -22,16 +47,16 @@ then queue the add-ons workspace, which would re-create the add-ons, the app and
 
 With auto-apply off, such a merge leaves a plan waiting for confirmation. Discard it.
 
-Make the change in code, not only in the workspace UI, because the next apply of
+The setting lives in code, not only in the workspace UI, because the next apply of
 `terraform/env/staging/tf_cloud` would otherwise turn auto-apply back on.
 
-Consequence while staging is up with auto-apply off: staging applies need a confirm in the UI, as
-production applies already do.
+Consequence while staging is up: staging applies need a confirm in the UI, as production applies
+already do.
 
 ## Before the destroy
 
-1. Merge a PR that sets `auto_apply = false` in `terraform/env/staging/tf_cloud/terraform.tfvars`.
-2. Merging queues a run in the `ac_app_staging_tf_workspaces` workspace, which runs
+1. Confirm the PR that set `auto_apply = false` is merged.
+2. Merging it queued a run in the `ac_app_staging_tf_workspaces` workspace, which runs
    `terraform/env/staging/tf_cloud`. The plan should change `auto_apply` on the two staging
    workspaces and nothing else (a trial plan of that change on 2026-11-18 showed "0 to add, 2 to
    change"). Confirm the apply in the UI if that workspace does not auto-apply, then check that
@@ -47,7 +72,7 @@ production applies already do.
      --db-snapshot-identifier automation-calculator-staging-final
    ```
 
-4. Do the AWS checks in the next section's step 2 with the staging profile before destroying the
+4. Do the AWS checks in the next section's step 3 with the staging profile before destroying the
    base layer. The base layer destroy removes the roles that profile uses.
 
 ## Destroy
@@ -59,14 +84,54 @@ In each workspace use **Settings > Destruction and Deletion > Queue destroy plan
 **Delete workspace**. The workspaces cost nothing, and their variables hold the OAuth secrets and
 the AWS credentials needed to re-create staging.
 
-1. `ac_app_staging_cluster_addons_layer`: queue the destroy plan, review it, confirm promptly.
+1. Delete the app's objects through ArgoCD, and wait for the ALB to go, before any Terraform
+   destroy. Since ArgoCD migration Phase 9 the app has no Helm release, so the add-ons destroy
+   uninstalls nothing of the app. The `automation-calculator` Application deliberately carries no
+   `resources-finalizer.argocd.argoproj.io` (`terraform/modules/kubernetes/argocd/main.tf`), so
+   the destroy deleting the Application leaves the Deployment, Service and Ingress in place. The
+   load balancer controller is then removed, and the ALB `ac-app-staging` and its security groups
+   stay behind: they keep costing money and block the VPC delete in the base destroy. Deleting
+   only the Ingress does not work either, because staging's Application has self-heal on and
+   ArgoCD puts it back.
+
+   Use `./go argocd-app-down-up` (`scripts/argocd_app_down_up.py`). It needs the read-write
+   staging kube context (`./go infra-eng-sso`), not an ArgoCD login. It adds the resources
+   finalizer to the Application and deletes it, which is what `argocd app delete --cascade` does,
+   then waits until the Application, the Ingress and the ALB are gone:
+
+   ```bash
+   ./go argocd-app-down-up up staging     # dry run: says whether the argocd-apps release
+                                          # manifest still matches the live Application
+   ./go argocd-app-down-up down staging --apply
+   ```
+
+   `down` saves the live Application to `tmp/argocd-app/` first. The file holds the certificate
+   ARN, so keep it out of git. To bring the app back without a re-create (an aborted destroy, or
+   a test of this step), run `./go argocd-app-down-up up staging --apply`. It re-creates the
+   Application from the `argocd-apps` release manifest, with Helm's ownership metadata, and waits
+   for Synced/Healthy, the ALB, the Route 53 alias and `/health`. `--from-file` takes a file
+   saved by `down` instead.
+
+   Tried on staging 2026-11-26 without a destroy:
+   - **down:** the Ingress was gone in 25 s and the Application in 3 min 16 s (the pods'
+     preStop sleep and grace period), and the ALB had already disappeared by then. Staging's
+     target group and TargetGroupBinding went with it. The Terraform-managed namespace and app
+     Secret stayed.
+   - **up:** the Application was Synced/Healthy in 24 s and the new ALB was active about 2 min
+     later. external-dns repointed the Route 53 aliases within seconds of the Ingress getting its
+     address, and `/health` through the ALB answered 200.
+   - **DNS caching:** a resolver that looked the host up while the ALB was gone can keep the
+     negative answer for longer. This Mac's resolver still failed to resolve staging 13 minutes
+     after Route 53 had been updated, while the ISP's resolvers already answered correctly.
+     Allow for that before deciding the app is down.
+
+   The add-ons destroy then uninstalls the `argocd-apps` release, which no longer finds the
+   Application; that is expected, but has not been seen yet.
+2. `ac_app_staging_cluster_addons_layer`: queue the destroy plan, review it, confirm promptly.
    A run that waits too long between plan and apply can outlive its 15 minute EKS token and fail
    with a Kubernetes credentials error (seen on 2026-11-05 with a queued run). If that happens,
    queue the destroy again.
-2. Confirm the app load balancer is gone before touching the base layer. The app's Ingress owns
-   the ALB `ac-app-staging`, and the load balancer controller deletes it when the app release is
-   uninstalled. If the controller is removed before it finishes, the ALB and its security groups
-   are left behind. They keep costing money and block the VPC delete.
+3. Confirm the app load balancer is gone before touching the base layer:
 
    ```bash
    aws elbv2 describe-load-balancers --profile ac-ci-staging-ro --region us-west-1 \
@@ -75,8 +140,8 @@ the AWS credentials needed to re-create staging.
 
    An empty list is the expected result. Check too that the RDS instance is gone and the final
    snapshot is `available`.
-3. `ac_app_staging_base_cluster_layer`: queue the destroy plan, review it, confirm.
-4. If the base destroy queues a run in the add-ons workspace through the run trigger, that run
+4. `ac_app_staging_base_cluster_layer`: queue the destroy plan, review it, confirm.
+5. If the base destroy queues a run in the add-ons workspace through the run trigger, that run
    fails at plan because the base outputs are gone. Discard or ignore it.
 
 ## Since ArgoCD Phase 4: the app namespace blocks the destroy
@@ -86,9 +151,9 @@ Terraform resource with `prevent_destroy = true`, because on production deleting
 Ingress and the ALB. Written from a read of the code, not yet run:
 
 - **Destroy.** The add-ons destroy plan fails with "Instance cannot be destroyed" on
-  `module.main_rails_app.kubernetes_namespace_v1.automation_calculator`. Before step 1, take the
+  `module.main_rails_app.kubernetes_namespace_v1.automation_calculator`. Before step 2, take the
   namespace out of the staging state (the object stays on the cluster and goes with the cluster in
-  step 3):
+  step 4):
 
   ```bash
   cd terraform/env/staging/aws/us-west-1/cluster-addons-layer
@@ -96,8 +161,8 @@ Ingress and the ALB. Written from a read of the code, not yet run:
   terraform state rm module.main_rails_app.kubernetes_namespace_v1.automation_calculator
   ```
 
-  The app release is still uninstalled by the destroy, which deletes the Ingress and lets the
-  load balancer controller remove the ALB as before. Do not merge anything that queues a staging
+  The Ingress and the ALB are handled by the ArgoCD cascade delete in step 1, not by the
+  destroy. Do not merge anything that queues a staging
   add-ons run between the `state rm` and the destroy: the next plan would try to create the
   namespace again and fail because it exists.
 - **Re-create.** Nothing extra. The Phase 4 `import` blocks, which would have failed the plan
@@ -106,7 +171,10 @@ Ingress and the ALB. Written from a read of the code, not yet run:
 
 ## What is gone, and what stays
 
-Destroyed with the add-ons layer: the app, add-on and ArgoCD Helm releases, the RDS instance and its
+Deleted by the ArgoCD cascade delete: the app's Deployment, Service, Ingress and ALB.
+
+Destroyed with the add-ons layer: the add-on and ArgoCD Helm releases, the app's namespace Secret,
+the RDS instance and its
 automated backups, the ACM certificate and its validation records, the IRSA roles, and the app
 log group `/ac/staging/app` with every stored log event (`docs/app-logs.md`). A re-created
 staging starts with an empty group; nothing needs to be saved unless staging's log history
@@ -205,9 +273,10 @@ How it behaves, checked against the AWS provider source (`internal/service/rds/i
 
   The staging profiles are gone at that point, so this uses the production profile, which reads
   the same account.
-- The snapshot is PostgreSQL 16.13. Keep `db_engine_version` at or above that when restoring. I
-  have not checked whether a restore can cross a major version in one step; if staging is still
-  down when the PostgreSQL 18 upgrade lands, restore on 16 first and upgrade after.
+- Staging has been on PostgreSQL 18.6 since #363 (2026-11-26), so its final snapshot will be
+  18.6, matching `db_engine_version = "18.6"` in the staging add-ons `terraform.tfvars`. Keep
+  `db_engine_version` at or above the snapshot's `EngineVersion` (the query above shows it) when
+  restoring.
 
 Final snapshot names collide on the second cycle: an instance restored from
 `automation-calculator-staging-final` cannot write a final snapshot with that same name on the
