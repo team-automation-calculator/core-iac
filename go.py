@@ -94,12 +94,13 @@ def shell_syntax_check():
 
 
 def lint(*args):
-    """Compile-check, check formatting (Black), lint (Ruff), bash -n the shell scripts."""
+    """Compile-check, check formatting (Black), lint (Ruff), bash -n the shell scripts, lint wiki/."""
     compile_check(*args)
     run("poetry", "run", "black", "--check", *(args or ["."]))
     run("poetry", "run", "ruff", "check", *(args or ["."]))
     if not args:
         shell_syntax_check()
+        run(sys.executable, "-I", "scripts/wiki_lint.py")
 
 
 def format_code(*args):
@@ -196,6 +197,7 @@ SCRIPTS = {
     "app_logs.py": "Read the app pods' stored logs in CloudWatch Logs (read-only).",
     "db_read_only_psql.py": "psql on an env's app database as a read-only role (--as infra-eng or ci).",
     "pr_checklist.py": "List the PRs an image contains and tick their test-plan items through gh.",
+    "wiki_lint.py": "Check wiki/ for broken references, identifiers and missing Verified dates.",
 }
 # Scripts reached through a command of another name.
 SCRIPTS_WITH_OWN_COMMAND = {"check_app_docker_image_versions.py": "check-images"}
