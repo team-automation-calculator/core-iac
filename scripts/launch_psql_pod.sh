@@ -2,7 +2,7 @@
 
 #static vars
 AWS_REGION=us-west-1
-CLIENT_IMAGE=postgres:10.1-alpine
+CLIENT_IMAGE=public.ecr.aws/docker/library/postgres:18.6-alpine
 DB_NAME="automation_calculator_app"
 DB_RESOURCE_ADDRESS="module.main_rails_app.aws_db_instance.automation_calculator_app"
 DB_USER="automation_calculator_devops"

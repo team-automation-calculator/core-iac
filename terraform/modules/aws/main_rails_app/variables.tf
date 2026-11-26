@@ -29,7 +29,7 @@ variable "db_read_only_connection_limit" {
 }
 
 variable "db_read_only_psql_image" {
-  default     = "public.ecr.aws/docker/library/postgres:16.13-alpine"
+  default     = "public.ecr.aws/docker/library/postgres:18.6-alpine"
   description = "Image whose psql runs the read-only roles SQL. Must carry linux/arm64. Any psql at or above the server's major version works."
   type        = string
 }
