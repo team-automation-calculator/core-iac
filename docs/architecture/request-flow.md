@@ -21,7 +21,7 @@ sequenceDiagram
     B->>ALB: GET https://... :443
     Note over ALB: TLS ends here with the ACM cert,<br/>backend protocol is plain HTTP inside the VPC
     ALB->>N: HTTP to instance target group (NodePort)
-    Note over N: externalTrafficPolicy Local:<br/>only nodes running a pod pass the health check
+    Note over N: externalTrafficPolicy Cluster:<br/>every node passes the health check and forwards to a ready pod
     N->>P: forward to container port 3000
     P->>DB: SQL over DATABASE_URL
     DB-->>P: rows
@@ -35,7 +35,7 @@ Key elements:
 | Hop | Element | Defined in |
 |---|---|---|
 | DNS | A alias for the host, ownership TXT with a record-type prefix | external-dns (`cluster-addons-layer/main.tf`) |
-| TLS | ACM cert for the apex and `www`, listeners on `:80` and `:443`, ssl-redirect | `main_rails_app/main.tf`, `main_rails_app/values.yml` |
+| TLS | ACM cert for the apex and `www`, listeners on `:80` and `:443`, ssl-redirect | `main_rails_app/main.tf` (cert), `templates/ingress.yaml` (listeners, redirect; the ArgoCD Application passes the cert ARN as `ingress.certificateArn`) |
 | Routing | Ingress host rule `/*` to the Service, ALB `target-type: instance` | `helm/automation-calculator/templates/ingress.yaml` |
 | Service | `NodePort` port 80 to targetPort 3000 | `templates/service.yaml` |
 | DB | SG allows 5432 only from the EKS cluster security group | `main_rails_app/main.tf` |
