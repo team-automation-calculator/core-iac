@@ -195,14 +195,7 @@ SCRIPTS = {
     "app_logs.py": "Read the app pods' stored logs in CloudWatch Logs (read-only).",
     "db_read_only_psql.py": "psql on an env's app database as a read-only role (--as infra-eng or ci).",
     "pr_checklist.py": "List the PRs an image contains and tick their test-plan items through gh.",
-    "graphify_update.py": "Refresh the knowledge graph's code layer (graphify-out/), no LLM; main or a seeded worktree.",
-    "graphify_status.py": "How far the knowledge graph is behind HEAD (--brief: one line, only when stale).",
-    "graphify_seed.py": "Give a worktree its own copy of main's knowledge graph, refreshed to the branch.",
 }
-# The command the git-sync agent runs after it fast-forwards main
-# ([git-sync] post_sync in .repo-standards.toml, rule graphify); tests/test_go.py
-# checks that it exists and matches that file.
-POST_SYNC_COMMAND = "graphify-update"
 # Scripts reached through a command of another name.
 SCRIPTS_WITH_OWN_COMMAND = {"check_app_docker_image_versions.py": "check-images"}
 

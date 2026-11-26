@@ -38,9 +38,6 @@ tmp/
 .claude/worktrees/
 .claude/settings.local.json
 
-# graphify knowledge graph of main, a laptop-only artifact (rule graphify)
-graphify-out/
-
 # Python tooling (Poetry, pytest, Ruff)
 __pycache__/
 .venv/

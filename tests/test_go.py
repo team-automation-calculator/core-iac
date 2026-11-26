@@ -77,11 +77,3 @@ def test_script_command_passes_arguments_and_exit_status(tmp_path):
         check=False,
     )
     assert result.returncode == 2
-
-
-def test_post_sync_command_exists_and_matches_repo_standards():
-    import tomllib
-
-    config = tomllib.loads((REPO_ROOT / ".repo-standards.toml").read_text())
-    assert config["git-sync"]["post_sync"] == f"./go {go.POST_SYNC_COMMAND}"
-    assert go.POST_SYNC_COMMAND in go.COMMANDS
