@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && { ./go graphify-seed --quiet >/dev/null 2>&1; ./go graphify-status --brief 2>/dev/null; true; }",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

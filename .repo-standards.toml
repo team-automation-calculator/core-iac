@@ -20,3 +20,8 @@ reason = "./go compile runs inside ./go lint in the CircleCI validate_python job
 
 [overrides.lint]
 reason = "ruff check runs inside ./go lint in the CircleCI validate_python job; the audit only reads .github/workflows/ci.yml"
+
+# Refresh the laptop-only knowledge graph (graphify-out/, rule graphify) once the
+# git-sync agent has fast-forwarded main. Code layer only, no LLM.
+[git-sync]
+post_sync = "./go graphify-update"
