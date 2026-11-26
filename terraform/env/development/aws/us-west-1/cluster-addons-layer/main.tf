@@ -36,9 +36,10 @@ module "argocd" {
   # main_rails_app module (RDS, the namespace and the Secret are unrelated).
   app_certificate_arn = module.main_rails_app.automation_calculator_app_certificate_arn
   app_repo_url        = var.app_repo_url
-  # Phase 6/8: automated sync was enabled on staging only once its Helm release
-  # had left Terraform (Phase 9 removed the release from the module for good);
-  # production leaves all three at their false defaults: manual sync.
+  # main by default; only production pins a promoted commit (docs/promotion.md).
+  app_target_revision = var.argocd_app_target_revision
+  # Phase 6: automated sync was enabled on staging only once its Helm release
+  # had left Terraform (Phase 9 removed the release from the module for good).
   application_automated_sync = var.argocd_application_automated_sync
   application_prune          = var.argocd_application_prune
   application_self_heal      = var.argocd_application_self_heal

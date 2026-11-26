@@ -24,8 +24,9 @@ staging's diff matches the expectation.
   app namespace and Secret (module `main_rails_app`), and ArgoCD with the
   app's `Application` (module `argocd`). The app's Helm release left the
   staging workspace in ArgoCD migration Phase 6 and the production one in
-  Phase 8: the app is synced by ArgoCD from `main` (automatically on
-  staging, by a manual `argocd app sync` on production), `helm list` shows
+  Phase 8: the app is synced by ArgoCD, automatically, from `main` on
+  staging and from the commit pinned in production's add-ons
+  `terraform.tfvars` (`argocd_app_target_revision`) on production, `helm list` shows
   no `automation-calculator` release (only `argocd` and `argocd-apps` in
   namespace `argocd`), and a missing app release in a snapshot is expected.
   Development is intentionally
@@ -132,11 +133,12 @@ staging's diff matches the expectation.
   Under the `-ro` context everything but Helm is captured (the Application
   read needs the `ac-ci-read-only-argocd` ClusterRole, #495, on both
   clusters). The diff marks an Application that is not `Synced/Healthy` in
-  the after snapshot `ATTENTION`. A new revision alone is not a change:
-  both Applications compare against `main`, so `status.sync.revision`
-  moves with every merge on staging and production alike (production's
-  manual sync does not pin it; seen 2026-11-25, revision at `main` head
-  while the last sync was hours older). Judge by sync and health status,
+  the after snapshot `ATTENTION`. On staging a new revision alone is not a
+  change: the Application compares against `main`, so
+  `status.sync.revision` moves with every merge. Production's revision is
+  the pin and moves only when a production PR changes
+  `argocd_app_target_revision`. A production revision change in a PR that
+  did not move the pin is a finding. Judge by sync and health status,
   images and out-of-sync resources.
 
   ```bash
@@ -308,9 +310,10 @@ staging's diff matches the expectation.
 1. **Read the staging PR.** Its "Expected plan" per workspace, "Rollout" and
    "Rollback" sections, and the test-plan checklist. Note which resources may
    change and what the apply should leave untouched. Check that it changes
-   no production file (anything under `terraform/env/production`, or
-   `values-production.yaml`): if it does, it is not a staging PR and
-   merging it applies to production too, so stop and say so. Check CircleCI
+   nothing under `terraform/env/production`: if it does, it is not a staging
+   PR and merging it applies to production too, so stop and say so.
+   (`values-production.yaml` is fine: production renders it from its pinned
+   commit, so a change on `main` waits for the next promotion.) Check CircleCI
    and the Terraform Cloud statuses on the head are green, the PR is
    `MERGEABLE`/`CLEAN` (`gh pr view <n> --json mergeable,mergeStateStatus`),
    and `git merge-tree --write-tree origin/main origin/<branch>` succeeds.
@@ -369,11 +372,12 @@ staging's diff matches the expectation.
    `/health` (`./go health-poll production
    tmp/<pr>/health.log` in the background, started before the merge) and
    take `production-after`, then `diff`, with the same
-   expectation as staging (production's Application is on manual sync, so
-   nothing reverts drift: `OutOfSync` after the apply, or changed images or
-   out-of-sync resources, means the apply touched something the
-   Application owns, which is a finding; a moved revision alone is not,
-   see the snapshot note). Then read the production alarm history for the
+   expectation as staging (production's Application has self-heal, so
+   drift the apply caused in something the Application owns is reverted
+   within minutes. A transient `OutOfSync`, a sync started by `automated`
+   that the PR did not ask for, or changed images are a finding; a moved
+   revision is expected only when the PR moved the pin, see the snapshot
+   note). Then read the production alarm history for the
    window from the baseline time to the after-snapshot time and compare it
    with what the change type predicts (the alarms fact above); for a node
    roll also run `alb_alarm_window.py` over the window so the report can

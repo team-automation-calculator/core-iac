@@ -78,3 +78,52 @@ def test_fetch_short_commit_hash_follows_an_image_index(monkeypatch):
 
     monkeypatch.setattr(watch.urllib.request, "urlopen", urlopen)
     assert watch.fetch_short_commit_hash("0.9.6-998") == "abc1234"
+
+
+# production_pin and read_promoted_production_version
+
+SHA = "1fe9139e7af37dc970e38a7648ab2c3ebf827fdc"
+
+
+def test_production_pin_reads_the_aligned_tfvars_line():
+    text = (
+        "app_logs_enabled                  = true\n"
+        f'argocd_app_target_revision        = "{SHA}"\n'
+        "argocd_application_automated_sync = true\n"
+    )
+    assert watch.production_pin(text) == SHA
+
+
+def test_production_pin_none_when_unpinned():
+    assert watch.production_pin("argocd_enabled = true\n") is None
+
+
+def test_promoted_version_reads_values_production_at_the_pin(tmp_path, monkeypatch):
+    tfvars = tmp_path / "terraform.tfvars"
+    tfvars.write_text(f'argocd_app_target_revision = "{SHA}"\n')
+    monkeypatch.setattr(watch, "PRODUCTION_TFVARS", tfvars)
+    calls = []
+
+    class Result:
+        returncode = 0
+        stdout = "image:\n  tag: 0.9.6-1098\n"
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        return Result()
+
+    monkeypatch.setattr(watch.subprocess, "run", run)
+    assert watch.read_promoted_production_version() == (SHA, "0.9.6-1098")
+    assert calls == [
+        ["git", "show", f"{SHA}:helm/automation-calculator/values-production.yaml"]
+    ]
+
+
+def test_promoted_version_without_a_pin_reads_the_working_tree(tmp_path, monkeypatch):
+    tfvars = tmp_path / "terraform.tfvars"
+    tfvars.write_text("argocd_enabled = true\n")
+    values = tmp_path / "values-production.yaml"
+    values.write_text('image:\n  tag: "0.9.6-1058"\n')
+    monkeypatch.setattr(watch, "PRODUCTION_TFVARS", tfvars)
+    monkeypatch.setitem(watch.VALUES_FILES, "production", values)
+    assert watch.read_promoted_production_version() == (None, "0.9.6-1058")

@@ -510,6 +510,12 @@ Development: no cluster; every plan fails at `data.aws_eks_cluster` as before th
 
 ## 8. The production deploy from now on
 
+> **Superseded.** Production's Application is now pinned to a promoted `main` commit
+> (`argocd_app_target_revision` in production's add-ons `terraform.tfvars`) and has automated
+> sync; a production pull request that moves the pin is the deploy, and nobody runs
+> `argocd app sync` (`docs/promotion.md`). This section records the manual-sync procedure used
+> between Phase 8 and the pin.
+
 Production stays on **manual sync**. `main` is still the single source of truth, but nothing
 reaches the production cluster until a human runs the sync. A deploy is still two PRs
 (`docs/promotion.md`): the staging bump PR, which ArgoCD rolls out on staging by itself, and,
