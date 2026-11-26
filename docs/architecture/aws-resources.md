@@ -25,7 +25,7 @@ flowchart TB
                 ng["Managed node group primary<br/>t4g.medium arm64, 1 to 2 nodes"]
                 subgraph ns_app["namespace automation-calculator"]
                     ing["Ingress (class alb)"]
-                    svc["Service NodePort :80 to :3000<br/>externalTrafficPolicy Local"]
+                    svc["Service NodePort :80 to :3000<br/>externalTrafficPolicy Cluster"]
                     pod["Rails pod :3000"]
                     sec["Secret automation-calculator-app-secrets"]
                 end
@@ -36,7 +36,7 @@ flowchart TB
                     kp["kube-proxy (EKS managed add-on)"]
                 end
             end
-            rds[("RDS PostgreSQL 16<br/>automation_calculator_app :5432")]
+            rds[("RDS PostgreSQL 18<br/>automation_calculator_app :5432")]
         end
     end
 
@@ -143,7 +143,7 @@ flowchart TB
 
     addons --- a1["Helm: ALB controller, external-dns, metrics-server<br/>+ their IRSA roles and service accounts"]
     addons --- a2["CloudWatch alarms, SNS topic"]
-    addons --- a3["main_rails_app: app Helm release, RDS + SG + subnet group,<br/>ACM cert + Route 53 validation records"]
+    addons --- a3["main_rails_app: app namespace + Secret, RDS + SG + subnet group,<br/>ACM cert + Route 53 validation records"]
 ```
 
 ## How secrets reach the pod (key names only)
@@ -153,7 +153,7 @@ flowchart LR
     rp["random_password<br/>DB master password, secret_key_base"]
     tfv["TFC sensitive workspace variables<br/>GitHub and Google OAuth app id and secret"]
     rdsr[("RDS endpoint and db name")]
-    hr["helm_release automation-calculator<br/>set_sensitive secrets.*"]
+    hr["kubernetes_secret_v1.app_secrets<br/>(main_rails_app)"]
     ks["K8s Secret automation-calculator-app-secrets"]
     env["Pod env vars<br/>DATABASE_URL, SECRET_KEY_BASE,<br/>GITHUB_OAUTH_APP_ID / _SECRET,<br/>GOOGLE_OAUTH_APP_ID / _SECRET"]
 
@@ -163,4 +163,4 @@ flowchart LR
     hr --> ks -->|secretKeyRef| env
 ```
 
-Values live only in Terraform state, TFC workspace variables, and the cluster Secret. `helm/automation-calculator/values.yaml` holds empty `secrets.*` values that the chart marks `required`.
+Values live only in Terraform state, TFC workspace variables, and the cluster Secret. Terraform writes the Secret directly (ArgoCD migration Phase 4); every `values-<env>.yaml` sets `secrets.create: false`, so the chart ArgoCD deploys never renders one. The empty `secrets.*` defaults in `helm/automation-calculator/values.yaml` exist only for standalone renders.

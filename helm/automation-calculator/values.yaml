@@ -3,8 +3,8 @@
 # Declare variables to be passed into your templates.
 #
 # Per-environment overrides live in values-<env>.yaml (image.tag, shortCommitHash,
-# ingress.host, ingress.albName, secrets.create: false). Terraform injects
-# ingress.certificateArn at release time and manages the app Secret itself
+# ingress.host, ingress.albName, secrets.create: false). The ArgoCD Application
+# injects ingress.certificateArn (from Terraform's ACM output); Terraform manages the app Secret itself
 # (ArgoCD migration Phase 4); the secrets.* defaults below exist for standalone
 # renders of the chart, such as the Phase 3 canary, and are unusable on purpose.
 
@@ -45,8 +45,8 @@ podDisruptionBudget:
 podSecurityContext: {}
 # Seconds a terminating pod keeps serving before it gets SIGTERM. On a node
 # roll the replacement pod is on a new node, which the ALB only starts using
-# after 2 health checks 15s apart (instance targets, externalTrafficPolicy
-# Local), so the old pod has to outlive that window. 0 disables the hook.
+# after 2 health checks 15s apart (instance targets), so the old pod has to
+# outlive that window. 0 disables the hook.
 preStopSleepSeconds: 40
 railsEnv: production
 readinessProbe:
