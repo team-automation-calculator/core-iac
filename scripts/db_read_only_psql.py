@@ -365,5 +365,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Failure as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        logger.error("error: %s", exc)
         sys.exit(1)
