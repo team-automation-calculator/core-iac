@@ -17,7 +17,7 @@ terraform/
     aws/                            # Modules that create AWS resources (some also create the Kubernetes objects those resources need)
       base-cluster-layer/           # VPC, EKS cluster, IAM
       cluster-addons-layer/         # ALB controller, external-dns, metrics-server, CloudWatch alarms, app log shipping (Fluent Bit to CloudWatch Logs, per-env toggle app_logs_enabled)
-      main_rails_app/               # Rails app namespace, Secret, RDS, ACM; read-only database roles and their forwarder pod behind db_read_only_access_enabled (docs/db-read-only-access.md). Not the app: its Helm release left Terraform in ArgoCD Phases 6/8 and was deleted from the module in Phase 9 (docs/argocd-phase-9-decommission.md)
+      main_rails_app/               # Rails app namespace, Secret, RDS, ACM; read-only database roles and their forwarder pod behind db_read_only_access_enabled (docs/db-read-only-access.md). Not the app, which ArgoCD deploys (docs/argocd-phase-9-decommission.md)
       networking/                   # VPC/subnet resources
     kubernetes/                     # Modules that only create in-cluster objects (no AWS resources)
       argocd/                       # ArgoCD Helm release + the app's AppProject/Application via the argocd-apps chart (per-env toggles argocd_enabled, argocd_manage_application, argocd_application_{automated_sync,prune,self_heal}; docs/argocd-migration-plan.md)
@@ -45,6 +45,7 @@ argocd/
 plans/                          # Investigation and migration proposals with cost estimates (e.g. TFC to Spacelift, rate-limit cache store)
 docs/                           # Runbooks, setup guides and migration plans (AWS SSO, GitHub CI user, TFC organization members and the IBMid sign-in change, external-dns, ArgoCD, arm64)
   architecture/                 # Mermaid diagrams: AWS resources, request/response flows, PR validation and deploy
+wiki/                           # Observed, dated behaviour: rollout timings, known plan artifacts, Terraform Cloud, access, alarms (see Wiki)
 scripts/                        # Python and Bash helpers, each run as ./go <name> (see Scripts)
 tests/                          # pytest tests for the Python scripts
 iac/specs/claude/project.json   # claude.ai Project spec (the repo's one Project, core-iac)
@@ -137,7 +138,7 @@ helm template automation-calculator helm/automation-calculator/ \
 
 ### Deploying the app
 
-**How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`, implemented).** Both live clusters deploy through ArgoCD only: the `automation-calculator` Application (`terraform/modules/kubernetes/argocd`) in each cluster tracks `main`. Terraform has no Helm release for the app at all since Phase 9 (`docs/argocd-phase-9-decommission.md`): the release was removed from each TFC state in Phases 6 and 8, never destroyed, its Helm history was deleted, and the resource was then deleted from `main_rails_app`. A deploy is two PRs, staging then production (`docs/promotion.md`), and neither queues a TFC run (no workspace is triggered by the chart or its values files):
+**How the app reaches each cluster (ArgoCD migration, `docs/argocd-migration-plan.md`, implemented).** Both live clusters deploy through ArgoCD only: the `automation-calculator` Application (`terraform/modules/kubernetes/argocd`) in each cluster tracks `main`. Terraform has no Helm release for the app at all (`docs/argocd-phase-9-decommission.md` tells how it was removed without being destroyed). A deploy is two PRs, staging then production (`docs/promotion.md`), and neither queues a TFC run (no workspace is triggered by the chart or its values files):
 
 1. Staging PR: `./go bump-app-docker-image-version-branch <tag> <short_commit_hash>` (or the watcher) edits `values-staging.yaml`, plus the chart default and `values-development.yaml`, pushes a branch and opens the PR; CI checks the tag exists on Docker Hub. Merge it. **Staging** (Phase 6) has automated sync, prune and self-heal: the merge rolls out within ArgoCD's polling interval (3 minutes), and a rollback is a git revert.
 2. Production PR, only after staging is verified: the same script with a third argument, `production`, edits `values-production.yaml` only. Merging it deploys nothing by itself.
@@ -164,7 +165,7 @@ Every file in `scripts/` is a `./go` command named after it (`scripts/env_snapsh
 ./go argocd-preflight                       # ArgoCD Phase 0: read-only pod headroom, ALB replica count, helm/argocd CLI check on the current kubectl context
 ./go argo-helm-chart-versions               # ArgoCD Phase 0: latest stable argo-cd / argocd-apps chart versions from the argo-helm index (--fetch to download)
 ./go argocd-canary-check                    # ArgoCD Phase 3: read-only real-namespace Deployment generation + Secret sha256, canary namespace pods, ac-canary status
-./go argocd-staging-verify                  # ArgoCD Phase 7/8: read-only check that a merged bump reached an env via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty); --env production; deploy-image and validate-infra-rollout run it as `--context ac_app_<env>-ro --skip-history` (history and Helm then report "not checked", never "ok"); --expect-helm-release only existed for the Phase 8 window and is never right any more
+./go argocd-staging-verify                  # ArgoCD Phase 7/8: read-only check that a merged bump reached an env via ArgoCD (app Synced/Healthy, pod tag + SHORT_COMMIT_HASH, /health, history, helm list empty); --env production; deploy-image and validate-infra-rollout run it as `--context ac_app_<env>-ro --skip-history` (history and Helm then report "not checked", never "ok"); never pass --expect-helm-release (it was for the Phase 8 window only)
 ./go argocd-soak-log                        # ArgoCD Phase 7: add bump/rollback cycles to docs/argocd-staging-soak-log.md and evaluate the soak gate (status)
 ./go watch-addon-rollout                    # Wait for a kube-system add-on Deployment to roll past a baseline generation after an addons apply, then print its resources and pods (KUBE_CONTEXT DEPLOYMENT BASELINE_GENERATION [TIMEOUT_SECONDS])
 ./go wait-commit-status                     # validate-infra-rollout: poll a commit's GitHub statuses (Terraform Cloud runs) through gh until none is pending, one line per state change; on a merge commit add --until-applied to wait past the plan success for "Terraform apply:" (exit 2 on failure, 1 on timeout naming the workspaces still waiting)
@@ -180,6 +181,7 @@ Every file in `scripts/` is a `./go` command named after it (`scripts/env_snapsh
 ./go app-logs                               # Read-only reader for the app pods' stored logs in CloudWatch Logs (/ac/<env>/app) under the -ro profile: streams, tail, errors, Logs Insights query, ingested volume (docs/app-logs.md)
 ./go db-read-only-psql                     # psql on an env's app database as a read-only role (--as infra-eng for a person, --as ci for CI and agents): IAM token, port-forward under the -ro kube context, verified TLS (docs/db-read-only-access.md)
 ./go pr-checklist                           # Lists the PRs an image contains and ticks their test-plan checklist items through gh (--repo selects the repo; default is the app repo)
+./go wiki-lint                              # Wiki: check wiki/ pages for broken repo references, identifiers the public repo must not carry, and missing or stale Verified dates (also run by ./go lint)
 ```
 
 ## Key Conventions
@@ -228,6 +230,23 @@ Where `db_read_only_access_enabled = true` is applied in an environment's base-c
 - **An agent signs in with `--as ci`, never `--as infra-eng`, and never with the master user** (`automation_calculator_devops`, the `databaseUrl` in the app Secret). The two roles exist so the PostgreSQL log shows who ran what.
 - **Rows are user data.** `users` holds email addresses and credential hashes. Never paste query results that contain rows into a PR, an issue or a commit: the repo is public. Counts and schema are fine.
 - **Do not grant the roles more** (`pg_monitor`, `pg_read_all_data`, write privileges) to make a query work. They see the app's tables and nothing of RDS's internals by design.
+
+## Wiki
+
+`wiki/` holds what has been observed about this repo's infrastructure and tooling, each fact dated and tied to the PR it was seen in: rollout timings, known plan artifacts, Terraform Cloud behaviour, what each role can read, alarm behaviour. Start at `wiki/index.md`. Where knowledge goes:
+
+- **`AGENTS.md`**: rules and conventions, the things to always or never do. No history.
+- **`docs/`**: runbooks and procedures. **`plans/`**: proposals.
+- **`wiki/`**: observations. A page links to `docs/` and `plans/` instead of restating them.
+
+**Keep the wiki current as you work.** In the same PR as the change:
+
+- When a change makes a wiki fact wrong (a new timing, a plan shape that changes, a fixed quirk), update the page.
+- When a rollout or investigation measures or finds something durable that is not yet written down (an outage length, an unexpected plan line, a role that cannot read something), add it to the page it fits, or add a page and link it from `wiki/index.md`.
+- Add a measurement as a new row next to the old one rather than overwriting it, and say what differed.
+- Set the page's `Verified: YYYY-MM-DD` line when you re-check its facts against the tree or the live environment.
+
+Do not put open work, owed actions or intentions in the wiki (those belong in the PR or issue), or summaries of what a module's code does (read the code). The repo is public: no account, zone, change or run ids, email addresses, client IPs, log lines or query results. `./go wiki-lint` (also run by `./go lint` and CI) checks for broken references, those identifiers and a missing `Verified` line, and warns when a page has not been verified for 120 days.
 
 ## Scratch Files
 
