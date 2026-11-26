@@ -130,11 +130,10 @@ Left behind:
   work. Anything that used the staging profile for account-level reads needs the production
   profile.
 - Every pull request touching the staging add-ons paths gets a failed
-  `ac_app_staging_cluster_addons_layer` plan status. That includes every app image bump, because
-  the bump scripts edit `helm/automation-calculator/values-staging.yaml` and the chart directory
-  triggers that workspace. Terraform Cloud statuses are not required
-  checks on `main`, so merges are not blocked. Keep bumping staging so its values file is current when
-  it comes back.
+  `ac_app_staging_cluster_addons_layer` plan status. Terraform Cloud statuses are not required
+  checks on `main`, so merges are not blocked. App image bumps are not affected: since ArgoCD
+  migration Phase 9 the chart and its values files trigger no workspace. Keep bumping staging so
+  its values file is current when it comes back.
 - Pull requests touching the base paths get a staging plan that adds everything. After merge the
   same plan waits for confirmation in the workspace. Discard it.
 - The `deploy-image` and `validate-infra-rollout` skills have no staging step to run. Changes go

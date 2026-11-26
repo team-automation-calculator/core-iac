@@ -73,6 +73,12 @@ variable "db_engine_version" {
   type        = string
 }
 
+variable "db_read_only_access_enabled" {
+  default     = false
+  description = "Read-only database access for people and agents (docs/db-read-only-access.md): IAM database authentication on the instance, the read-only PostgreSQL roles, and the forwarder pod the read-only CI role may port-forward to. The base-cluster-layer variable of the same name grants the IAM side."
+  type        = bool
+}
+
 variable "db_snapshot_identifier" {
   default     = null
   description = "Name of an RDS snapshot to create the database from when staging is re-created after a destroy (docs/staging-destroy-and-recreate.md). Read only at instance creation; null creates an empty database."

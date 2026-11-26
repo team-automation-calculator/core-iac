@@ -20,3 +20,6 @@ reason = "./go compile runs inside ./go lint in the CircleCI validate_python job
 
 [overrides.lint]
 reason = "ruff check runs inside ./go lint in the CircleCI validate_python job; the audit only reads .github/workflows/ci.yml"
+
+[overrides.graphify]
+reason = "Terraform-dominated repo where graphify 0.8.40 adds little over grep and AGENTS.md: it skips terraform/env/ (hard-coded 'env' skip dir), needs the optional tree-sitter-hcl for any .tf node, and does not link module calls to module directories. Adopted in #501, reverted; revisit if graphify gains that Terraform support"
