@@ -180,6 +180,7 @@ SCRIPTS = {
     "argo_helm_chart_versions.py": "Latest stable argo-cd / argocd-apps chart versions from the argo-helm index.",
     "argocd_canary_check.sh": "Read-only ArgoCD Phase 3 canary check on the current kubectl context.",
     "argocd_staging_verify.sh": "Read-only check that a merged bump reached an env through ArgoCD.",
+    "argocd_app_down_up.py": "Staging destroy: delete the app through ArgoCD with cascade (down) or re-create it (up).",
     "argocd_soak_log.py": "Add cycles to the ArgoCD staging soak log and evaluate the soak gate.",
     "watch_addon_rollout.sh": "Wait for a kube-system add-on Deployment to roll past a baseline generation.",
     "wait_commit_status.py": "Poll a commit's GitHub statuses (Terraform Cloud runs) until none is pending (--until-applied: until applied).",

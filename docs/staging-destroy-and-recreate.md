@@ -94,16 +94,39 @@ the AWS credentials needed to re-create staging.
    only the Ingress does not work either, because staging's Application has self-heal on and
    ArgoCD puts it back.
 
-   Log in to ArgoCD on staging (`docs/argocd-phase-2-install.md` section 4), then delete the
-   Application with cascade, which deletes its resources first:
+   Use `./go argocd-app-down-up` (`scripts/argocd_app_down_up.py`). It needs the read-write
+   staging kube context (`./go infra-eng-sso`), not an ArgoCD login. It adds the resources
+   finalizer to the Application and deletes it, which is what `argocd app delete --cascade` does,
+   then waits until the Application, the Ingress and the ALB are gone:
 
    ```bash
-   argocd app delete automation-calculator --cascade --yes
+   ./go argocd-app-down-up up staging     # dry run: says whether the argocd-apps release
+                                          # manifest still matches the live Application
+   ./go argocd-app-down-up down staging --apply
    ```
 
-   Not yet run; check that the Ingress is gone (`kubectl -n automation-calculator get ingress`)
-   and that the ALB check below returns an empty list before step 2. The add-ons destroy then
-   uninstalls the `argocd-apps` release, which no longer finds the Application; that is expected.
+   `down` saves the live Application to `tmp/argocd-app/` first. The file holds the certificate
+   ARN, so keep it out of git. To bring the app back without a re-create (an aborted destroy, or
+   a test of this step), run `./go argocd-app-down-up up staging --apply`. It re-creates the
+   Application from the `argocd-apps` release manifest, with Helm's ownership metadata, and waits
+   for Synced/Healthy, the ALB, the Route 53 alias and `/health`. `--from-file` takes a file
+   saved by `down` instead.
+
+   Tried on staging 2026-11-26 without a destroy:
+   - **down:** the Ingress was gone in 25 s and the Application in 3 min 16 s (the pods'
+     preStop sleep and grace period), and the ALB had already disappeared by then. Staging's
+     target group and TargetGroupBinding went with it. The Terraform-managed namespace and app
+     Secret stayed.
+   - **up:** the Application was Synced/Healthy in 24 s and the new ALB was active about 2 min
+     later. external-dns repointed the Route 53 aliases within seconds of the Ingress getting its
+     address, and `/health` through the ALB answered 200.
+   - **DNS caching:** a resolver that looked the host up while the ALB was gone can keep the
+     negative answer for longer. This Mac's resolver still failed to resolve staging 13 minutes
+     after Route 53 had been updated, while the ISP's resolvers already answered correctly.
+     Allow for that before deciding the app is down.
+
+   The add-ons destroy then uninstalls the `argocd-apps` release, which no longer finds the
+   Application; that is expected, but has not been seen yet.
 2. `ac_app_staging_cluster_addons_layer`: queue the destroy plan, review it, confirm promptly.
    A run that waits too long between plan and apply can outlive its 15 minute EKS token and fail
    with a Kubernetes credentials error (seen on 2026-11-05 with a queued run). If that happens,
