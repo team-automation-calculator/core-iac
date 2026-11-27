@@ -28,6 +28,24 @@ variable "environment_name" {
   type        = string
 }
 
+variable "enable_cluster_creator_admin_permissions" {
+  default     = false
+  description = "Give the identity Terraform runs as a cluster-admin access entry (the EKS module's cluster_creator entry). Needed on any cluster created by module v21, or the cluster-addons-layer cannot sign in. Off by default because production's entry for that identity was made by hand and would conflict."
+  type        = bool
+}
+
+variable "coredns_addon_version" {
+  default     = null
+  description = "Version of the CoreDNS EKS managed add-on, e.g. v1.14.7-eksbuild.35 (the defaultVersion from `aws eks describe-addon-versions --addon-name coredns --kubernetes-version <cluster_version>`). Null leaves CoreDNS unregistered (a self-managed Deployment from cluster creation, or none on a cluster created by module v21)."
+  type        = string
+}
+
+variable "vpc_cni_addon_version" {
+  default     = null
+  description = "Version of the vpc-cni EKS managed add-on, installed before the node group, e.g. v1.22.4-eksbuild.14 (the defaultVersion from `aws eks describe-addon-versions --addon-name vpc-cni --kubernetes-version <cluster_version>`). Null leaves vpc-cni unregistered; a cluster created by module v21 then has no CNI and its nodes never become Ready."
+  type        = string
+}
+
 variable "kube_proxy_addon_version" {
   description = "Version of the kube-proxy EKS managed add-on, e.g. v1.37.0-eksbuild.39. Pin the defaultVersion that `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <cluster_version>` reports for the region, and bump it together with cluster_version."
   type        = string
