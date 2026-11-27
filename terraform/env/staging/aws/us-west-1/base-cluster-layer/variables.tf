@@ -39,6 +39,18 @@ variable "environment_name" {
   type        = string
 }
 
+variable "coredns_addon_version" {
+  default     = null
+  description = "Version of the CoreDNS EKS managed add-on (the defaultVersion from `aws eks describe-addon-versions --addon-name coredns --kubernetes-version <kubernetes_cluster_version>`). Bump together with kubernetes_cluster_version."
+  type        = string
+}
+
+variable "vpc_cni_addon_version" {
+  default     = null
+  description = "Version of the vpc-cni EKS managed add-on (the defaultVersion from `aws eks describe-addon-versions --addon-name vpc-cni --kubernetes-version <kubernetes_cluster_version>`). Required for a re-created cluster: module v21 installs no CNI by itself."
+  type        = string
+}
+
 variable "kube_proxy_addon_version" {
   description = "Version of the kube-proxy EKS managed add-on (the defaultVersion from `aws eks describe-addon-versions --addon-name kube-proxy --kubernetes-version <kubernetes_cluster_version>`). Bump together with kubernetes_cluster_version."
   type        = string

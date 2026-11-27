@@ -25,9 +25,16 @@ module "app_eks_cluster" {
   # 1.32 on a 1.36 control plane, outside the kube-proxy version skew policy
   # (at most three minors behind the API server). A managed add-on makes the
   # version a tfvars pin that is bumped together with cluster_version.
-  # CoreDNS and vpc-cni are not registered yet; see the follow-ups in
-  # docs/dependency-upgrade-plan-2026-q4.md.
-  addons = {
+  #
+  # vpc-cni and CoreDNS are registered only where their version variables are
+  # set (staging since the 2026-11-26 trial re-create). Module v21 creates new
+  # clusters with bootstrap_self_managed_addons = false, so a cluster created
+  # today has no vpc-cni, CoreDNS or kube-proxy at all: without a managed
+  # vpc-cni installed before the node group, the nodes never become Ready and
+  # the node group create hangs until it fails. Clusters created under the old
+  # default (production) still run the self-managed objects and are unchanged
+  # while the variables are null; see docs/dependency-upgrade-plan-2026-q4.md.
+  addons = merge({
     kube-proxy = {
       # The explicit pin wins: the module coalesces addon_version before its
       # aws_eks_addon_version lookup, so the version never floats with new
@@ -53,7 +60,33 @@ module "app_eks_cluster" {
       # add-on is ever removed from the config, instead of deleting
       # kube-proxy from the cluster.
     }
-  }
+    },
+    var.vpc_cni_addon_version == null ? {} : {
+      vpc-cni = {
+        addon_version = var.vpc_cni_addon_version
+        most_recent   = false
+
+        # Installed before the node group: a node is not Ready until the CNI
+        # runs on it, and the node group create waits for Ready nodes.
+        before_compute = true
+
+        # OVERWRITE adopts a self-managed aws-node DaemonSet where one exists.
+        resolve_conflicts_on_create = "OVERWRITE"
+        resolve_conflicts_on_update = "OVERWRITE"
+      }
+    },
+    var.coredns_addon_version == null ? {} : {
+      coredns = {
+        addon_version = var.coredns_addon_version
+        most_recent   = false
+
+        # After the node group (the module default): CoreDNS pods need a node.
+        # OVERWRITE resets a hand-edited Corefile or replica count.
+        resolve_conflicts_on_create = "OVERWRITE"
+        resolve_conflicts_on_update = "OVERWRITE"
+      }
+    },
+  )
 
   eks_managed_node_groups = {
     primary = {
