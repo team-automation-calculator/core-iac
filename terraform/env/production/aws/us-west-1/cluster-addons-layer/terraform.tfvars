@@ -1,6 +1,6 @@
 alarm_email                       = "steven.uray@automation-calculations.net"
 app_logs_enabled                  = true
-argocd_app_target_revision        = "1fe9139e7af37dc970e38a7648ab2c3ebf827fdc"
+argocd_app_target_revision        = "deed8888138e5b137aecb73d8bea7526fd6715c7"
 argocd_application_automated_sync = true
 argocd_application_prune          = true
 argocd_application_self_heal      = true
