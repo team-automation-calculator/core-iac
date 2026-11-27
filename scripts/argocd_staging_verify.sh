@@ -7,8 +7,12 @@
 # Despite the name it is not staging-specific: --env production selects
 # values-production.yaml and runs the same checks against the production
 # context (ArgoCD migration Phase 8, docs/argocd-phase-8-production.md, and
-# every production deploy after it). Production stays on manual sync, so its
-# last operation is started by a user, which is reported but not a failure.
+# every production deploy after it). The expected tag comes from
+# values-production.yaml in the working tree, which since production was
+# pinned to a promoted commit (docs/promotion.md) is what production runs once
+# the promotion PR has merged, not before: run it after that merge. The last
+# operation is reported as automated or as started by a user (a hand-run sync,
+# as before the pin); neither is a failure.
 #
 # Read-only. Against the current kubeconfig context (or --context) and the
 # argocd CLI login it prints and checks:

@@ -6,7 +6,8 @@ Snapshots the current set of tags on Docker Hub, then polls every minute for
 invokes `bump_app_docker_image_version_branch.sh` with that version to create
 the branch, commit, push, and open the staging bump PR. A deploy is two PRs
 (docs/promotion.md): this script only ever opens the staging one. The
-production PR is opened by hand, after staging is verified, with
+production PR, which promotes the commit and so moves production's pin, is
+opened by hand after staging is verified, with
 `bump_app_docker_image_version_branch.sh <version> <hash> production`.
 
 If the startup sync check finds a bump already pending (staging is not on
@@ -61,6 +62,40 @@ BUMP_SCRIPT = SCRIPTS_DIR / "bump_app_docker_image_version_branch.sh"
 CHART_DIR = REPO_ROOT / "helm/automation-calculator"
 VALUES_ENVS = ("development", "staging", "production")
 VALUES_FILES = {env: CHART_DIR / f"values-{env}.yaml" for env in VALUES_ENVS}
+# Production renders from the commit pinned here, not from main (docs/promotion.md).
+PRODUCTION_TFVARS = (
+    REPO_ROOT
+    / "terraform/env/production/aws/us-west-1/cluster-addons-layer/terraform.tfvars"
+)
+PIN_RE = re.compile(r'^argocd_app_target_revision\s*=\s*"([0-9a-f]+)"', re.MULTILINE)
+
+
+def production_pin(tfvars_text: str) -> str | None:
+    """The commit production's ArgoCD Application is pinned to, or None when unpinned."""
+    match = PIN_RE.search(tfvars_text)
+    return match.group(1) if match else None
+
+
+def read_promoted_production_version() -> tuple[str | None, str]:
+    """(pinned commit, image.tag of values-production.yaml at that commit): what production
+    runs once synced. Without a pin, production tracks main and the working tree is the answer.
+    """
+    pin = production_pin(PRODUCTION_TFVARS.read_text())
+    if pin is None:
+        text = VALUES_FILES["production"].read_text()
+    else:
+        result = subprocess.run(
+            ["git", "show", f"{pin}:helm/automation-calculator/values-production.yaml"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return pin, f"<cannot read at {pin[:7]}: git fetch?>"
+        text = result.stdout
+    match = IMAGE_TAG_RE.search(text)
+    return pin, match.group(1) if match else "<not found>"
 
 
 def fetch_version_tags() -> list[dict]:
@@ -224,9 +259,15 @@ def main() -> int:
         print(f"  {env:15s}  image.tag = {version}")
 
     # Staging leads: the staging PR is the first half of a deploy, and
-    # production trails it until the production PR merges (docs/promotion.md).
+    # production trails it until the production PR promotes a commit
+    # (docs/promotion.md). values-production.yaml on main already carries the
+    # staging tag; what production runs is that file at the pinned commit.
     staging_version = values_versions["staging"]
-    production_version = values_versions["production"]
+    pin, production_version = read_promoted_production_version()
+    print(
+        f"  production pin   {pin[:7] if pin else 'none (tracks main)'}"
+        f"  image.tag = {production_version}"
+    )
     pending_version: str | None = None
     print()
     if hub_newest is None:
@@ -242,7 +283,7 @@ def main() -> int:
     if production_version != staging_version:
         print(
             f"Production at {production_version}, staging at {staging_version}: "
-            "after staging is verified, open the production PR with "
+            "after staging is verified, open the production (promotion) PR with "
             f"{BUMP_SCRIPT.name} {staging_version} <short_commit_hash> production"
         )
     print()

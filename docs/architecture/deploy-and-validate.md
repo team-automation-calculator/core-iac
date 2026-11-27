@@ -19,22 +19,29 @@ flowchart LR
         img[("automationcalculationsci/automation-calculator<br/>tag 0.9.6-&lt;CircleCI build&gt;")]
     end
     subgraph iac["core-iac repo"]
-        sbump["Staging PR<br/>values-staging.yaml, staging tfvars,<br/>modules, chart"]
+        sbump["Staging PR<br/>every values file, staging tfvars,<br/>modules, chart"]
         smain["merge to main"]
-        pbump["Production PR<br/>values-production.yaml, production tfvars,<br/>or promoted_ref"]
+        pbump["Production PR<br/>production tfvars, or the pin:<br/>argocd_app_target_revision + promoted_ref"]
         pmain["merge to main"]
     end
     subgraph tfc["Terraform Cloud"]
         stg["staging workspaces<br/>auto-apply"]
         prd["production workspaces<br/>auto-apply, production files only"]
     end
+    subgraph argo["ArgoCD, automated sync"]
+        sargo["staging Application<br/>tracks main"]
+        pargo["production Application<br/>renders the pinned commit"]
+    end
 
     apr -->|CircleCI build, lint, test, build prod image, no push| apr
     apr --> amain -->|CircleCI tags and pushes| img
     img -->|watch_app_docker_image_versions.py or bump script| sbump
     sbump --> smain --> stg
+    smain -->|chart and values| sargo
+    sargo -->|staging verified| pbump
     stg -->|staging verified| pbump
     pbump -->|speculative plan read| pmain --> prd
+    prd -->|new targetRevision| pargo
 ```
 
 ## App PR (automation-calculator repo)
@@ -104,7 +111,7 @@ Which workspace a path triggers:
 | `terraform/env/staging/aws/us-west-1/cluster-addons-layer`, `modules/aws/cluster-addons-layer`, `modules/aws/main_rails_app`, `modules/kubernetes/argocd` | `ac_app_staging_cluster_addons_layer` |
 | `terraform/env/production/aws/us-west-1/base-cluster-layer` only | `ac_app_production_base_cluster_layer` |
 | `terraform/env/production/aws/us-west-1/cluster-addons-layer` only | `ac_app_production_cluster_addons_layer` |
-| `helm/automation-calculator` (templates and values files) | none since ArgoCD migration Phase 9: ArgoCD deploys the chart from `main` |
+| `helm/automation-calculator` (templates and values files) | none since ArgoCD migration Phase 9: ArgoCD deploys the chart from `main` on staging, and from the commit pinned in production's add-ons `terraform.tfvars` on production (moving that pin is a production add-ons change) |
 | `terraform/env/production/aws/us-east-1/route53-domains` | `ac_app_production_route53_domains` |
 | `terraform/env/production/github/org`, `modules/github/org-ci-access` | `ac_app_production_github_org` |
 

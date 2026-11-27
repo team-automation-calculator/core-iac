@@ -15,9 +15,15 @@ variable "argocd_admin_password_rotation" {
   type        = string
 }
 
+variable "argocd_app_target_revision" {
+  default     = "main"
+  description = "Git revision the app's ArgoCD Application renders the chart and values-<env>.yaml from. Production pins it to the full SHA of the main commit last verified on staging, and moving it is the production deploy (docs/promotion.md); ./go promote-to-production writes it. Staging and development track main."
+  type        = string
+}
+
 variable "argocd_application_automated_sync" {
   default     = false
-  description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). True on staging since Phase 6; false (manual sync, `argocd app sync` after the bump PR merges) on production by decision, see docs/argocd-phase-8-production.md section 8. Terraform has not managed the app's Helm release since Phase 9, so ArgoCD is the only controller of the Deployment either way."
+  description = "Render syncPolicy.automated on the app's ArgoCD Application (docs/argocd-migration-plan.md, Phase 6). True on staging since Phase 6, and on production once argocd_app_target_revision pins it to a promoted commit (docs/promotion.md): automated sync is safe there only because production no longer tracks main. Terraform has not managed the app's Helm release since Phase 9, so ArgoCD is the only controller of the Deployment either way."
   type        = bool
 }
 
