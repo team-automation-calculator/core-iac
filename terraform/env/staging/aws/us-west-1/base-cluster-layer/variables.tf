@@ -39,6 +39,12 @@ variable "environment_name" {
   type        = string
 }
 
+variable "enable_cluster_creator_admin_permissions" {
+  default     = false
+  description = "Cluster-admin access entry for the identity Terraform runs as, which the cluster-addons-layer signs in as. Required on a re-created cluster."
+  type        = bool
+}
+
 variable "coredns_addon_version" {
   default     = null
   description = "Version of the CoreDNS EKS managed add-on (the defaultVersion from `aws eks describe-addon-versions --addon-name coredns --kubernetes-version <kubernetes_cluster_version>`). Bump together with kubernetes_cluster_version."

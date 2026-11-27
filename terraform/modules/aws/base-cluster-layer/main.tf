@@ -4,6 +4,17 @@ module "app_eks_cluster" {
   endpoint_public_access = true
   access_entries         = var.access_entries
 
+  # Cluster-admin access entry for the identity Terraform runs as (the TFC
+  # workspaces' AWS credentials), which the cluster-addons-layer's kubernetes
+  # and helm providers sign in as. Module v21 creates clusters with
+  # bootstrap_cluster_creator_admin_permissions = false and grants the creator
+  # nothing unless this is true, so on a cluster created today every
+  # kubernetes/helm resource in the addons layer fails with Unauthorized
+  # (staging trial re-create, 2026-11-26). Production's equivalent entry was
+  # made by hand on 2026-05-06 and is not in Terraform; turning this on there
+  # needs an import of that entry first or the create conflicts.
+  enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
+
   # Envelope encryption of Kubernetes Secrets in etcd, with a customer-managed
   # KMS key the EKS module creates per cluster (alias eks/ac_app_<env>) and
   # rotates yearly. These three values equal the module's defaults and are
