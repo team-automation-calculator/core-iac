@@ -1,6 +1,6 @@
 # Rollout timings
 
-Verified: 2026-11-26
+Verified: 2026-11-27
 
 Measured outages and durations, for the expected-vs-actual line of a PR body or a quiet-window
 notice. Outages are measured on `/health` polled every 3 to 5 seconds (`./go health-poll`), unless a
@@ -13,12 +13,14 @@ and say what changed (replica count, node type, instance class).
 |---|---|---|
 | Image bump, ArgoCD automated sync | staging, #469 / #476 / #478, 2026-11-24/25 | Synced 1 min 15 s to 1 min 28 s after merge (polling interval 3 min), no non-200 |
 | Rollback by revert PR, ArgoCD automated sync | staging, #471, 2026-11-25 | Synced 3 s after merge |
+| Image bump by moving the pin (`argocd_app_target_revision`), automated sync, 2 replicas | production, #517, 2026-11-27 | Merge to TFC apply done 2 min 33 s, rollout finished about 1 min later, `/health` flipped 4 min 45 s after merge, 0 non-200 in 111 polls (2 s), no alarm metric non-zero |
 | Image bump through Terraform, 2 replicas (before Phase 8) | production, #481, 2026-11-25 | About 5 min merge to new `short_commit_hash`, 0 non-200 in 81 polls |
 | Image bump through Terraform, 1 replica (before ArgoCD) | production, #419, 2026-11-07 | 547 s merge to new hash (included a confirm), 0 non-200 |
 
-A production image bump is now a manual `argocd app sync` (`docs/argocd-phase-8-production.md`
-section 8); no sync duration has been recorded here yet. Right after a rollout `/health` can still
-answer from a draining old pod: wait until the old pods are gone before reading the hash.
+Since #511 a production image bump is a production PR that moves the pin (`docs/promotion.md`); the
+#517 row is the first. `rollout status` reported done about 1 min before `/health` flipped: the
+old pod kept answering through its `preStop` sleep while the ALB health-checked the new targets.
+Wait until the old pods are gone before reading the hash.
 
 ## Nodes and the control plane
 
