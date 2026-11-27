@@ -4,34 +4,49 @@ Staging is destroyed when nothing needs validating and re-created when it does. 
 re-create are both run from the Terraform Cloud UI. This document records what has to be true
 before the destroy, the steps, what stops working while staging is gone, and how to bring it back.
 
-Written 2026-11-18 from a read of the code, re-checked after the ArgoCD phase 1 and 2 merges. The
-steps have not been run yet; correct
-this document after the first destroy and the first re-create.
+Written 2026-11-18 from a read of the code. Corrected after the trial cycle of 2026-11-26 (destroy,
+re-create from the final snapshot, destroy again for the long pause), which ran every step below.
 
-## Do a trial cycle first
+## The 2026-11-26 trial cycle
 
-Because none of this has been run, the first destroy should be followed straight away by a
-re-create, and only a staging that came back correctly is destroyed for the long pause. The trial
-costs an hour or two of staging downtime and little AWS spend, and it exercises what can only be
-learned by running it:
+Staging was destroyed, re-created from the final snapshot, verified, and destroyed again. What it
+found, each fixed or written into the steps below:
 
-- the app Ingress and ALB clean-up before the add-ons destroy (see "Destroy", step 1)
-- whether the `terraform state rm` of the namespace is enough to get past `prevent_destroy`
-- the snapshot restore (storage size, regenerated password, the app connecting afterwards)
-- external-dns adopting the existing Route 53 records again
-- the base layer bringing back the SSO permission sets and CI roles, so `./go infra-eng-sso` and
-  the `-ro` kube contexts work again
-- how long each step takes, which is the real cost of bringing staging back
+- **The base destroy needs two runs.** The first run errors at the end on the `sso_infra_eng`
+  permission sets with `waiting for SSO Permission Set ... provision: unexpected state 'FAILED'
+  ... 404 Assignment not found`. Deleting an inline policy re-provisions the permission set to
+  accounts whose assignments the same run already deleted. Everything else is gone by then; a
+  second destroy run deletes what is left (Destroy, step 5). Seen on both base destroys.
+- **A cluster created today had no CNI.** EKS module v21 creates clusters with
+  `bootstrap_self_managed_addons = false`, so the re-created node group never became Ready until
+  vpc-cni and CoreDNS were added. Fixed in #514: staging registers both as managed add-ons
+  (`vpc_cni_addon_version`, `coredns_addon_version`).
+- **Terraform had no access to the new cluster.** v21 also gives the identity Terraform runs as no
+  access entry, so the first add-ons apply failed with `Unauthorized` on every kubernetes and helm
+  resource (its AWS resources, including the RDS restore, applied). Fixed in #514:
+  `enable_cluster_creator_admin_permissions = true` for staging. Production's entry was made by
+  hand; production needs the same three settings, and an import of that entry, before it is ever
+  re-created.
+- **The ArgoCD Application comes back with the add-ons layer**, so `./go argocd-app-down-up up`
+  only waits for it after a re-create (Re-create, step 4).
+- **The snapshot restore works**: a 10 GB, PostgreSQL 18.6 snapshot restored in 10 min 10 s, the
+  app connected with the regenerated password, and the row counts were intact.
+- **external-dns adopted the existing Route 53 records** within seconds of the new Ingress getting
+  its address.
 
-Suggested order:
+Timings (Terraform Cloud apply times):
 
-1. Merge and apply the `auto_apply = false` change (below).
-2. Take a baseline with `./go env-snapshot` under `--context ac_app_staging-ro`.
-3. Destroy, then re-create from the final snapshot.
-4. Take a second snapshot, diff it against the baseline, and check `/health`.
-5. Correct this document with what actually happened, in a PR.
-6. Set a per-cycle `final_snapshot_identifier` (see "Saving and restoring the database": the
-   trial's final snapshot holds the default name), then do the long-term destroy.
+| Step | Trial cycle | Long-term destroy |
+|---|---|---|
+| `argocd-app-down-up down` | 3 min 16 s (tried before the trial) | 54 s |
+| Add-ons destroy, including the final snapshot | about 10 min | about 5 min 30 s |
+| Base destroy, first run (errors on SSO) | 11 min 35 s | about 13 min |
+| Base destroy, second run | 40 s | 46 s |
+| Base re-create | 35 min, about 20 of them the node group waiting for a CNI | |
+| Add-ons re-create | 10 min 40 s (RDS restore 10 min 10 s), plus a 3 min 30 s retry after the access fix | |
+| Application Healthy, ALB active and `/health` 200, after the add-ons apply | about 2 min | |
+
+With #514 in place, expect a re-create to take about 30 minutes of applies plus the confirms.
 
 ## Why `auto_apply` is off for staging
 
@@ -62,17 +77,19 @@ already do.
    change"). Confirm the apply in the UI if that workspace does not auto-apply, then check that
    both staging workspaces show auto-apply off under **Settings > General**. That workspace is not
    defined in this repo, so whether it auto-applies is only visible in the UI.
-3. Check that no RDS snapshot named `automation-calculator-staging-final` exists. Staging has
+3. Check that no RDS snapshot has the name in `final_snapshot_identifier` (staging add-ons
+   `terraform.tfvars`; `automation-calculator-staging-final-3` for the next destroy). Staging has
    `skip_final_snapshot = false`, so the destroy takes a final snapshot with that name and fails if
-   the name is taken. Delete the old one, or set `final_snapshot_identifier` in the staging
-   add-ons `terraform.tfvars`.
+   the name is taken. See "Saving and restoring the database" for the names used so far.
 
    ```bash
    aws rds describe-db-snapshots --profile ac-ci-staging-ro --region us-west-1 \
-     --db-snapshot-identifier automation-calculator-staging-final
+     --db-snapshot-identifier automation-calculator-staging-final-3
    ```
 
-4. Do the AWS checks in the next section's step 3 with the staging profile before destroying the
+4. Take the row counts (`./go db-read-only-psql staging --as ci`, counts only) and an
+   `./go env-snapshot`, to compare with after the next re-create.
+5. Do the AWS checks in the next section's step 3 with the staging profile before destroying the
    base layer. The base layer destroy removes the roles that profile uses.
 
 ## Destroy
@@ -112,7 +129,8 @@ the AWS credentials needed to re-create staging.
    for Synced/Healthy, the ALB, the Route 53 alias and `/health`. `--from-file` takes a file
    saved by `down` instead.
 
-   Tried on staging 2026-11-26 without a destroy:
+   Tried on staging 2026-11-26 without a destroy, then used for both destroys of the trial cycle
+   (the long-term destroy's `down` took 54 s):
    - **down:** the Ingress was gone in 25 s and the Application in 3 min 16 s (the pods'
      preStop sleep and grace period), and the ALB had already disappeared by then. Staging's
      target group and TargetGroupBinding went with it. The Terraform-managed namespace and app
@@ -126,8 +144,12 @@ the AWS credentials needed to re-create staging.
      Allow for that before deciding the app is down.
 
    The add-ons destroy then uninstalls the `argocd-apps` release, which no longer finds the
-   Application; that is expected, but has not been seen yet.
-2. `ac_app_staging_cluster_addons_layer`: queue the destroy plan, review it, confirm promptly.
+   Application; both destroys of 2026-11-26 did that without an error.
+2. Take the app namespace out of the add-ons state (next section), then in
+   `ac_app_staging_cluster_addons_layer` queue the destroy plan, review it, confirm promptly. The
+   plan deletes everything (44 resources on 2026-11-26) and nothing else; check that
+   `aws_db_instance.automation_calculator_app` is deleted with `skip_final_snapshot = false` and
+   the expected `final_snapshot_identifier`.
    A run that waits too long between plan and apply can outlive its 15 minute EKS token and fail
    with a Kubernetes credentials error (seen on 2026-11-05 with a queued run). If that happens,
    queue the destroy again.
@@ -140,15 +162,31 @@ the AWS credentials needed to re-create staging.
 
    An empty list is the expected result. Check too that the RDS instance is gone and the final
    snapshot is `available`.
-4. `ac_app_staging_base_cluster_layer`: queue the destroy plan, review it, confirm.
-5. If the base destroy queues a run in the add-ons workspace through the run trigger, that run
-   fails at plan because the base outputs are gone. Discard or ignore it.
+4. `ac_app_staging_base_cluster_layer`: queue the destroy plan, review it, confirm. The plan
+   deletes everything (65 resources on 2026-11-26).
+5. The first base destroy run errors at the end on the SSO permission sets (see "The 2026-11-26
+   trial cycle"), leaving one or two permission sets and their inline policies in the state.
+   Queue the destroy plan again; the second run deletes them in under a minute and leaves the
+   state empty.
+6. If the base destroy queues a run in the add-ons workspace through the run trigger, that run
+   fails at plan because the base outputs are gone (seen 2026-11-26). Discard or ignore it.
+7. Check that nothing of staging is left, with the production read-only profile (the staging
+   profiles are gone): no `ac_app_staging` EKS cluster, no VPC tagged `Environment=staging`, no
+   NAT gateway or Elastic IP of it, no IAM role with `staging` in its name.
+
+   ```bash
+   aws eks list-clusters --profile ac-ci-prod-ro --region us-west-1
+   aws ec2 describe-vpcs --profile ac-ci-prod-ro --region us-west-1 \
+     --filters Name=tag:Environment,Values=staging --query 'Vpcs[].VpcId'
+   aws iam list-roles --profile ac-ci-prod-ro \
+     --query 'Roles[?contains(RoleName,`staging`)].RoleName'
+   ```
 
 ## Since ArgoCD Phase 4: the app namespace blocks the destroy
 
 Phase 4 (`docs/argocd-phase-4-secret-adoption.md`) made the `automation-calculator` namespace a
 Terraform resource with `prevent_destroy = true`, because on production deleting it deletes the
-Ingress and the ALB. Written from a read of the code, not yet run:
+Ingress and the ALB. Done on both destroys of 2026-11-26:
 
 - **Destroy.** The add-ons destroy plan fails with "Instance cannot be destroyed" on
   `module.main_rails_app.kubernetes_namespace_v1.automation_calculator`. Before step 2, take the
@@ -161,13 +199,20 @@ Ingress and the ALB. Written from a read of the code, not yet run:
   terraform state rm module.main_rails_app.kubernetes_namespace_v1.automation_calculator
   ```
 
+  The add-ons directory's backend names the real workspace. The base directory's does not: its
+  `versions.tf` names `ac_app_base_cluster_layer_staging`, an old workspace, while Terraform Cloud
+  runs `ac_app_staging_base_cluster_layer`, so a local `terraform state` command in the base
+  directory sees an empty state. Read the base state through the Terraform Cloud UI or API.
+
   The Ingress and the ALB are handled by the ArgoCD cascade delete in step 1, not by the
   destroy. Do not merge anything that queues a staging
   add-ons run between the `state rm` and the destroy: the next plan would try to create the
   namespace again and fail because it exists.
 - **Re-create.** Nothing extra. The Phase 4 `import` blocks, which would have failed the plan
   on a cluster without the objects, were deleted once both environments had applied them (Phase 4
-  runbook, section 6); Terraform creates the namespace and the Secret itself.
+  runbook, section 6); Terraform creates the namespace and the Secret itself. Keep it that way:
+  an `import` block in a staging config fails the plan on a re-created cluster, which is why #515
+  deleted the one-time add-on imports of #514.
 
 ## What is gone, and what stays
 
@@ -180,13 +225,14 @@ log group `/ac/staging/app` with every stored log event (`docs/app-logs.md`). A 
 staging starts with an empty group; nothing needs to be saved unless staging's log history
 matters to you.
 
-Destroyed with the base layer: the EKS cluster and node group, the VPC, subnets, NAT gateway and
-its Elastic IP, the `ac_ci_terraform_staging` and `ac_ci_terraform_staging_read_only` roles, and
-the `InfraEngStaging` and `InfraEngStagingReadOnly` SSO permission sets and assignments.
+Destroyed with the base layer: the EKS cluster, its node group, managed add-ons and KMS key alias,
+the VPC, subnets, NAT gateway and its Elastic IP, the `ac_ci_terraform_staging` and
+`ac_ci_terraform_staging_read_only` roles, and the `InfraEngStaging` and `InfraEngStagingReadOnly`
+SSO permission sets and assignments.
 
 Left behind:
 
-- The final RDS snapshot `automation-calculator-staging-final`.
+- The final RDS snapshot (the name in `final_snapshot_identifier` at the destroy).
 - The `staging.automation-calculations.io` records and their external-dns TXT ownership records
   in Route 53. external-dns runs with `policy = upsert-only` and never deletes records. They point
   at a deleted ALB until staging is re-created, when external-dns updates them.
@@ -195,8 +241,8 @@ Left behind:
 ## While staging is destroyed
 
 - The `ac-ci-staging` and `ac-ci-staging-ro` AWS profiles and the staging kube contexts do not
-  work. Anything that used the staging profile for account-level reads needs the production
-  profile.
+  work: the base layer created the roles they assume. Anything that used the staging profile for
+  account-level reads needs `ac-ci-prod-ro`, which reads the same account.
 - Every pull request touching the staging add-ons paths gets a failed
   `ac_app_staging_cluster_addons_layer` plan status. Terraform Cloud statuses are not required
   checks on `main`, so merges are not blocked. App image bumps are not affected: since ArgoCD
@@ -209,23 +255,34 @@ Left behind:
 
 ## Re-create
 
-1. To bring the old data back, set `db_snapshot_identifier` in
-   `terraform/env/staging/aws/us-west-1/cluster-addons-layer/terraform.tfvars` to the final
-   snapshot's name and merge that first. Skip this step for an empty database. Details are in
-   "Saving and restoring the database" below.
+1. Check the staging add-ons `terraform.tfvars` in
+   `terraform/env/staging/aws/us-west-1/cluster-addons-layer/`:
+   - `db_snapshot_identifier` names the newest final snapshot, to bring the data back (null for an
+     empty database). Details are in "Saving and restoring the database" below.
+   - `final_snapshot_identifier` is a name no snapshot has yet, for the next destroy.
 
-   ```hcl
-   db_snapshot_identifier = "automation-calculator-staging-final"
-   ```
-
+   Merge any change first. Since the long-term destroy of 2026-11-26 the file holds
+   `db_snapshot_identifier = "automation-calculator-staging-final-2"` and
+   `final_snapshot_identifier = "automation-calculator-staging-final-3"`.
 2. `ac_app_staging_base_cluster_layer`: discard any waiting runs, start a new run, confirm the
-   apply.
+   apply. The plan creates everything, including the vpc-cni, CoreDNS and kube-proxy add-ons and
+   the `cluster_creator` access entry (#514). If the node group sits at "Still creating" for more
+   than 10 minutes, check `aws eks list-addons --cluster-name ac_app_staging` for vpc-cni.
 3. The run trigger queues `ac_app_staging_cluster_addons_layer` when the base apply succeeds.
    Check that the plan creates `aws_db_instance.automation_calculator_app` with the expected
    `snapshot_identifier`, then confirm it promptly, for the same token reason as above. If no run
-   was queued, start one.
-4. Refresh local access: `./go infra-eng-sso`, then check `/health` on
-   `staging.automation-calculations.io`.
+   was queued, start one. An apply that fails with `Unauthorized` on the kubernetes and helm
+   resources means the access entry is missing: its AWS resources stay applied, and the next run
+   after the fix creates only what is missing.
+4. Refresh local access: `./go infra-eng-sso`, then
+   `aws eks update-kubeconfig --name ac_app_staging --profile ac-ci-staging` (the cluster has a new
+   endpoint and CA). The add-ons apply re-creates the ArgoCD Application, so
+   `./go argocd-app-down-up up staging --apply` finds it in place and only waits for
+   Synced/Healthy, the ALB, the Route 53 alias and `/health`. A local resolver may still hold the
+   negative answer from while staging was gone; the script checks `/health` through the ALB.
+5. Take an after-snapshot with `./go env-snapshot`, diff it against the one taken before the
+   destroy, and compare row counts with `./go db-read-only-psql staging --as ci` (counts only).
+   Take the counts before the destroy too, or there is nothing to compare with.
 
 Notes for the re-create:
 
@@ -245,8 +302,8 @@ Saving: the destroy takes the final snapshot, because staging has `skip_final_sn
 
 Restoring: `main_rails_app` has a `db_snapshot_identifier` variable (default `null`), passed to
 `snapshot_identifier` on `aws_db_instance.automation_calculator_app`. The staging add-ons config
-exposes it; development and production do not. Not yet exercised: the first staging re-create is
-its first use.
+exposes it; development and production do not. Used on 2026-11-26: a 10 GB snapshot restored in
+10 min 10 s, the app connected, and the data was intact.
 
 How it behaves, checked against the AWS provider source (`internal/service/rds/instance.go`,
 `main` on 2026-11-18):
@@ -266,8 +323,8 @@ How it behaves, checked against the AWS provider source (`internal/service/rds/i
   it is larger.
 
   ```bash
-  aws rds describe-db-snapshots --profile ac-ci-production --region us-west-1 \
-    --db-snapshot-identifier automation-calculator-staging-final \
+  aws rds describe-db-snapshots --profile ac-ci-prod-ro --region us-west-1 \
+    --db-snapshot-identifier automation-calculator-staging-final-2 \
     --query 'DBSnapshots[].[DBSnapshotIdentifier,AllocatedStorage,EngineVersion,Status]'
   ```
 
@@ -278,11 +335,18 @@ How it behaves, checked against the AWS provider source (`internal/service/rds/i
   `db_engine_version` at or above the snapshot's `EngineVersion` (the query above shows it) when
   restoring.
 
-Final snapshot names collide on the second cycle: an instance restored from
-`automation-calculator-staging-final` cannot write a final snapshot with that same name on the
-next destroy. Before destroying staging again, set `final_snapshot_identifier` in the staging
-`terraform.tfvars` to a per-cycle name (for example `automation-calculator-staging-final-2027-01`)
-and apply it. Delete the older snapshot once the newer one exists.
+Final snapshot names collide: a destroy fails if a snapshot with its `final_snapshot_identifier`
+already exists. Give every cycle its own name in the staging `terraform.tfvars` before the
+re-create that precedes the destroy (the value is read only at destroy time, so it plans no
+change). The cycles so far:
+
+| Snapshot | Taken by | Restored by |
+|---|---|---|
+| `automation-calculator-staging-final` | trial destroy, 2026-11-26 18:40 UTC | the trial re-create |
+| `automation-calculator-staging-final-2` | long-term destroy, 2026-11-27 02:03 UTC | the next re-create |
+| `automation-calculator-staging-final-3` | the next destroy | |
+
+Delete an older snapshot once a newer one exists and has been restored or checked.
 
 Cost of keeping the snapshot: manual and final snapshots are billed per GB-month of used storage
 and kept until deleted. The instance has 10 GB allocated, so this is small. I have not looked up
