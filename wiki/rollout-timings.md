@@ -60,3 +60,19 @@ database accepts connections. PostgreSQL 18 kept the planner statistics across t
 |---|---|---|
 | ArgoCD Helm release installed | staging, #380, 2026-11-19 | About 5 min apply, app untouched |
 | ArgoCD Helm release installed | production, #386, 2026-11-25 | About 5 min merge to applied (4 added), app untouched |
+
+## Staging destroy and re-create
+
+Steps and the causes behind the odd rows are in `docs/staging-destroy-and-recreate.md`.
+
+| Step | Where, PR, date | Measured |
+|---|---|---|
+| ArgoCD cascade delete (`argocd-app-down-up down`), 2 replicas | staging, #453, 2026-11-26 | Application gone 3 min 16 s, ALB gone with it |
+| ArgoCD cascade delete, 2 replicas | staging, long-term destroy, 2026-11-27 | 54 s to Application and ALB gone |
+| Add-ons destroy with final snapshot | staging, trial, 2026-11-26 | About 10 min |
+| Add-ons destroy with final snapshot | staging, long-term destroy, 2026-11-27 | About 5 min 30 s (44 deleted) |
+| Base destroy | staging, trial, 2026-11-26 | 11 min 35 s, errored on the SSO permission sets; second run 40 s |
+| Base destroy | staging, long-term destroy, 2026-11-27 | About 13 min (65 deleted), errored on one SSO permission set; second run 46 s |
+| Base re-create, EKS module v21 | staging, #514, 2026-11-26 | 35 min; the node group took 24 min 21 s, about 20 of them waiting for a CNI added by hand |
+| Add-ons re-create, RDS restored from a 10 GB snapshot | staging, #512, 2026-11-26 | 10 min 40 s, RDS restore 10 min 10 s; the kubernetes and helm resources then took a 3 min 30 s second apply (#514) |
+| ArgoCD Application Healthy, ALB active, `/health` 200 | staging, re-create, 2026-11-26 | About 1 min Healthy, 2 min 15 s ALB active, after the add-ons apply |
