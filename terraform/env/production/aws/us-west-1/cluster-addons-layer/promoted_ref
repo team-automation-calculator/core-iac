@@ -1,5 +1,4 @@
-# The main commit last promoted to this workspace by a pull request that had no
-# other production file to change (docs/promotion.md). Terraform does not read
-# this file; changing it is what triggers the workspace. Written by
-# scripts/promote_to_production.sh.
-18b834e
+# The main commit last promoted to this workspace (docs/promotion.md).
+# Terraform does not read this file; changing it is what triggers the
+# workspace. Written by scripts/promote_to_production.sh.
+deed888
