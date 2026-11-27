@@ -2,8 +2,8 @@
 # Source of truth for what is deployed: the bump scripts edit image.tag and
 # shortCommitHash here; Terraform (and later ArgoCD) reads this file.
 image:
-  tag: 0.9.6-1098
-shortCommitHash: "3b95755"
+  tag: 0.9.6-1111
+shortCommitHash: "779886d"
 ingress:
   host: automation-calculations.io
   albName: ac-app-production
